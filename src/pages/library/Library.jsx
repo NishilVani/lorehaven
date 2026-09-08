@@ -329,7 +329,13 @@ export default function Library() {
 
   // Migrate any saved sort/group that a tab no longer offers back to its default
   // (e.g. after trimming an option, or a setting saved under a different tab).
-  useEffect(() => {
+  /* Done during render rather than in an effect: an invalid saved sort would
+     otherwise order one painted frame before being migrated, so the shelf
+     visibly re-sorted itself on arrival. The updater returns `prev` unchanged
+     when nothing needs migrating, so this settles in a single pass. */
+  const [migratedTab, setMigratedTab] = useState(null);
+  if (migratedTab !== activeTab) {
+    setMigratedTab(activeTab);
     const cfg = tabCfg(activeTab);
     setTabSettings(prev => {
       const current = prev[activeTab];
@@ -346,7 +352,7 @@ export default function Library() {
         },
       };
     });
-  }, [activeTab]);
+  }
 
   const toggleGroupCollapse = (groupLabel) => {
     const key = `${groupBy}:${groupLabel}`;
@@ -438,6 +444,11 @@ export default function Library() {
   };
 
   useEffect(() => {
+    /* eslint-disable-next-line react-hooks/set-state-in-effect --
+       hydrateLibrary opens with setIsLoading(true), which on mount is the value
+       isLoading already holds, so nothing changes. It cannot be split out: the
+       same function is the refresh path further down, where the flag does have
+       to be raised. */
     hydrateLibrary();
     return () => {
       if (ghostUpdateRef.current) {

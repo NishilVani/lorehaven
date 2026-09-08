@@ -39,13 +39,11 @@ jobs:
 
       - run: npm ci
 
-      # Advisory, not a gate. The tree currently has ~270 pre-existing ESLint
-      # errors (mostly react-hooks/set-state-in-effect and no-unused-vars), so a
-      # blocking lint step would mean the site never deploys again. Flip this to
-      # a hard gate once the backlog is cleared.
+      # A hard gate. The backlog that made this advisory is cleared: eslint
+      # reports zero errors, and the four suppressions that remain each carry
+      # their reason at the point of use.
       - name: Lint
         run: npm run lint
-        continue-on-error: true
 
       - name: Unit tests
         run: npm test

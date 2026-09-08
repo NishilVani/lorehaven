@@ -119,15 +119,22 @@ export default function SearchOverlay() {
         navigate(`${location.pathname}${paramsStr ? '?' + paramsStr : ''}`);
     }, [location.search, location.pathname, navigate]);
 
-    /* The localStorage write stays outside the updater. A setState updater has to
-       be pure — React is free to call it twice — so persisting from inside it
-       would write the same entry twice under StrictMode. */
+    /* A pure updater, so it is safe for React to call twice, and stable, so the
+       500ms debounce below is not restarted every time the list changes.
+       Persistence is not its job — see the effect further down, which is the one
+       place the list reaches disk. */
+    /* eslint-disable-next-line react-hooks/preserve-manual-memoization --
+       The compiler bails on this whole component ("Compilation Skipped") because
+       of the adjust-state-during-render blocks above, which it does not model,
+       and then reports that it could not preserve this useCallback. There is no
+       runtime consequence: the React Compiler is not in this build (see
+       vite.config.js, and the note in README.md), so nothing was going to be
+       auto-memoised either way. The callback below is correct on its own terms —
+       pure updater, empty deps, genuinely stable. */
     const saveRecentSearch = useCallback((q) => {
         if (!q.trim()) return;
-        const updated = [q, ...recentSearches.filter(s => s !== q)].slice(0, 5);
-        setRecentSearches(updated);
-        localStorage.setItem('recentSearches', JSON.stringify(updated));
-    }, [recentSearches]);
+        setRecentSearches(prev => [q, ...prev.filter(s => s !== q)].slice(0, 5));
+    }, []);
 
     // Escape key to close
     useEffect(() => {
@@ -141,6 +148,30 @@ export default function SearchOverlay() {
     }, [isOpen, handleClose]);
 
     // Handle scroll lock and body offsets when overlay is open
+    /* Opening and closing changes state that the very next paint depends on:
+       which games are shelved, which franchises and collections are saved. Read
+       during render, the overlay opens with its badges already right. Through an
+       effect it opened unbadged and corrected itself a frame later, which is
+       exactly when the user is looking at it. All three are synchronous
+       localStorage reads. */
+    const [openFor, setOpenFor] = useState(isOpen);
+    if (openFor !== isOpen) {
+        setOpenFor(isOpen);
+        if (isOpen) {
+            const map = new Map();
+            getLibrary().forEach(g => map.set(String(g.id), g));
+            setLibraryMap(map);
+            setSavedFranchiseIds(new Set(getSavedFranchises().map(f => String(f.id))));
+            setSavedCollectionIds(new Set(getSavedIgdbCollections().map(id => String(id))));
+        } else {
+            setInputValue('');
+            setGames([]); setFranchises([]); setCollections([]); setCompanies([]);
+            setLoading(false);
+        }
+    }
+
+    /* What is left in this effect is only DOM: the scroll lock, the
+       scrollbar-width compensation, and the deferred focus. No state. */
     useEffect(() => {
         const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
         const navbar = document.querySelector('nav');
@@ -152,23 +183,11 @@ export default function SearchOverlay() {
                 document.body.style.paddingRight = `${scrollbarWidth}px`;
                 if (navbar) navbar.style.paddingRight = `${scrollbarWidth}px`;
             }
-            
-            const lib = getLibrary();
-            const map = new Map();
-            lib.forEach(g => map.set(String(g.id), g));
-            setLibraryMap(map);
-            const franks = getSavedFranchises();
-            setSavedFranchiseIds(new Set(franks.map(f => String(f.id))));
-            const colls = getSavedIgdbCollections();
-            setSavedCollectionIds(new Set(colls.map(id => String(id))));
         } else {
             document.body.style.overflow = '';
             document.documentElement.style.overflow = '';
             document.body.style.paddingRight = '0px';
             if (navbar) navbar.style.paddingRight = '0px';
-            setInputValue('');
-            setGames([]); setFranchises([]); setCollections([]); setCompanies([]);
-            setLoading(false);
         }
         return () => {
             document.body.style.overflow = '';
@@ -178,14 +197,19 @@ export default function SearchOverlay() {
         };
     }, [isOpen]);
 
+    /* Raised during render, so the spinner and the request begin together
+       rather than the previous query's results painting once more first. An
+       empty box needs no reset here: the close branch above already clears the
+       four lists, and an empty query never reaches the fetch. */
+    const [searchFor, setSearchFor] = useState('');
+    if (query.trim().length > 0 && searchFor !== query) {
+        setSearchFor(query);
+        setLoading(true);
+    }
+
     // Fetch results on query changes
     useEffect(() => {
-        if (query.trim().length === 0) {
-            setGames([]); setFranchises([]); setCollections([]); setCompanies([]);
-            setLoading(false);
-            return;
-        }
-        setLoading(true);
+        if (query.trim().length === 0) return;
         const fetchResults = async () => {
             try {
                 const [gameResults, franchiseResults, igdbCollectionResults, companyResults] = await Promise.all([
@@ -212,10 +236,15 @@ export default function SearchOverlay() {
     // Sync input from URL only on EXTERNAL changes (recent-search click, back/fwd).
     // Guarding on the trim avoids echoing our own trimmed value back over the
     // user's in-progress text — which was eating spaces as they typed.
-    useEffect(() => {
+    /* Keyed on the previous query rather than run as an effect, because the
+       guard must fire on a change of `query` only. Evaluated on every render it
+       would echo the trimmed URL value back over text the user is still typing,
+       which is the space-eating bug the comment above describes. */
+    const [urlQuerySeen, setUrlQuerySeen] = useState(query);
+    if (urlQuerySeen !== query) {
+        setUrlQuerySeen(query);
         if (query !== inputValue.trim()) setInputValue(query);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [query]);
+    }
 
     // Debounce syncing of input state to URL search parameters
     useEffect(() => {
@@ -243,17 +272,22 @@ export default function SearchOverlay() {
         saveRecentSearch(q); 
     };
 
+    /* One place writes the recent-search list to disk, so add, remove and clear
+       all persist the same way and no caller can forget. Three call sites used to
+       do it by hand, and clearHistory used removeItem where the others used
+       setItem. */
+    useEffect(() => {
+        localStorage.setItem('recentSearches', JSON.stringify(recentSearches));
+    }, [recentSearches]);
+
     const removeRecentSearch = (e, q) => {
         e.stopPropagation();
-        const updated = recentSearches.filter(s => s !== q);
-        setRecentSearches(updated);
-        localStorage.setItem('recentSearches', JSON.stringify(updated));
+        setRecentSearches(prev => prev.filter(s => s !== q));
     };
 
-    const clearHistory = () => { 
-        setRecentSearches([]); 
+    const clearHistory = () => {
+        setRecentSearches([]);
         setRecentGames([]);
-        localStorage.removeItem('recentSearches'); 
         localStorage.removeItem('recentGames');
     };
 

@@ -41,7 +41,6 @@ try {
 }
 
 const results = await page.evaluate(async () => {
-  // eslint-disable-next-line no-undef
   return await axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] } });
 });
 await browser.close();

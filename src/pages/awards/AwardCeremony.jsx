@@ -131,6 +131,14 @@ export default function AwardCeremony() {
   const yearParam = searchParams.get('year');
   const catParam = searchParams.get('cat');
 
+  /* The route param goes straight into a SPARQL query, so only a well-formed
+     QID is allowed through. Checked during render and used to seed the three
+     states below, rather than pushed into them from the top of the load effect
+     — a bad id used to get a frame of the loading state first. The route is
+     keyed by pathname, so a different id is a fresh mount and these
+     initialisers run again. */
+  const invalidQid = !/^Q\d+$/.test(awardQid || '');
+
   const [label, setLabel] = useState('');
   const [wins, setWins] = useState([]);
   const [noms, setNoms] = useState([]);
@@ -138,9 +146,9 @@ export default function AwardCeremony() {
      `loading`, which means nothing is on screen at all. */
   const [nomsPending, setNomsPending] = useState(false);
   const [byId, setById] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [errorKind, setErrorKind] = useState(null);
-  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(() => !invalidQid);
+  const [errorKind] = useState(() => (invalidQid ? 'invalid' : null));
+  const [error, setError] = useState(() => (invalidQid ? 'Invalid award id' : null));
   /* Synchronous localStorage read, seeded here rather than by readLibrary()
      inside the load effect. */
   const [libraryMap, setLibraryMap] = useState(() => {
@@ -171,11 +179,7 @@ export default function AwardCeremony() {
        their initial true / null / null / [] / [] / {} / 0 / -1, and libraryMap
        is seeded by its useState initialiser. */
 
-    // Route param goes straight into a SPARQL query — only well-formed QIDs pass
-    if (!/^Q\d+$/.test(awardQid || '')) {
-      setError('Invalid award id'); setErrorKind('invalid'); setLoading(false);
-      return () => { cancelled = true; };
-    }
+    if (invalidQid) return () => { cancelled = true; };
 
     (async () => {
       try {
@@ -344,15 +348,21 @@ export default function AwardCeremony() {
 
   // Follow the ?cat deep-link — select/expand that category once its year loaded.
   // The hero category (index 0) is always shown, so only the rest need selecting.
-  useEffect(() => {
-    // Read the year's categories from the memoised map rather than depending on
-    // `rest`, which is a new array every render: with `rest` in the deps every
-    // setSel re-ran this effect and re-applied the deep link, undoing the click.
+  /* Apply the ?cat= deep link, during render. The key deliberately excludes the
+     category array itself — that is a new array every render, and depending on
+     it re-applied the link after every setSel, undoing the user's click. It
+     includes the year's category count so the link still lands on the render
+     where the data finally arrives. */
+  const deepLinkKey = `${catParam}|${activeYear}|${(byYear.get(activeYear) || []).length}`;
+  const [deepLinkFor, setDeepLinkFor] = useState(null);
+  if (deepLinkFor !== deepLinkKey) {
+    setDeepLinkFor(deepLinkKey);
     const r = (byYear.get(activeYear) || []).slice(1);
-    if (!catParam || r.length === 0) return;
-    const idx = r.findIndex(c => c.qid === catParam);
-    if (idx >= 0) { setSel(idx); setOpen(idx); }
-  }, [catParam, activeYear, byYear]);
+    if (catParam && r.length > 0) {
+      const idx = r.findIndex(c => c.qid === catParam);
+      if (idx >= 0) { setSel(idx); setOpen(idx); }
+    }
+  }
 
   const nudge = (d) => stripRef.current?.scrollBy({ left: d * 280, behavior: 'smooth' });
   const pickYear = (y) => {

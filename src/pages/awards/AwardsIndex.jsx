@@ -42,7 +42,7 @@ export default function AwardsIndex() {
   };
 
   useEffect(() => {
-    /* eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps --
+    /* eslint-disable-next-line react-hooks/set-state-in-effect --
        fetchCeremonies calls its onUpdate synchronously when the localStorage
        tier answers, so this reaches setState in the same tick. That is the
        whole point of it: the comment above records that waiting for the

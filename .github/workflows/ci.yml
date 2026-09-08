@@ -24,12 +24,8 @@ jobs:
 
       - run: npm ci
 
-      # Advisory, not a gate — see the note in firebase-hosting.yml. The output
-      # is still worth reading on every PR; it just cannot fail the build while
-      # the existing backlog stands.
       - name: Lint
         run: npm run lint
-        continue-on-error: true
 
       - name: Unit tests
         run: npm test

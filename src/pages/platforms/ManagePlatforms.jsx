@@ -1,6 +1,6 @@
 import PageHeader from '../../components/ui/PageHeader';
 import EmptyPlate from '../../components/ui/EmptyPlate';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Trash2, Search, X, Laptop, Store, CreditCard, Link2, Link2Off } from 'lucide-react';
 import Heading from '../../components/ui/Heading';
@@ -36,6 +36,13 @@ const getPlatformKey = (platform) => {
   return `name:${String(platform.name || '').trim().toLowerCase()}`;
 };
 
+/* One frozen empty shape, so the memo below returns a stable object when there
+   is no source platform and the modal does not re-render for nothing. */
+const EMPTY_TARGETS = {
+  igdbPlatforms: [], customPlatforms: [], igdbStores: [],
+  customStores: [], hardcodedSubscriptions: [], customSubscriptions: [],
+};
+
 export default function ManagePlatforms() {
   const navigate = useNavigate();
 
@@ -49,8 +56,10 @@ export default function ManagePlatforms() {
   const [customPlatforms, setCustomPlatforms] = useState(getUserCustomPlatforms);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [searching, setSearching] = useState(false);
+  /* Results carry the tab and query they answer, so "searching" is a comparison
+     rather than a flag an effect raises and lowers, and an emptied box needs no
+     explicit clear. */
+  const [platformSearch, setPlatformSearch] = useState({ for: null, items: [] });
 
 
 
@@ -59,15 +68,9 @@ export default function ManagePlatforms() {
   const [, setTransferTargetId] = useState('');
   const [selectedTarget, setSelectedTarget] = useState(null);
   const [targetSearchQuery, setTargetSearchQuery] = useState('');
-  const [targetSearchResults, setTargetSearchResults] = useState({
-    igdbPlatforms: [],
-    customPlatforms: [],
-    igdbStores: [],
-    customStores: [],
-    hardcodedSubscriptions: [],
-    customSubscriptions: []
-  });
-  const [searchingTarget, setSearchingTarget] = useState(false);
+  /* Only the remote half is state now; see the memo below. `for` is the query
+     these rows answer. */
+  const [remoteTargets, setRemoteTargets] = useState({ for: null, igdbPlatforms: [], igdbStores: [] });
   const [loadingPreview, setLoadingPreview] = useState(false);
 
   // { affectedGames: [{id, name}], targetPlatform, updatedCount }
@@ -93,14 +96,21 @@ export default function ManagePlatforms() {
 
   const searchInputRef = useRef(null);
   const searchTimeoutRef = useRef(null);
-  const targetSearchTimeoutRef = useRef(null);
 
   // Load platforms on mount
   // Debounced search for targets in transfer modal
-  useEffect(() => {
+  /* The local half of the target picker is a pure function of the profile, the
+     source platform and the query — six filtered lists, no I/O. It is a memo,
+     not something an effect pushes into state: as an effect it re-rendered the
+     modal once with the previous source's candidates still listed.
+
+     Only the IGDB half is state, because it arrives 300ms later behind a
+     debounce, and it carries the query it answers so "searching" is a
+     comparison rather than a flag something has to remember to lower. */
+  const localTargets = useMemo(() => {
     const q = targetSearchQuery.trim().toLowerCase();
     const sourcePlatform = transferModal.sourcePlatform;
-    if (!sourcePlatform) return;
+    if (!sourcePlatform) return null;
     const sourceKey = getPlatformKey(sourcePlatform);
 
     // 1. Filter local custom categories
@@ -112,7 +122,7 @@ export default function ManagePlatforms() {
     // 2. Filter local stores (official vs custom)
     const storeMap = new Map();
     POPULAR_STORES.forEach(p => storeMap.set(p.name.toLowerCase(), p));
-    
+
     const trueCustomStores = [];
     customPlatforms
       .filter(p => p.category === 'store')
@@ -123,11 +133,11 @@ export default function ManagePlatforms() {
           trueCustomStores.push(p);
         }
       });
-      
+
     const officialStoresList = Array.from(storeMap.values())
       .filter(p => getPlatformKey(p) !== sourceKey)
       .filter(p => !q || p.name.toLowerCase().includes(q));
-      
+
     const customStoresList = trueCustomStores
       .filter(p => getPlatformKey(p) !== sourceKey)
       .filter(p => !q || p.name.toLowerCase().includes(q));
@@ -135,7 +145,7 @@ export default function ManagePlatforms() {
     // 3. Filter local subscriptions (official vs custom)
     const subMap = new Map();
     POPULAR_SUBSCRIPTIONS.forEach(p => subMap.set(p.name.toLowerCase(), p));
-    
+
     const trueCustomSubs = [];
     customPlatforms
       .filter(p => p.category === 'subscription')
@@ -146,11 +156,11 @@ export default function ManagePlatforms() {
           trueCustomSubs.push(p);
         }
       });
-      
+
     const officialSubsList = Array.from(subMap.values())
       .filter(p => getPlatformKey(p) !== sourceKey)
       .filter(p => !q || p.name.toLowerCase().includes(q));
-      
+
     const customSubsList = trueCustomSubs
       .filter(p => getPlatformKey(p) !== sourceKey)
       .filter(p => !q || p.name.toLowerCase().includes(q));
@@ -163,27 +173,38 @@ export default function ManagePlatforms() {
       .filter(p => getPlatformKey(p) !== sourceKey)
       .filter(p => !q || p.name.toLowerCase().includes(q) || (p.abbreviation && p.abbreviation.toLowerCase().includes(q)));
 
-    // Set initial local results
-    setTargetSearchResults({
+    return {
+      key: `${sourceKey}|${q}`,
+      q,
+      sourceKey,
       igdbPlatforms: localHwList,
       customPlatforms: customPlats,
       igdbStores: officialStoresList,
       customStores: customStoresList,
       hardcodedSubscriptions: officialSubsList,
-      customSubscriptions: customSubsList
-    });
+      customSubscriptions: customSubsList,
+    };
+  }, [targetSearchQuery, transferModal.sourcePlatform, customPlatforms, ownedPlatforms]);
 
-    if (!q) {
-      setSearchingTarget(false);
-      return;
-    }
+  const searchingTarget = !!(localTargets && localTargets.q && remoteTargets.for !== localTargets.key);
 
-    if (targetSearchTimeoutRef.current) {
-      clearTimeout(targetSearchTimeoutRef.current);
-    }
+  const targetSearchResults = useMemo(() => {
+    if (!localTargets) return EMPTY_TARGETS;
+    const fresh = remoteTargets.for === localTargets.key;
+    return {
+      igdbPlatforms: fresh ? [...localTargets.igdbPlatforms, ...remoteTargets.igdbPlatforms] : localTargets.igdbPlatforms,
+      customPlatforms: localTargets.customPlatforms,
+      igdbStores: fresh ? [...localTargets.igdbStores, ...remoteTargets.igdbStores] : localTargets.igdbStores,
+      customStores: localTargets.customStores,
+      hardcodedSubscriptions: localTargets.hardcodedSubscriptions,
+      customSubscriptions: localTargets.customSubscriptions,
+    };
+  }, [localTargets, remoteTargets]);
 
-    setSearchingTarget(true);
-    targetSearchTimeoutRef.current = setTimeout(async () => {
+  useEffect(() => {
+    if (!localTargets || !localTargets.q) return;
+    const { key, sourceKey, igdbPlatforms: localHwList, igdbStores: officialStoresList } = localTargets;
+    const timer = setTimeout(async () => {
       try {
         const [apiPlatforms, apiStores] = await Promise.all([
           searchPlatforms(targetSearchQuery),
@@ -211,36 +232,31 @@ export default function ManagePlatforms() {
           .filter(s => getPlatformKey(s) !== sourceKey)
           .filter(s => !officialStoresList.some(ls => getPlatformKey(ls) === getPlatformKey(s)));
 
-        setTargetSearchResults(prev => ({
-          ...prev,
-          igdbPlatforms: [...localHwList, ...remotePlats],
-          igdbStores: [...officialStoresList, ...remoteStores]
-        }));
+        setRemoteTargets({ for: key, igdbPlatforms: remotePlats, igdbStores: remoteStores });
       } catch (err) {
         console.error('Failed to search target sources:', err);
-      } finally {
-        setSearchingTarget(false);
+        /* Still record the query, or searchingTarget never goes false. */
+        setRemoteTargets({ for: key, igdbPlatforms: [], igdbStores: [] });
       }
     }, 300);
 
-    return () => {
-      if (targetSearchTimeoutRef.current) clearTimeout(targetSearchTimeoutRef.current);
-    };
-  }, [targetSearchQuery, transferModal.sourcePlatform, customPlatforms, ownedPlatforms]);
+    return () => clearTimeout(timer);
+  }, [localTargets, targetSearchQuery]);
+
+  const searchKey = `${activeTab}|${searchQuery.trim()}`;
+  const searchResults = platformSearch.for === searchKey ? platformSearch.items : [];
+  const searching = searchQuery.trim() !== '' && platformSearch.for !== searchKey;
 
   // Handle searching IGDB platforms/stores
   useEffect(() => {
-    if (!searchQuery.trim()) {
-      setSearchResults([]);
-      return;
-    }
+    if (!searchQuery.trim()) return;
 
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
 
-    setSearching(true);
     searchTimeoutRef.current = setTimeout(async () => {
+      let found = [];
       try {
         const q = searchQuery.toLowerCase();
         
@@ -253,7 +269,7 @@ export default function ManagePlatforms() {
               merged.push(r);
             }
           });
-          setSearchResults(merged);
+          found = merged;
         } else if (activeTab === 'stores') {
           const localStores = POPULAR_STORES.filter(p => p.name.toLowerCase().includes(q));
           const results = await searchExternalGameSources(searchQuery);
@@ -264,15 +280,16 @@ export default function ManagePlatforms() {
               merged.push(r);
             }
           });
-          setSearchResults(merged);
+          found = merged;
         } else if (activeTab === 'subscriptions') {
           const localSubs = POPULAR_SUBSCRIPTIONS.filter(p => p.name.toLowerCase().includes(q));
-          setSearchResults(localSubs);
+          found = localSubs;
         }
       } catch (err) {
         console.error('Failed to search platforms:', err);
       } finally {
-        setSearching(false);
+        /* Recorded even on a throw, or `searching` never goes false. */
+        setPlatformSearch({ for: searchKey, items: found });
       }
     }, 300);
 
@@ -381,7 +398,6 @@ export default function ManagePlatforms() {
       toast(`Added ${plat.name} to your subscriptions`);
     }
     setSearchQuery('');
-    setSearchResults([]);
   };
 
   const handleCreateCustom = (name) => {
@@ -411,7 +427,6 @@ export default function ManagePlatforms() {
         toast(`Created custom entry "${name}"`);
         setActionConfirmModal(prev => ({ ...prev, isOpen: false }));
         setSearchQuery('');
-        setSearchResults([]);
       }
     });
   };
@@ -596,7 +611,6 @@ export default function ManagePlatforms() {
                 onClick={() => {
                   setActiveTab(tab.id);
                   setSearchQuery('');
-                  setSearchResults([]);
                 }}
                 aria-pressed={activeTab === tab.id}
                 className={`lh-label px-4 py-2.5 whitespace-nowrap border-r border-white/10 transition-colors cursor-pointer ${isActive
@@ -636,7 +650,6 @@ export default function ManagePlatforms() {
                   <button
                     onClick={() => {
                       setSearchQuery('');
-                      setSearchResults([]);
                     }}
                     aria-label="Clear search" className="absolute right-3.5 top-1/2 -translate-y-1/2 p-2 -m-2 text-gray-400 hover:text-white cursor-pointer"
                   >

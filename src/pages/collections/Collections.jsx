@@ -92,7 +92,6 @@ export default function Collections() {
       getCollectionsByIds(savedIds).then(cols => setSavedIgdb(cols || [])).catch(() => {});
     }
     // Hydrated once on mount, exactly as before.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* ── Load saved franchises (names locally, covers hydrated from IGDB) ── */
@@ -152,7 +151,6 @@ export default function Collections() {
     /* No setFeed([]) / setFeedDone(false) here: this effect runs once, on
        mount, when both already hold exactly those values. */
     loadFeedPage();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* Infinite scroll — sentinel + scroll fallback (some webviews throttle observers) */
@@ -165,7 +163,6 @@ export default function Collections() {
     );
     io.observe(el);
     return () => io.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageTab, query, feed.length]);
 
   useEffect(() => {
@@ -183,7 +180,6 @@ export default function Collections() {
     };
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageTab, query]);
 
   /* ── Mixed search — collections and franchises in one stream ── */

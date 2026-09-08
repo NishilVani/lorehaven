@@ -60,6 +60,14 @@ const IGDB_CATEGORIES = {
    page after decides how much runway is left when you scroll, and there the
    round trip dominates, so a bigger page buys twice the buffer for the same
    wait. Covers are lazy, so the extra rows cost JSON, not bandwidth. */
+/* Hoisted out of the effect that used to build it on every run: it is a fixed
+   map of imported functions, and the render-time fallback for an unknown type
+   needs to consult it too. */
+const FETCHER_BY_TYPE = {
+  genre: getGenreById, company: getCompanyById, theme: getThemeById,
+  platform: getPlatformById, engine: getEngineById, mode: getGameModeById,
+};
+
 const FIRST_PAGE = 24;
 const NEXT_PAGE = 48;
 const pageLimit = (n) => (n === 0 ? FIRST_PAGE : NEXT_PAGE);
@@ -194,7 +202,9 @@ export default function CategoryPage() {
   const { type, id } = useParams();
   const numericId = Number(id);
 
-  const [categoryName, setCategoryName] = useState('');
+  /* Only the fetched name is state. The fallback for a type with no fetcher is
+     derived below, which is what retires the setState this effect opened with. */
+  const [fetchedName, setFetchedName] = useState('');
   const [games, setGames] = useState([]);
   const [totalCount, setTotalCount] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -212,7 +222,10 @@ export default function CategoryPage() {
     return map;
   });
   const [rawBuckets, setRawBuckets] = useState([]);   // counted, filter-blind
-  const [buckets, setBuckets] = useState([]);        // the same, plus the shelved overlay
+  /* Only the async half is state. The overlay itself is a pure function of the
+     raw counts and those years, so it is computed below rather than pushed into
+     state by an effect. */
+  const [ownedYears, setOwnedYears] = useState(null);
   const [chartLoading, setChartLoading] = useState(true);
   /* One-way: false until the first grid page has landed, then true for the
      rest of this category. It drives the page-two prefetch. A plain `loading`
@@ -241,16 +254,18 @@ export default function CategoryPage() {
   }), [sortBy, platformFilters, gameTypeTab, highlyRatedOnly, span]);
 
   // ── Taxonomy name ──
+  /* A recognised type shows nothing until IGDB names it, rather than flashing
+     the raw type first. An unrecognised one has nothing to wait for, so it is
+     titled from the type itself. */
+  const categoryName = fetchedName
+    || (type && !FETCHER_BY_TYPE[type] ? type.charAt(0).toUpperCase() + type.slice(1) : '');
+
   useEffect(() => {
     if (!type || !id) return;
-    const byType = {
-      genre: getGenreById, company: getCompanyById, theme: getThemeById,
-      platform: getPlatformById, engine: getEngineById, mode: getGameModeById,
-    };
-    const fetcher = byType[type];
-    if (!fetcher) { setCategoryName(type.charAt(0).toUpperCase() + type.slice(1)); return; }
+    const fetcher = FETCHER_BY_TYPE[type];
+    if (!fetcher) return;
     fetcher(numericId)
-      .then(meta => setCategoryName(meta?.name || type))
+      .then(meta => setFetchedName(meta?.name || type))
       .catch(err => console.error('Error fetching category name:', err));
   }, [type, id, numericId]);
 
@@ -282,21 +297,26 @@ export default function CategoryPage() {
   }, [type, id, numericId]);
 
   // The shelved layer, laid over counts that are already in hand.
+  const buckets = useMemo(() => {
+    if (!rawBuckets.length) return [];
+    if (!ownedYears) return rawBuckets.map(b => ({ ...b, owned: 0 }));
+    return rawBuckets.map(b => ({
+      ...b,
+      owned: ownedYears.filter(y => (b.from === null ? y < b.to : b.to === null ? y >= b.from : y >= b.from && y < b.to)).length,
+    }));
+  }, [rawBuckets, ownedYears]);
+
   useEffect(() => {
-    if (!rawBuckets.length) { setBuckets([]); return; }
+    if (!rawBuckets.length) return;
     const ids = Object.keys(libraryMap);
-    if (!ids.length) { setBuckets(rawBuckets.map(b => ({ ...b, owned: 0 }))); return; }
+    if (!ids.length) return;
     let alive = true;
     getCategoryLibraryDates({ categoryType: type, categoryId: numericId, ids })
       .then(owned => {
         if (!alive) return;
-        const years = owned.map(g => yearOf(g.first_release_date)).filter(Boolean);
-        setBuckets(rawBuckets.map(b => ({
-          ...b,
-          owned: years.filter(y => (b.from === null ? y < b.to : b.to === null ? y >= b.from : y >= b.from && y < b.to)).length,
-        })));
+        setOwnedYears(owned.map(g => yearOf(g.first_release_date)).filter(Boolean));
       })
-      .catch(() => { if (alive) setBuckets(rawBuckets.map(b => ({ ...b, owned: 0 }))); });
+      .catch(() => { if (alive) setOwnedYears([]); });
     return () => { alive = false; };
   }, [rawBuckets, libraryMap, type, id, numericId]);
 
@@ -308,15 +328,34 @@ export default function CategoryPage() {
       .catch(err => console.error('Error fetching category platforms:', err));
   }, [type, id, numericId]);
 
-  // Narrowing changed: the result set is a different set, so start it over.
-  useEffect(() => { setPage(0); setGames([]); setHasMore(true); }, [type, id, query]);
+  /* Narrowing changed: the result set is a different set, so start it over —
+     during render, so the old rows are never painted under the new filters, and
+     the spinner goes up in the same pass. type and id are absent from the key
+     because the page is remounted per category. */
+  const [narrowingFor, setNarrowingFor] = useState(query);
+  if (narrowingFor !== query) {
+    setNarrowingFor(query);
+    setPage(0);
+    setGames([]);
+    setHasMore(true);
+    setLoading(true);
+    setLoadError(null);
+    setTotalCount(null);
+  }
+
+  /* Paging is the other way in. A page past the first is "load more", not a
+     reload, so it raises its own flag and leaves the grid on screen. */
+  const [pageFor, setPageFor] = useState(page);
+  if (pageFor !== page) {
+    setPageFor(page);
+    if (page > 0) setLoadingMore(true);
+  }
 
   // ── The one fetch ──
   useEffect(() => {
     if (!type || !id) return;
     let alive = true;
     const first = page === 0;
-    if (first) { setLoading(true); setLoadError(null); } else setLoadingMore(true);
 
     (async () => {
       try {
@@ -362,7 +401,6 @@ export default function CategoryPage() {
   useEffect(() => {
     if (!type || !id) return;
     let alive = true;
-    setTotalCount(null);
     getGamesCountByCategory({
       categoryType: type,
       categoryId: numericId,
@@ -394,9 +432,11 @@ export default function CategoryPage() {
     return () => io.disconnect();
   }, [hasMore, loading, loadingMore, games.length]);
 
-  useEffect(() => {
-    if (page === 0 && gridReady && hasMore && !loadingMore) setPage(1);
-  }, [gridReady, page, hasMore, loadingMore]);
+  /* Once the first page has painted, reach straight for the second: the grid is
+     taller than the viewport on every category, so page 0 alone never fills it.
+     Done during render — as an effect it cost an extra committed frame before
+     the request even started. */
+  if (page === 0 && gridReady && hasMore && !loadingMore) setPage(1);
 
   /* Shelved-only is the one narrowing IGDB cannot express, because it depends
      on a list that lives on this device. It filters the loaded page rather than

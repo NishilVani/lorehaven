@@ -20,7 +20,7 @@ infinite-scroll audit, with the measurement behind every claim.
 
 | Workflow | Trigger | Does |
 |---|---|---|
-| `ci.yml` | push / PR to main | lint (advisory), unit tests, build, Playwright chromium |
+| `ci.yml` | push / PR to main | lint, unit tests, build; Playwright chromium (advisory) |
 | `firebase-hosting.yml` | push / PR to main | deploys live, or a 7-day PR preview channel |
 | `release.yml` | tag `v*` | macOS (arm64 + Intel), Linux, Windows, Android into one draft release, published only when every platform succeeds |
 | `store-submission.yml` | release published | repoints the Microsoft Store submission at that release's installer |
@@ -39,10 +39,31 @@ correct — it has none yet — so the release is still a draft.
 - **Microsoft Store** needs a Partner Center registration, a reserved app name,
   an Entra app with the Manager role, and a CA-issued code signing certificate.
   Self-signed is rejected. See [docs/MICROSOFT-STORE.md](docs/MICROSOFT-STORE.md).
-- **Lint is advisory, not blocking**, while the last of the
-  `react-hooks/set-state-in-effect` backlog is cleared. Unit tests and the build
-  are the hard gate. Flip `continue-on-error` off in `ci.yml` and
-  `firebase-hosting.yml` once the count reaches zero.
+- **The Clone pair in `phase4-deep`** is the only real test failure left, and it
+  predates the recent refactoring. See the table below.
+
+## Lint
+
+`npm run lint` reports **zero errors** and is a blocking gate in both `ci.yml`
+and `firebase-hosting.yml`. It started at 270.
+
+149 of those were never real: ESLint was walking `src-tauri/target`, where Cargo
+writes a JavaScript file per bundled asset. The rest were, and the bulk of them
+were `react-hooks/set-state-in-effect` — effects that pushed state the render
+could have computed. Most are now lazy `useState` initialisers (synchronous
+localStorage reads), values derived during render, or route keys that let React
+throw the old state away instead of the page pushing it back by hand.
+
+Four suppressions remain. Each is one line, at the point of use, with its reason:
+
+| Where | Why |
+|---|---|
+| `Tooltip.jsx` | `cloneElement` with a ref key reads as ref-access-during-render. The alternative is wrapping children in a span, which changes the DOM under every tooltip in the app. |
+| `AwardsIndex.jsx` | `fetchCeremonies` paints synchronously off the localStorage tier on purpose — the measured alternative is 27.5s of skeleton. |
+| `Schedule.jsx`, `Wallpapers.jsx` | Their loaders take a flag that skips the reset, and the effect passes it, so the synchronous path reaches no setState. The rule cannot follow a boolean across a call boundary. |
+| `Library.jsx` | `hydrateLibrary` opens with `setIsLoading(true)`, which on mount is the value it already holds. The same function is the refresh path, where the flag does have to be raised. |
+
+Nine `react-hooks/exhaustive-deps` warnings remain and are deliberately warnings.
 
 ## History
 
@@ -79,9 +100,11 @@ npm run test:e2e:webkit         # sharded; webkit wedges past ~37 contexts in on
 npm run test:e2e:ios            # judge by the reported pass counts, not the exit code
 ```
 
-`tests/phase7-mobile.spec.ts` is restricted by the CLI invocation, never by a
-`test.skip`. Run it with `--project="Mobile Chrome"` or `--project="Mobile Safari"`;
-under a desktop project its cases fail by design.
+`tests/phase7-mobile.spec.ts` is excluded from the desktop projects by
+`playwright.config.ts`, at collection time. Run it with
+`--project="Mobile Chrome"` or `--project="Mobile Safari"`; under a desktop
+project its cases fail by design, which is why they are no longer collected
+there.
 
 ## Known test failures
 
