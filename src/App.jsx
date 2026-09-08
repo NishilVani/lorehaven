@@ -1,5 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 
 // App shell — always on screen, so it stays in the main chunk.
 import Navbar from './components/layout/Navbar';
@@ -53,8 +53,12 @@ function RouteFallback() {
    out longhand, arriving a render late, with a frame of the previous thing's
    filters or rows still on screen in between. */
 function KeyedRoute({ component: Component }) {
-  const params = useParams();
-  return <Component key={Object.values(params).join('/')} />;
+  /* Keyed on the pathname rather than the params. Two routes can produce the
+     same param values — /collection/5 and /collection/igdb/5 both yield id 5,
+     and both render CollectionDetail — so a param key would hand a community
+     collection the state of a local one with the same number. */
+  const { pathname } = useLocation();
+  return <Component key={pathname} />;
 }
 
 
@@ -135,7 +139,7 @@ function App() {
             <Route path="/profile" element={<Profile />} />
             <Route path="/profile/year/:year" element={<YearInReview />} />
             <Route path="/schedule" element={<Schedule />} />
-            <Route path="/game/:id" element={<GameDetail />} />
+            <Route path="/game/:id" element={<KeyedRoute component={GameDetail} />} />
             <Route path="/library" element={<Navigate to="/library/backlog" replace />} />
             <Route path="/library/:status" element={<Library />} />
             <Route path="/import" element={<ImportWizardV2 />} />
@@ -146,8 +150,8 @@ function App() {
                 and bookmarks land somewhere real. */}
             <Route path="/browse" element={<Navigate to="/browse/genres" replace />} />
             <Route path="/browse/:taxonomy" element={<KeyedRoute component={TaxonomyIndex} />} />
-            <Route path="/collection/:id" element={<CollectionDetail />} />
-            <Route path="/collection/igdb/:id" element={<CollectionDetail />} />
+            <Route path="/collection/:id" element={<KeyedRoute component={CollectionDetail} />} />
+            <Route path="/collection/igdb/:id" element={<KeyedRoute component={CollectionDetail} />} />
             <Route path="/game/:id/collections" element={<GameCollections />} />
             <Route path="/platforms" element={<ManagePlatforms />} />
             <Route path="/events" element={<AllEvents />} />
@@ -155,7 +159,7 @@ function App() {
             <Route path="/wallpapers" element={<Wallpapers />} />
             <Route path="/games/:type/:id" element={<KeyedRoute component={CategoryPage} />} />
             <Route path="/awards" element={<AwardsIndex />} />
-            <Route path="/awards/:awardQid" element={<AwardCeremony />} />
+            <Route path="/awards/:awardQid" element={<KeyedRoute component={AwardCeremony} />} />
             {/* Last, and it must stay last: a catch-all above any of these would swallow them. */}
             <Route path="*" element={<NotFound />} />
           </Routes>

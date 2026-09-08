@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import {
   ChevronLeft, ChevronRight, MoreVertical,
@@ -141,7 +141,13 @@ export default function AwardCeremony() {
   const [loading, setLoading] = useState(true);
   const [errorKind, setErrorKind] = useState(null);
   const [error, setError] = useState(null);
-  const [libraryMap, setLibraryMap] = useState({});
+  /* Synchronous localStorage read, seeded here rather than by readLibrary()
+     inside the load effect. */
+  const [libraryMap, setLibraryMap] = useState(() => {
+    const lib = {};
+    getLibrary().forEach(g => { lib[String(g.id)] = g.status; });
+    return lib;
+  });
   const [sel, setSel] = useState(0);
   const [open, setOpen] = useState(-1);
   const attempt = useWikidataProgress(loading);
@@ -150,17 +156,20 @@ export default function AwardCeremony() {
   const activeRef = useRef(null);
   const stripRef = useRef(null);
 
-  const readLibrary = () => {
+  /* Still needed: a card elsewhere in the app can change the library while this
+     page is open, and the listener below re-reads it. Only the initial read
+     moved to the useState initialiser above. */
+  const readLibrary = useCallback(() => {
     const lib = {};
     getLibrary().forEach(g => { lib[String(g.id)] = g.status; });
     setLibraryMap(lib);
-  };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true); setError(null); setErrorKind(null);
-    setWins([]); setNoms([]); setById({}); setSel(0); setOpen(-1);
-    readLibrary();
+    /* No reset here: the route is keyed by pathname, so all eight already hold
+       their initial true / null / null / [] / [] / {} / 0 / -1, and libraryMap
+       is seeded by its useState initialiser. */
 
     // Route param goes straight into a SPARQL query — only well-formed QIDs pass
     if (!/^Q\d+$/.test(awardQid || '')) {
@@ -226,7 +235,7 @@ export default function AwardCeremony() {
   useEffect(() => {
     window.addEventListener('moctale_lib_update', readLibrary);
     return () => window.removeEventListener('moctale_lib_update', readLibrary);
-  }, []);
+  }, [readLibrary]);
 
 
   /** ⋯ menu for a winner — mirrors GameCard's shelf actions. */

@@ -42,17 +42,17 @@ export default function CollectionDetail() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [saved, setSaved] = useState(false);
-  const [libraryMap, setLibraryMap] = useState({});
+  /* Synchronous localStorage read, seeded here rather than in the load effect. */
+  const [libraryMap] = useState(() => {
+    const map = {};
+    getLibrary().forEach(g => { map[String(g.id)] = g.status; });
+    return map;
+  });
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setGames([]);
-
-    const lib = getLibrary();
-    const map = {};
-    lib.forEach(g => { map[String(g.id)] = g.status; });
-    setLibraryMap(map);
+    /* No reset here: the route is keyed by pathname, so loading and games
+       already hold their initial true / [], and libraryMap is seeded above. */
 
     (async () => {
       try {
@@ -99,20 +99,27 @@ export default function CollectionDetail() {
 
   /* ── Add games to a custom collection via IGDB search ── */
   const [addQuery, setAddQuery] = useState('');
-  const [addResults, setAddResults] = useState([]);
-  const [addSearching, setAddSearching] = useState(false);
+  /* Results carry the query they answer, so "searching" is a comparison rather
+     than a flag an effect raises and lowers. */
+  const [addSearch, setAddSearch] = useState({ for: '', items: [] });
+  const trimmedAdd = addQuery.trim();
+  const addResults = addSearch.for === trimmedAdd ? addSearch.items : [];
+  const addSearching = !isIgdb && trimmedAdd !== '' && addSearch.for !== trimmedAdd;
   const addTimer = useRef(null);
 
   useEffect(() => {
-    if (isIgdb || !addQuery.trim()) { setAddResults([]); setAddSearching(false); return; }
-    setAddSearching(true);
+    const q = addQuery.trim();
+    /* Nothing to clear: results are keyed by the query they answer, so a stale
+       set stops matching the moment the box empties. */
+    if (isIgdb || !q) return;
     if (addTimer.current) clearTimeout(addTimer.current);
     addTimer.current = setTimeout(async () => {
       try {
-        const found = await searchGames(addQuery.trim());
-        setAddResults(found || []);
-      } finally {
-        setAddSearching(false);
+        const found = await searchGames(q);
+        setAddSearch({ for: q, items: found || [] });
+      } catch {
+        /* Still record the query, or `addSearching` never goes false. */
+        setAddSearch({ for: q, items: [] });
       }
     }, 350);
     return () => { if (addTimer.current) clearTimeout(addTimer.current); };

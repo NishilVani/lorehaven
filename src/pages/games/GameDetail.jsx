@@ -196,9 +196,8 @@ export default function GameDetail() {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setGame(null);
-    setLoadError(null);
+    /* No reset here: the route is keyed by pathname, so a different game is a
+       different component instance and these already hold true / null / null. */
     (async () => {
       let data;
       try {
@@ -443,7 +442,9 @@ export default function GameDetail() {
   const [mediaIdx, setMediaIdx] = useState(0);
   const [mediaModalOpen, setMediaModalOpen] = useState(false);
   const [videoPlaying, setVideoPlaying] = useState(false);
-  useEffect(() => { setMediaIdx(0); setVideoPlaying(false); setMediaModalOpen(false); }, [game]);
+  /* The media reset this used to run on every `game` change is gone. Keyed by
+     route, `game` only ever goes null -> loaded once per instance, and at that
+     point all three still hold their initial 0 / false / false. */
 
   /* ── Library actions ── */
   const persist = useCallback((changes) => {
@@ -587,14 +588,13 @@ export default function GameDetail() {
   };
 
   /* ── Custom collections — toggle this game in/out ── */
-  const [myCollections, setMyCollections] = useState([]);
-  const [inCollections, setInCollections] = useState(new Set());
-  useEffect(() => {
-    if (!game) return;
-    setMyCollections(getCollections());
-    setInCollections(new Set(getCollectionsWithGame(game.id).map(String)));
-  }, [game]);
-
+  /* Both read localStorage synchronously and only need the id from the route,
+     not the fetched game, so they are seeded here instead of waiting for the
+     game to land. getCollectionsWithGame coerces with Number(), so the string
+     from useParams behaves exactly as game.id did. */
+  const [myCollections] = useState(getCollections);
+  const [inCollections, setInCollections] = useState(
+    () => new Set(getCollectionsWithGame(id).map(String)));
   const toggleCollection = (col) => {
     const key = String(col.id);
     if (inCollections.has(key)) {
