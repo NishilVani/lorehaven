@@ -41,11 +41,15 @@ export default function Collections() {
   const [pageTab, setPageTab] = useState('discover');
 
   /* ── Saved state ── */
-  const [localCollections, setLocalCollections] = useState([]);
+  /* All three of these come from localStorage, synchronously. Seeding them
+     through a mount effect meant the page always rendered empty once before
+     showing shelves the browser already had on disk. */
+  const [localCollections, setLocalCollections] = useState(getCollections);
   const [localGameMeta, setLocalGameMeta] = useState({});   // gameId -> { name, cover }
   const [savedIgdb, setSavedIgdb] = useState([]);            // hydrated IGDB collections
-  const [savedIds, setSavedIds] = useState([]);
-  const [savedFranchises, setSavedFranchises] = useState([]);
+  const [savedIds, setSavedIds] = useState(getSavedIgdbCollections);
+  const [savedFranchises, setSavedFranchises] = useState(
+    () => getSavedFranchises().map(f => ({ ...f, games: [], count: 0 })));
 
   // Create flow
   const [creating, setCreating] = useState(false);
@@ -53,9 +57,14 @@ export default function Collections() {
 
   /* ── Discover: mixed search ── */
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState([]);
-  const [searching, setSearching] = useState(false);
+  /* Results carry the query they answer, so "searching" is a comparison rather
+     than a flag an effect has to raise and lower. That is what removes the two
+     synchronous setState calls this effect used to open with. */
+  const [search, setSearch] = useState({ for: '', items: [] });
   const searchTimer = useRef(null);
+  const trimmedQuery = query.trim();
+  const results = search.for === trimmedQuery ? search.items : [];
+  const searching = trimmedQuery !== '' && search.for !== trimmedQuery;
 
   /* ── Discover: mixed infinite feed — fresh offsets every visit ── */
   const [feed, setFeed] = useState([]);
@@ -67,10 +76,7 @@ export default function Collections() {
 
   /* ── Load local collections + hydrate their covers in one batch ── */
   useEffect(() => {
-    const locals = getCollections();
-    setLocalCollections(locals);
-
-    const coverIds = [...new Set(locals.flatMap(c => (c.games || []).slice(0, 14)))];
+    const coverIds = [...new Set(localCollections.flatMap(c => (c.games || []).slice(0, 14)))];
     if (coverIds.length > 0) {
       getGamesByIds(coverIds).then(games => {
         const map = {};
@@ -82,18 +88,17 @@ export default function Collections() {
 
   /* ── Load saved IGDB collections ── */
   useEffect(() => {
-    const ids = getSavedIgdbCollections();
-    setSavedIds(ids);
-    if (ids.length > 0) {
-      getCollectionsByIds(ids).then(cols => setSavedIgdb(cols || [])).catch(() => {});
+    if (savedIds.length > 0) {
+      getCollectionsByIds(savedIds).then(cols => setSavedIgdb(cols || [])).catch(() => {});
     }
+    // Hydrated once on mount, exactly as before.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* ── Load saved franchises (names locally, covers hydrated from IGDB) ── */
   useEffect(() => {
     const frs = getSavedFranchises();
     if (frs.length === 0) return;
-    setSavedFranchises(frs.map(f => ({ ...f, games: [], count: 0 })));
     getFranchiseMetadataByIds(frs.map(f => f.id)).then(metas => {
       setSavedFranchises(frs.map(f => {
         const meta = (metas || []).find(m => Number(m.id) === Number(f.id));
@@ -144,8 +149,8 @@ export default function Collections() {
       fDone: false,
       busy: false,
     };
-    setFeed([]);
-    setFeedDone(false);
+    /* No setFeed([]) / setFeedDone(false) here: this effect runs once, on
+       mount, when both already hold exactly those values. */
     loadFeedPage();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -183,22 +188,25 @@ export default function Collections() {
 
   /* ── Mixed search — collections and franchises in one stream ── */
   useEffect(() => {
-    if (!query.trim()) { setResults([]); setSearching(false); return; }
-    setSearching(true);
+    const q = query.trim();
+    /* Nothing to clear on an empty query: results are keyed by the query they
+       answer, so a stale set stops matching the moment the box empties. */
+    if (!q) return;
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(async () => {
       try {
         const [cols, frs] = await Promise.all([
-          searchIgdbCollections(query.trim(), 10).catch(() => []),
-          searchFranchises(query.trim()).catch(() => []),
+          searchIgdbCollections(q, 10).catch(() => []),
+          searchFranchises(q).catch(() => []),
         ]);
         const merged = [
           ...(cols || []).map(c => ({ ...c, kind: 'collection' })),
           ...(frs || []).map(f => ({ ...f, kind: 'franchise' })),
         ].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-        setResults(merged);
-      } finally {
-        setSearching(false);
+        setSearch({ for: q, items: merged });
+      } catch {
+        /* Still record the query, or `searching` never goes false. */
+        setSearch({ for: q, items: [] });
       }
     }, 350);
     return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };

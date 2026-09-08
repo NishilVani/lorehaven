@@ -203,7 +203,14 @@ export default function CategoryPage() {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
 
-  const [libraryMap, setLibraryMap] = useState({});
+  /* Synchronous localStorage read, so it is seeded here rather than through an
+     effect. The page is remounted per category, so this runs once per category
+     exactly as the old [type, id] effect did. */
+  const [libraryMap, setLibraryMap] = useState(() => {
+    const map = {};
+    getLibrary().forEach(g => { map[String(g.id)] = g; });
+    return map;
+  });
   const [rawBuckets, setRawBuckets] = useState([]);   // counted, filter-blind
   const [buckets, setBuckets] = useState([]);        // the same, plus the shelved overlay
   const [chartLoading, setChartLoading] = useState(true);
@@ -236,7 +243,6 @@ export default function CategoryPage() {
   // ── Taxonomy name ──
   useEffect(() => {
     if (!type || !id) return;
-    setCategoryName('');
     const byType = {
       genre: getGenreById, company: getCompanyById, theme: getThemeById,
       platform: getPlatformById, engine: getEngineById, mode: getGameModeById,
@@ -249,26 +255,10 @@ export default function CategoryPage() {
   }, [type, id, numericId]);
 
   // ── Library, read once per category ──
-  useEffect(() => {
-    const lib = getLibrary();
-    const map = {};
-    lib.forEach(g => { map[String(g.id)] = g; });
-    setLibraryMap(map);
-  }, [type, id]);
-
-  // ── Everything the category resets ──
-  useEffect(() => {
-    setSpan(null);
-    setSortBy('Popularity');
-    setPlatformFilters([]);
-    setGameTypeTab('All');
-    setHighlyRatedOnly(false);
-    setShelvedOnly(false);
-    setRawBuckets([]);
-    setBuckets([]);
-    setAllPlatforms([]);
-    setGridReady(false);
-  }, [type, id]);
+  /* The reset that used to live here is gone. Every setter in it wrote the
+     value its useState already starts with, so keying the page by category in
+     App.jsx does the same job a render earlier and without the intermediate
+     frame. */
 
   // ── The chart: counted per bucket, then the library layer laid over it ──
   /* Two effects, not one. Folding the coverage overlay in here made the whole
@@ -284,7 +274,6 @@ export default function CategoryPage() {
   useEffect(() => {
     if (!type || !id) return;
     let alive = true;
-    setChartLoading(true);
     getCategoryReleaseHistogram({ categoryType: type, categoryId: numericId })
       .then(raw => { if (alive) setRawBuckets(raw || []); })
       .catch(err => { console.error('Error building category histogram:', err); if (alive) setRawBuckets([]); })

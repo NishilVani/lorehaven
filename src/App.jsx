@@ -1,5 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 
 // App shell — always on screen, so it stays in the main chunk.
 import Navbar from './components/layout/Navbar';
@@ -43,6 +43,17 @@ function RouteFallback() {
     </div>
   );
 }
+
+/* Keyed on the category so React discards the whole page when you move from one
+   category to another. CategoryPage used to do this by hand, in an effect that
+   pushed ten pieces of state back to the exact values they start with — which
+   is the definition of a remount, only a render later and with a frame of the
+   previous category's filters still on screen. */
+function KeyedCategoryPage() {
+  const { type, id } = useParams();
+  return <CategoryPage key={`${type}/${id}`} />;
+}
+
 
 function App() {
   const [syncKey, setSyncKey] = useState(0);
@@ -139,7 +150,7 @@ function App() {
             <Route path="/events" element={<AllEvents />} />
             <Route path="/event/:id" element={<EventDetail />} />
             <Route path="/wallpapers" element={<Wallpapers />} />
-            <Route path="/games/:type/:id" element={<CategoryPage />} />
+            <Route path="/games/:type/:id" element={<KeyedCategoryPage />} />
             <Route path="/awards" element={<AwardsIndex />} />
             <Route path="/awards/:awardQid" element={<AwardCeremony />} />
             {/* Last, and it must stay last: a catch-all above any of these would swallow them. */}
