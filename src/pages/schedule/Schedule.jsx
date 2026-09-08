@@ -104,8 +104,12 @@ export default function Schedule() {
   const isAnnounced = timeFilter === 'announced';
 
   /* ── data ── */
-  const fetchData = useCallback(async (apiOffset = 0, append = false) => {
-    append ? setLoadingMore(true) : setLoading(true);
+  /* `raiseFlag` is false only for the call the filter-change effect makes,
+     because the block below has already raised `loading` during that render.
+     Every other caller — the infinite-scroll observer, the retry button — runs
+     outside an effect body and raises it itself. */
+  const fetchData = useCallback(async (apiOffset = 0, append = false, raiseFlag = true) => {
+    if (raiseFlag) append ? setLoadingMore(true) : setLoading(true);
     try {
       if (timeFilter === 'announced') {
         if (!append) setLoadError(null);
@@ -145,11 +149,27 @@ export default function Schedule() {
     }
   }, [timeFilter, gameType, year, month]);
 
-  useEffect(() => {
+  /* fetchData is a useCallback over the four filters, so a new identity means
+     the filter set changed and the list it produced is the wrong list. Cleared
+     during render so the stale entries are never painted under the new filters.
+     Initial render is a no-op: entries/offset/hasMore already hold [] / 0 /
+     true. */
+  const [listFor, setListFor] = useState(() => fetchData);
+  if (listFor !== fetchData) {
+    setListFor(() => fetchData);
     setEntries([]);
     setOffset(0);
     setHasMore(true);
-    fetchData(0, false);
+    setLoading(true);
+  }
+
+  useEffect(() => {
+    /* eslint-disable-next-line react-hooks/set-state-in-effect --
+       raiseFlag is false, so the synchronous part of fetchData reaches no
+       setState at all; the flags were raised in the block above, during render.
+       The rule cannot follow a boolean across a call boundary, so it sees only
+       "calls something that contains setState". */
+    fetchData(0, false, false);
   }, [fetchData]);
 
   useEffect(() => {

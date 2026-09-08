@@ -19,9 +19,14 @@ export default function AwardsIndex() {
      a returning user sees the list immediately and a cold browser sees it as soon
      as the shared cache answers — instead of a skeleton for the 27.5s the Wikidata
      aggregate takes. Later tiers upgrade the list in place. */
-  const load = () => {
-    setLoading(true);
-    setError(null);
+  /* `reset` is false for the first call and true for the Retry button. On
+     mount, loading is already true and error is already null, so setting them
+     is a wasted render; on a retry they have to be pushed back. */
+  const load = (reset = true) => {
+    if (reset) {
+      setLoading(true);
+      setError(null);
+    }
     let painted = false;
     const paint = (rows) => {
       if (!rows) return;
@@ -36,7 +41,15 @@ export default function AwardsIndex() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(load, []);
+  useEffect(() => {
+    /* eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps --
+       fetchCeremonies calls its onUpdate synchronously when the localStorage
+       tier answers, so this reaches setState in the same tick. That is the
+       whole point of it: the comment above records that waiting for the
+       Wikidata aggregate instead costs 27.5s of skeleton. Deferring the first
+       paint to satisfy the rule would undo a measured improvement. */
+    load(false);
+  }, []);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

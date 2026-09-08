@@ -134,7 +134,7 @@ function App() {
           <Suspense fallback={<RouteFallback />}>
           <Routes key={syncKey}>
             <Route path="/" element={<Discover />} />
-            <Route path="/explore/:section" element={<ExploreList />} />
+            <Route path="/explore/:section" element={<KeyedRoute component={ExploreList} />} />
             <Route path="/feedback" element={<Feedback />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/profile/year/:year" element={<YearInReview />} />

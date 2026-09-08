@@ -22,8 +22,12 @@ export default function ExploreList() {
   const navigate = useNavigate();
   const cfg = CONFIG[section];
 
-  const [items, setItems] = useState([]);   // paged sections: raw games; updates: update cards
-  const [loading, setLoading] = useState(true);
+  /* The updates section is a synchronous localStorage read, so it starts with
+     its rows already in hand rather than painting an empty list and a spinner
+     for one frame. Paged sections still start empty and loading. */
+  const [items, setItems] = useState(
+    () => (cfg && !cfg.paged ? updatesToCards(getStoredUpdates()) : []));
+  const [loading, setLoading] = useState(() => !(cfg && !cfg.paged));
   const [done, setDone] = useState(false);
   const headingRef = useRef(null);
 
@@ -36,9 +40,9 @@ export default function ExploreList() {
   // Non-paged (updates) — read once from localStorage
   useEffect(() => {
     if (!cfg || cfg.paged) return;
+    /* Only the subscription is left here. The first read happens in the
+       useState initialiser above. */
     const loadUpdates = () => setItems(updatesToCards(getStoredUpdates()));
-    loadUpdates();
-    setLoading(false);
     window.addEventListener('moctale_lib_update', loadUpdates);
     window.addEventListener('moctale_sync_update', loadUpdates);
     return () => {
@@ -64,8 +68,9 @@ export default function ExploreList() {
 
   useEffect(() => {
     if (!cfg || !cfg.paged) return;
-    setItems([]); setDone(false); setLoading(true);
-    doneRef.current = false; offset.current = 0; busy.current = false;
+    /* No reset: the route is keyed by pathname, so a different section is a
+       different component instance. items/done/loading already hold [] / false
+       / true, and the three refs are freshly initialised. */
     loadPage();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section]);

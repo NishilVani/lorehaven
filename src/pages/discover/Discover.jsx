@@ -217,10 +217,17 @@ export default function Discover() {
 
   const hero = recs?.hero;
 
+  /* Recomputed when the hero changes, during render rather than in an effect:
+     an effect painted the new hero's card carrying the previous hero's saved
+     state for a frame, which on a fast advance reads as the bookmark flicking
+     off and on. */
   const [heroSaved, setHeroSaved] = useState(false);
-  useEffect(() => {
+  const [savedFor, setSavedFor] = useState(null);
+  const heroId = hero?.id ?? null;
+  if (savedFor !== heroId) {
+    setSavedFor(heroId);
     setHeroSaved(!!(hero && getLibrary().some(g => String(g.id) === String(hero.id))));
-  }, [hero?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
   /* Advance to the next top pick after a short "Picking next…" beat — long
      enough to read the confirmation, short enough not to feel stuck.

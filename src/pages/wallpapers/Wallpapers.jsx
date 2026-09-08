@@ -474,7 +474,9 @@ function Rows({ rows, gap, sel, selectMode, wide, onOpen, onToggle }) {
 
 export default function Wallpapers() {
   // Filters and Settings
-  const [libraryGames, setLibraryGames] = useState([]);
+  /* Seeded from localStorage rather than by the first fetch, so the page does
+     not render an empty register for a frame before its own library lands. */
+  const [libraryGames, setLibraryGames] = useState(getLibrary);
   const [wallpapers, setWallpapers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -594,13 +596,19 @@ export default function Wallpapers() {
   }, [activePreviewIndex]);
 
   // Load Library Games and Fetch Wallpapers
-  const fetchAllData = useCallback(async () => {
-    setLoading(true);
-    setLoadError(null);
-    // A failed reload used to keep the previous plates on screen under a toast.
-    setWallpapers([]);
+  /* `reset` is false only for the call the filter-change effect makes, because
+     the block below has already cleared the feed during that render. The reload
+     button and the retry plate both call it with the default and get the full
+     clear. */
+  const fetchAllData = useCallback(async (reset = true) => {
     const lib = getLibrary();
-    setLibraryGames(lib);
+    if (reset) {
+      setLoading(true);
+      setLoadError(null);
+      // A failed reload used to keep the previous plates on screen under a toast.
+      setWallpapers([]);
+      setLibraryGames(lib);
+    }
 
     if (lib.length === 0) {
       setLoading(false);
@@ -749,8 +757,25 @@ export default function Wallpapers() {
     }
   }, []);
 
+  /* fetchAllData is a useCallback over the source filters, so a new identity
+     means the feed it produced is the wrong feed. Cleared during render so the
+     previous game's plates are never painted under the new filters. Initial
+     render is a no-op: loading starts true and wallpapers starts empty. */
+  const [dataFor, setDataFor] = useState(() => fetchAllData);
+  if (dataFor !== fetchAllData) {
+    setDataFor(() => fetchAllData);
+    setLoading(true);
+    setLoadError(null);
+    setWallpapers([]);
+    setLibraryGames(getLibrary());
+  }
+
   useEffect(() => {
-    fetchAllData();
+    /* eslint-disable-next-line react-hooks/set-state-in-effect --
+       reset is false, so the synchronous part of fetchAllData reaches no
+       setState; the clear happened in the block above, during render. The rule
+       cannot follow a boolean across a call boundary. */
+    fetchAllData(false);
   }, [fetchAllData]);
 
   /* One flat, shuffled feed. Grouping by game is gone: what you are choosing is
@@ -802,10 +827,15 @@ export default function Wallpapers() {
     return justify(displayedWallpapers.map(wp => ({ ...wp, ar: wp.aspect })), gridW, gap, rowTarget);
   }, [displayedWallpapers, gridW, gap, rowTarget]);
 
-  // Reset pagination on filter change
-  useEffect(() => {
+  /* Reset pagination on filter change, during render. As an effect it painted
+     the newly filtered feed at the old scroll depth first — briefly showing
+     more rows than the filter had any business showing. */
+  const filterKey = `${searchQuery}|${aspectRatio}|${sourceMode}|${typeFilter}`;
+  const [visibleFor, setVisibleFor] = useState(filterKey);
+  if (visibleFor !== filterKey) {
+    setVisibleFor(filterKey);
     setVisibleCount(40);
-  }, [searchQuery, aspectRatio, sourceMode, typeFilter]);
+  }
 
   // Infinite Scroll observer
   useEffect(() => {
@@ -819,13 +849,13 @@ export default function Wallpapers() {
     return () => observer.disconnect();
   }, [filteredWallpapers.length, visibleCount]);
 
-  // Keep the viewer index in range when the register shrinks under it
-  useEffect(() => {
-    if (previewSource === 'selection' && activePreviewIndex >= 0) {
-      if (selected.length === 0) setActivePreviewIndex(-1);
-      else if (activePreviewIndex >= selected.length) setActivePreviewIndex(selected.length - 1);
-    }
-  }, [selected, previewSource, activePreviewIndex]);
+  /* Keep the viewer index in range when the register shrinks under it. Done
+     during render so the viewer never paints a frame pointing past the end of
+     the selection. */
+  if (previewSource === 'selection' && activePreviewIndex >= 0) {
+    if (selected.length === 0) setActivePreviewIndex(-1);
+    else if (activePreviewIndex >= selected.length) setActivePreviewIndex(selected.length - 1);
+  }
 
   const previewPool = previewSource === 'selection' ? selected : filteredWallpapers;
   const active = activePreviewIndex >= 0 && activePreviewIndex < previewPool.length

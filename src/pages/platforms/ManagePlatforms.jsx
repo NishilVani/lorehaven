@@ -43,8 +43,10 @@ export default function ManagePlatforms() {
   const [activeTab, setActiveTab] = useState('hardware');
 
   // Local state synced with db.js
-  const [ownedPlatforms, setOwnedPlatforms] = useState([]);
-  const [customPlatforms, setCustomPlatforms] = useState([]);
+  /* Both are synchronous profile reads. Seeding them through a mount effect
+     meant the page always rendered its empty state once first. */
+  const [ownedPlatforms, setOwnedPlatforms] = useState(getUserOwnedPlatforms);
+  const [customPlatforms, setCustomPlatforms] = useState(getUserCustomPlatforms);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -94,11 +96,6 @@ export default function ManagePlatforms() {
   const targetSearchTimeoutRef = useRef(null);
 
   // Load platforms on mount
-  useEffect(() => {
-    setOwnedPlatforms(getUserOwnedPlatforms());
-    setCustomPlatforms(getUserCustomPlatforms());
-  }, []);
-
   // Debounced search for targets in transfer modal
   useEffect(() => {
     const q = targetSearchQuery.trim().toLowerCase();

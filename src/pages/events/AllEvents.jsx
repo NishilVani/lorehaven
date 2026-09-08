@@ -71,10 +71,20 @@ export default function AllEvents() {
     return () => clearTimeout(t);
   }, [query]);
 
-  useEffect(() => {
-    let cancelled = false;
+  /* The request the list is about to make. Raising `loading` here rather than
+     in the effect below means the spinner and the new request start in the same
+     render, instead of the old results being painted once more first. Initial
+     render is a no-op: loading already starts true. */
+  const requestKey = `${offset}|${debouncedQuery}|${tab}`;
+  const [loadingFor, setLoadingFor] = useState(requestKey);
+  if (loadingFor !== requestKey) {
+    setLoadingFor(requestKey);
     setLoading(true);
     if (offset === 0) setLoadError(null);
+  }
+
+  useEffect(() => {
+    let cancelled = false;
     getEvents(LIMIT, offset, debouncedQuery, tab)
       .then(data => {
         if (cancelled) return;
