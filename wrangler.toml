@@ -1,0 +1,21 @@
+# The IGDB and Wikidata proxy, on the Cloudflare Workers free plan.
+#
+# The two credentials are NOT here. They are set once with
+#   npx wrangler secret put IGDB_CLIENT_ID
+#   npx wrangler secret put IGDB_CLIENT_SECRET
+# which stores them in Cloudflare, encrypted and not readable back. Anything in
+# this file is committed, so nothing secret belongs in it.
+
+name = "lorehaven-proxy"
+main = "functions/worker.js"
+compatibility_date = "2024-11-01"
+
+# The Worker answers on its workers.dev route only. Without this, wrangler turns
+# versioned preview URLs on for every deployment -- a second public hostname for
+# the same credential-holding proxy, which nothing here needs.
+preview_urls = false
+
+# nodejs_compat is not needed: proxy.js uses only fetch, Request, Response and URL.
+
+[observability]
+enabled = true

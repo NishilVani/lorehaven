@@ -1,0 +1,1247 @@
+@import "tailwindcss";
+
+/* tokens/motion.json duration.base. Tailwind's own default is 150ms, the one
+   duration in the product that sits off the scale. */
+@theme {
+  --default-transition-duration: 200ms;
+}
+@config "../tailwind.config.js";
+@source ".";
+
+/* ════════════════════════════════════════════════════════════════
+   LOREHAVEN — Stark Editorial Brutalism
+   Pitch black. Pure white. Sharp edges. Art is the only color.
+   Type roles: Kicaps = display · Courbe Sans = labels/nav · Space Grotesk = body
+   ════════════════════════════════════════════════════════════════ */
+
+@font-face {
+  font-family: 'Kicaps';
+  src: url('/Kicaps.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Courbe Sans';
+  src: url('/CourbeSans.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+}
+
+:root {
+  --text: #a3a3a3;
+  --text-h: #ffffff;
+  --bg: #000000;
+  --border: rgba(255, 255, 255, 0.15);
+  --code-bg: #111111;
+  --accent: #ffffff;
+  --accent-bg: rgba(255, 255, 255, 0.1);
+  --accent-border: rgba(255, 255, 255, 0.5);
+
+  /* Global Skeleton Loading Tokens */
+  --skeleton-base: rgba(255, 255, 255, 0.03);
+  --skeleton-shine: rgba(255, 255, 255, 0.09);
+  --skeleton-highlight: rgba(255, 255, 255, 0.15);
+  --skeleton-speed: 2.5s;
+
+  /* State Colors — monochrome ramp: meaning through weight, not hue */
+  --status-playing: #ffffff;
+  --status-playing-glass: rgba(255, 255, 255, 0.14);
+  --status-playing-border: rgba(255, 255, 255, 0.6);
+  --status-playing-hover: rgba(255, 255, 255, 0.1);
+
+  --status-backlog: #d4d4d4;
+  --status-backlog-glass: rgba(255, 255, 255, 0.1);
+  --status-backlog-border: rgba(255, 255, 255, 0.4);
+  --status-backlog-hover: rgba(255, 255, 255, 0.08);
+
+  --status-wishlist: #a3a3a3;
+  --status-wishlist-glass: rgba(255, 255, 255, 0.08);
+  --status-wishlist-border: rgba(255, 255, 255, 0.35);
+  --status-wishlist-hover: rgba(255, 255, 255, 0.06);
+
+  --status-beaten: #e5e5e5;
+  --status-beaten-glass: rgba(255, 255, 255, 0.12);
+  --status-beaten-border: rgba(255, 255, 255, 0.5);
+  --status-beaten-hover: rgba(255, 255, 255, 0.09);
+
+  /* #737373 measured 4.43:1 on #000 — 0.07 short of WCAG 1.4.3. #757575 is 4.6:1. */
+  --status-dropped: #757575;
+  --status-dropped-glass: rgba(255, 255, 255, 0.06);
+  /* 0.25 composites to #404040 = 2.03:1, below the 3:1 that WCAG 1.4.11 requires of a
+     border carrying state meaning. 0.4 = 3.66:1. */
+  --status-dropped-border: rgba(255, 255, 255, 0.4);
+  --status-dropped-hover: rgba(255, 255, 255, 0.05);
+
+  /* State Colors — solid ramp: the sanctioned hue exception, used ONLY on the
+     die-cut poster stickers where a status has to read at a glance against
+     arbitrary cover art. The monochrome ramp above stays the treatment for dense
+     list views. These hexes used to be a STATUS_COLORS object copy-pasted into
+     nine files; src/constants/statusColors.js is the single reader. */
+  --status-solid-playing: #34d399;
+  --status-solid-backlog: #60a5fa;
+  --status-solid-wishlist: #a78bfa;
+  --status-solid-beaten: #fcd34d;
+  --status-solid-dropped: #f87171;
+  /* Unreleased was a byte-identical #a78bfa to Wishlist, so two of the six shelves
+     carried the same swatch. Cyan sits at OKLCH h=212, 43 deg from Backlog and
+     48 deg from Playing — wider than the ramp's own tightest existing pair
+     (Backlog 255 to Wishlist 294 = 39 deg). Black on it measures 11.62:1. */
+  --status-solid-unreleased: #22d3ee;
+  /* Shown when a status is absent or unrecognised — deliberately colourless. */
+  --status-solid-fallback: rgba(255, 255, 255, 0.4);
+
+  /* Rate/Feel — the one sanctioned color exception: rating stickers on the case */
+  --feel-skip: #fe647e;
+  --feel-timepass: #fcb700;
+  --feel-go-for-it: #00d391;
+  --feel-perfection: #B048FF !important;
+  /* Perfection is the one feel whose text reads lighter than its dot: #B048FF is
+     5.22:1 on black against 12.21:1 here. The other three use one value for both. */
+  --feel-perfection-text: #e2b4ff;
+  --feel-none: rgba(255, 255, 255, 0.3);
+
+  /* Priority — the third state scale. These had no token at all; the four hexes
+     were inlined in nine places. src/constants/stateColors.js is the only reader. */
+  --priority-next-up: #84CC16;
+  --priority-soon: #FB923C;
+  --priority-maybe: #0EA5E9;
+  --priority-someday: #94A3B8;
+  --priority-none: rgba(255, 255, 255, 0.3);
+
+  /* Feedback roles. Deliberately separate from the state scales even where a hue
+     repeats: --destructive shares a hex with --status-solid-dropped, but one means
+     "this control destroys data" and the other means "you abandoned this game".
+     Retokenising one must never silently move the other. */
+  --destructive: #f87171;                          /* 7.59:1 on #000 */
+  --destructive-hover: #ef4444;                    /* fill; black label on it is 5.58:1 */
+  /* 0.65, not the 0.4 these borders are usually written at: 0.4 composites to
+     rgb(99,45,45) = 1.95:1, under the 3:1 that 1.4.11 wants from a control edge.
+     0.65 measures 3.58:1. */
+  --destructive-border: rgba(248, 113, 113, 0.65); /* 3.58:1 */
+  --destructive-wash: rgba(248, 113, 113, 0.1);    /* hover row tint, decorative only */
+
+  /* Warning — a recoverable problem worth looking at, not a failure. Import
+     conflicts are the only current use. */
+  --warning: #fcd34d;                              /* 14.56:1 on #000 */
+  --warning-border: rgba(252, 211, 77, 0.55);      /* 4.63:1 */
+  --social-bg: rgba(255, 255, 255, 0.06);
+  --shadow: none;
+
+  --sans: 'Space Grotesk', system-ui, 'Segoe UI', sans-serif;
+  --heading: 'Space Grotesk', system-ui, sans-serif;
+  /* Brand fonts — wordmark and special moments only.
+     Bungee and Bungee Hairline are two FAMILIES, not two weights of one: Google
+     ships the hairline separately, so asking for a light weight of Bungee would
+     quietly render the regular cut. */
+  --brand: 'Bytesized', 'Space Grotesk', system-ui, sans-serif;
+  --brand-sub: 'Press Start 2P', 'Space Grotesk', system-ui, sans-serif;
+  /* Courbe Sans. Its only site was the "A Game Index" tagline, which now takes
+     --brand-sub, so nothing references this today. Kept because removing a face
+     the brand may still want is not a decision a font swap should make quietly;
+     the @font-face costs nothing until something asks for it. */
+  --label: 'Courbe Sans', 'Space Grotesk', system-ui, sans-serif;
+  --mono: ui-monospace, Consolas, monospace;
+
+  font: 16px/145% var(--sans);
+  letter-spacing: 0.18px;
+  color-scheme: light dark;
+  color: var(--text);
+  background: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* Global Layout Constants */
+  --content-max-width: 87rem;
+  --content-px-mobile: 1rem;
+  --content-px-desktop: 3rem;
+
+  @media (max-width: 1024px) {
+    font-size: 16px;
+  }
+}
+
+.content-container {
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 100%;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@media (min-width: 640px) {
+  .content-container {
+    max-width: 600px;
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .content-container {
+    max-width: 720px;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .content-container {
+    max-width: 960px;
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .content-container {
+    max-width: 1140px;
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+@media (min-width: 1536px) {
+  .content-container {
+    max-width: 1280px;
+    padding-left: 2.5rem;
+    padding-right: 2.5rem;
+  }
+}
+
+#social .button-icon {
+  filter: invert(1) brightness(2);
+}
+
+/* @layer base: these are RESET rules and must lose to Tailwind utilities.
+   Unlayered CSS beats every layered rule regardless of specificity, so while
+   this sat outside a layer `h1.text-sm` computed 56px and `p.mb-6` computed 0 —
+   every heading size and paragraph margin utility in the app was dead. */
+@layer base {
+  html {
+    margin: 0;
+    font-family: var(--sans);
+    background-color: #000000;
+    /* LoreHaven: pitch black, always */
+    color: white;
+    /* width: 100vw removed — on Windows, 100vw includes the scrollbar gutter width, causing a
+       15px layout shift when the scrollbar appears/disappears between pages. Let html size naturally. */
+    overflow-x: hidden;
+    overflow-y: auto;
+    /* Always reserve the scrollbar gutter so content width never changes between pages.
+       both-edges = equal gutter on both sides (symmetric), so it looks like intentional padding.
+       The scrollbar thumb only renders when the page actually overflows — invisible on short pages. */
+    scrollbar-gutter: stable both-edges;
+  }
+}
+
+@layer base {
+  body {
+    margin: 0;
+    width: 100%;
+    /* Ensure body is NOT a scroll container to fix position: sticky */
+    overflow-y: visible;
+  }
+}
+
+#root {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+@layer base {
+  h1,
+  h2 {
+    font-family: var(--heading);
+    font-weight: 700;
+    color: var(--text-h);
+    text-transform: uppercase;
+  }
+}
+
+@layer base {
+  h1 {
+    font-size: 56px;
+    letter-spacing: -0.03em;
+    line-height: 0.95;
+
+    @media (max-width: 1024px) {
+      font-size: 32px;
+    }
+  }
+}
+
+@layer base {
+  h2 {
+    font-size: 28px;
+    line-height: 105%;
+    letter-spacing: -0.01em;
+    margin: 0 0 8px;
+
+    @media (max-width: 1024px) {
+      font-size: 22px;
+    }
+  }
+}
+
+@layer base {
+  p {
+    margin: 0;
+  }
+}
+
+@layer base {
+  code {
+    font-family: var(--mono);
+    display: inline-flex;
+    color: var(--text-h);
+  }
+}
+
+@layer base {
+  code {
+    font-size: 15px;
+    line-height: 135%;
+    padding: 4px 8px;
+    background: var(--code-bg);
+  }
+}
+
+
+
+/* Global Modern Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  /* narrower = 6px gutter each side (both-edges), minimal footprint */
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Hide the up/down arrows */
+::-webkit-scrollbar-button {
+  display: none;
+}
+
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide Android WebView native video play button */
+.hide-video-controls::-webkit-media-controls,
+.hide-video-controls::-webkit-media-controls-enclosure,
+.hide-video-controls::-webkit-media-controls-panel,
+.hide-video-controls::-webkit-media-controls-play-button,
+.hide-video-controls::-webkit-media-controls-start-playback-button {
+  display: none !important;
+  -webkit-appearance: none !important;
+}
+
+/* .hover-game-card kept as the marquee hover trigger — no bg wash (LoreHaven: no card wrappers) */
+.hover-game-card:hover {
+  background-color: transparent !important;
+}
+
+/* Horizontal scroller with no visible scrollbar (award year strip) */
+.lh-xscroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.lh-xscroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* Determinate progress fill (Explore hero "Picking next…") */
+@keyframes lh-fill {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+
+@keyframes shine {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.award-shine:not(div),
+.award-shine span {
+  /* Darkest stops raised from #707070/gray: at 4.43:1 the label dipped under AA
+     wherever it sat over artwork rather than pure black. Floor is now 7.46:1. */
+  background: linear-gradient(90deg, #b0b0b0 0%, #fff 20%, #9a9a9a 30%, #b0b0b0 40%) 100% 0 / 200% 100%;
+  background-clip: border-box;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-size-adjust: none;
+  white-space: nowrap;
+  -webkit-background-clip: text;
+  background-clip: text;
+  font-weight: 600;
+}
+
+/* Shine animates background-position, which is paint-bound and cannot be composited,
+   so running it forever on every award label burns paint on idle screens. Gate it on
+   hover/focus the way .marquee-text already is. */
+.award-shine:hover,
+.award-shine:focus-within,
+.award-shine:hover span,
+.award-shine:focus-within span {
+  animation: 3s linear infinite shine;
+}
+
+@keyframes marquee-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(var(--marquee-dist, -50%));
+  }
+}
+
+/* A block at rest, for the same reason as the vertical variant below:
+   text-overflow applies to block containers only, so as a max-content flex row
+   an overflowing label was simply cut mid-word with nothing to say so. Flex,
+   max-content and the animation arrive together on hover, when the two copies
+   need to lay along the scroll axis. Unlayered on purpose: it has to win over
+   the w-max utility the component also sets. */
+.marquee-text {
+  display: block;
+  width: auto;
+  gap: var(--marquee-gap, 0);
+  animation: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Vertical variant — spine titles (writing-mode: vertical-rl) */
+@keyframes marquee-scroll-v {
+  from {
+    transform: translateY(0);
+  }
+
+  to {
+    transform: translateY(var(--marquee-dist, -50%));
+  }
+}
+
+/* NOTE: under writing-mode: vertical-rl the flex main axis is already vertical —
+   default row direction stacks the two copies along the scroll axis. */
+.marquee-text-v {
+  /* A block at rest: text-overflow applies to block containers only, so as a
+     flex container the ellipsis could never reach the span's text run. Flex,
+     max-content and the animation arrive on hover, when the two copies need
+     to lay along the scroll axis. Under reduced motion it never runs, so the
+     ellipsis stays. */
+  display: block;
+  animation: none;
+  height: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* :focus-within alongside :hover — the marquee is the only way to read a title
+   that overflows, and without it a keyboard user gets the truncated version. */
+.hover-game-card:hover .marquee-text,
+.hover-game-card:focus-within .marquee-text,
+.dm-item:hover .marquee-text,
+.dm-item:focus-within .marquee-text,
+.event-card:hover .marquee-text,
+.event-card:focus-within .marquee-text {
+  display: flex;
+  width: max-content;
+  overflow: visible;
+  text-overflow: clip;
+  animation: marquee-scroll var(--marquee-dur, 5s) linear infinite;
+}
+
+.hover-game-card:hover .marquee-text-v,
+.hover-game-card:focus-within .marquee-text-v {
+  display: flex;
+  height: max-content;
+  overflow: visible;
+  animation: marquee-scroll-v var(--marquee-dur, 5s) linear infinite;
+}
+
+/* Toast Animations */
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes toast-circle-progress {
+  from {
+    stroke-dashoffset: 0;
+  }
+
+  to {
+    stroke-dashoffset: 69.115;
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.animate-toast-circle-progress {
+  animation: toast-circle-progress 2s linear forwards;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Mask fade out for scrollable containers */
+.mask-fade-right {
+  mask-image: linear-gradient(to right, black 85%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
+}
+
+/* Global grabbing cursor during drag */
+body.dragging-active,
+body.dragging-active * {
+  cursor: grabbing !important;
+}
+
+/* ── Drag-and-Drop ──────────────────────────────────────────────── */
+
+/* Card being dragged — dimmed, slightly recessed */
+.lib-card-dragging {
+  opacity: 0.4;
+  transform: scale(0.95);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  cursor: grabbing;
+}
+
+/* Blur effect for the grid during drag - optimized for performance */
+.grid-blur-active {
+  opacity: 0.1;
+  transition: opacity 0.3s ease;
+}
+
+/* Library status strip — drag-over highlight.
+   Deliberately CSS driven off a class the drag handler toggles, rather than a
+   React state value. As state, every dragover that crossed a tab boundary
+   re-rendered the page and every card on it: measured with 297 cards on a
+   4x-throttled CPU, a 57.5ms median frame and not one frame of the drag under
+   32ms. Nothing in the grid depends on which tab is hovered.
+   Unlayered on purpose — that is what lets it beat the Tailwind text-white/50
+   utility on the cell without needing !important. */
+/* Washed means "drop here". Fully filled means "you are here".
+   These used to be the same declaration — a drag-over tab painted
+   `background: <status colour>; color: #000`, which is exactly what
+   aria-current already wears — so mid-drag two tabs looked selected and the
+   only confirmation of where the game would land was indistinguishable from
+   where it came from. A wash at 22% is unmistakably the same hue as the shelf
+   without ever reaching the solid fill that means you are already there.
+
+   Painted as a cell-sized inset shadow rather than a background-color, because
+   the cell you are already on HAS a background — the shelf's own colour, set
+   inline — and background-color would replace it. An inset shadow lays over the
+   top, so one mechanism covers both the empty cells and the filled one. */
+.lh-tab.is-drop-over {
+  box-shadow: inset 0 0 0 999px color-mix(in oklab, var(--tab-color) 22%, transparent);
+}
+
+/* The shelf you are on is already solid in this colour, so a wash of the same
+   hue would land invisibly. White at the same 22%, so the rule holds everywhere:
+   the cell under the card gets LIGHTER.
+
+   Darkening was the first attempt and it fails on its own terms — black on a
+   dimmed fill measured 4.21:1 for the label and 3.24:1 for the count on Dropped,
+   both under AA. Lightening moves the same numbers the other way: 9.46:1 and
+   5.62:1. */
+.lh-tab[aria-current="page"].is-drop-over {
+  box-shadow: inset 0 0 0 999px rgb(255 255 255 / 0.22);
+}
+
+/* Remove keeps its own colour throughout. Lifting it to white on hover made the
+   destructive target the brightest thing in the strip at the exact moment a card
+   is over it, and white is what every other cell wears — the one control whose
+   colour IS its warning should not shed it to say "you are here now". */
+.lh-tab-remove.is-drop-over {
+  box-shadow: inset 0 0 0 999px color-mix(in oklab, var(--destructive) 22%, transparent);
+}
+
+/* Slide-up drag toast */
+@keyframes drag-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@keyframes drag-toast-out {
+  from {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px);
+  }
+}
+
+.drag-toast-enter {
+  animation: drag-toast-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.drag-toast-exit {
+  animation: drag-toast-out 0.2s ease forwards;
+}
+
+/* Library status strip — collapsed to the active shelf while scrolled.
+   Only below xl: at xl the six tabs already sit on one flex row, so there is
+   nothing to collapse and the whole thing would just remove five of them.
+   display:none rather than opacity, so the hidden shelves leave the tab order
+   and the accessibility tree with the row they were in — a control you cannot
+   see and cannot reach should not still be announced. The "All" button is the
+   way back for every input. */
+/* Library status strip — two shapes below xl, and only one way to move between
+   them. At rest it is the compact row: the shelf you are on, its count, and a
+   chevron into the picker. While a card is lifted every shelf comes back,
+   because the strip is the only place a card can land.
+
+   Gated in CSS rather than by mounting, so neither shape costs a React render —
+   and `display: none` keeps whichever shape is off out of the tab order and the
+   accessibility tree, which conditional rendering also did.
+
+   There is no scroll-driven shape here on purpose. The version that folded on
+   scroll had to fade its leaving cells to transparent (which on a black page
+   reads as them turning black), wait out that fade before closing the row, and
+   reflow the document on every crossing. One shape at rest has none of that. */
+@media (max-width: 1279px) {
+  /* Scoped to the strip's own children. Unscoped, `.lh-tab` also matched the
+     shelf picker's rows and hid every one of them — the sheet opened empty. */
+  .lh-strip > .lh-tab:not(.lh-strip-compact) {
+    display: none;
+  }
+
+  .lh-strip-open > .lh-tab:not(.lh-strip-compact) {
+    display: flex;
+  }
+
+  .lh-strip-open > .lh-strip-compact {
+    display: none;
+  }
+}
+
+/* ── Entry Animations ─────────────────────────────────────────── */
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 0.6s broke the project's own motion budget: "100-300ms for UI transitions.
+   Never > 500ms" (CLAUDE.md). With animation-fill-mode: both, content sits at
+   opacity 0 and 20px low from the moment it mounts, so a library shelf was
+   committed and then withheld for six tenths of a second. 300ms is the top of
+   the sanctioned range and still reads as an entrance rather than a wait. */
+.animate-in {
+  animation-fill-mode: both;
+  animation-duration: 0.3s;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.fade-in {
+  animation-name: fade-in;
+}
+
+.slide-in-from-bottom-4 {
+  animation-name: fade-in-up;
+}
+
+/* Pick Next lands. The shelf stops with one game under the reading frame and
+   that frame is struck to full white for a beat before settling back to the
+   wall's own white/15 — this world has no shadow to drop and no glow to bloom,
+   so an edge briefly going to full white IS its exclamation mark. Border colour
+   only: nothing moves, nothing reflows, and the covers underneath are
+   untouched. */
+@keyframes pick-land {
+  from { border-color: #ffffff; }
+  to { border-color: rgba(255, 255, 255, 0.55); }
+}
+
+.pick-land {
+  /* 500ms, not 520: CLAUDE.md sets the ceiling at "never > 500ms" and this is a
+     UI flourish, not the draw gesture itself. Nobody can tell 20ms apart; a
+     number that quietly breaks the project's own stated budget can be told
+     apart, by the next person reading it. */
+  animation: pick-land 500ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Pick Next celebrates. Three moves on ONE impact frame, not three effects:
+   the survivor's plate overshoots and lands, the field it beat flares white and
+   dies behind it, and the verdict is struck across in a white bar.
+
+   The stamp is one wipe read twice. `pick-stamp` is the bar: clipped to nothing,
+   sweeping right to cover the verdict block, then clipping away to the right.
+   `pick-struck` is the block underneath, revealed by exactly the region the bar
+   has already left — the two clips are complements of the same edge on the same
+   easing, so the text does not lag or lead the bar by a pixel. That is why this
+   is a clip and not an opacity fade: a fade would put text and bar on screen at
+   the same time and turn a press into a shimmer.
+
+   The block is HIDDEN for the first 38%, which is the whole point. It arrives
+   with the strike rather than fading up beside it. */
+@keyframes pick-stamp {
+  0%       { clip-path: inset(0 100% 0 0); }
+  38%      { clip-path: inset(0 0 0 0); }
+  100%     { clip-path: inset(0 0 0 100%); }
+}
+
+@keyframes pick-struck {
+  0%, 38%  { clip-path: inset(0 100% 0 0); }
+  100%     { clip-path: inset(0 0 0 0); }
+}
+
+/* 0.22/1/0.36/1 is a hard exponential out: the bar covers in 160ms and takes
+   260ms to leave, so the strike is felt on the way in and read on the way out. */
+.pick-stamp  { animation: pick-stamp 420ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.pick-struck { animation: pick-struck 420ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* The field the winner beat, blowing out. The cut leaves thirty empty rules
+   behind at 9% white; on impact they all go to 85% at once and the whole field
+   dies with them. Held at full for the first fifth so the flash reads as one
+   frame of white rather than as a fade that happens to start bright. */
+@keyframes pick-flare {
+  0%, 20% { opacity: 1; }
+  100%    { opacity: 0; }
+}
+
+.pick-flare { animation: pick-flare 420ms cubic-bezier(0.4, 0, 1, 1) both; }
+
+/* Modal entrance. A pure cross-fade has no physicality — nothing in the real
+   world arrives by changing opacity alone — so the panel comes in a hair small
+   and settles. 0.96 rather than something smaller: a modal is already centred
+   and expected, so this is a settle, not a zoom.
+
+   `backwards`, never `both`. The Dialog's swipe-to-dismiss writes
+   `el.style.transform` inline (Dialog.jsx:283), and animation-origin
+   declarations outrank normal-author ones — so a `both` fill would hold
+   `scale(1)` forever and silently kill drag-to-dismiss on every modal in the
+   app. `.animate-in` uses `both`, which is exactly why this does not reuse it.
+   The wallpaper stage learned the same lesson; see .wp-enter-* below. */
+@keyframes dialog-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.dialog-in {
+  animation: dialog-in 200ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+/* Directional enter for the wallpaper stage. The media gallery mounts its
+   neighbours and moves a real track, which it can afford because it shows one
+   plain image. This stage also renders device-framed previews, so instead of a
+   filmstrip the outgoing image is replaced and the incoming one arrives from
+   the side you swiped from. The point is the same: the new image comes from
+   somewhere rather than appearing out of nothing. */
+@keyframes wp-enter-from-right {
+  from { opacity: 0; transform: translate3d(28px, 0, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes wp-enter-from-left {
+  from { opacity: 0; transform: translate3d(-28px, 0, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+/* `backwards`, not `both`. Both keeps the final keyframe applied forever, and a
+   CSS animation outranks an inline style — so the plate's transform stayed
+   pinned at translate3d(0,0,0) and the viewer's zoom transform, written inline,
+   never rendered at all. Measured: computed scale stayed 1 through ctrl+wheel,
+   drag and double click while the inline style read scale(2.5). Backwards still
+   holds the pre-start frame, so the entrance is unchanged; it just lets go at
+   the end, and the element's own opacity 1 and transform match the last frame,
+   so nothing flashes. */
+.wp-enter-right { animation: wp-enter-from-right 200ms cubic-bezier(0.23, 1, 0.32, 1) backwards; }
+.wp-enter-left { animation: wp-enter-from-left 200ms cubic-bezier(0.23, 1, 0.32, 1) backwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  .wp-enter-right,
+  .wp-enter-left { animation: none; }
+}
+
+/* ── Standard Game Card Grid ───────────────────────────────────────
+   Single source of truth for GameCard column ramp.
+   2 cols (mobile) → 3 (sm 640px) → 4 (lg 1024px) → 5 (xl 1280px).
+   Gap scales from 1rem → 1.5rem to match content density at wider viewports.
+   Use this class on any grid that renders <GameCard> items.
+   Do NOT hardcode column counts per-page — change here, applies everywhere.
+   ──────────────────────────────────────────────────────────────── */
+.game-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 0.75rem;
+}
+
+/* ── Forced colours (Windows High Contrast) ────────────────────────────────
+   Every state colour in this app is painted as an inline background, which
+   forced-colours flattens to the system background. Measured on the library
+   strip: all six status swatches computed to rgb(255,255,255) on a white
+   canvas — invisible — and the selected tab's fill computed to white as well,
+   so the current shelf was indistinguishable from the other five.
+
+   The fix does NOT try to keep the hues. `forced-color-adjust: none` would,
+   but a user in this mode has asked for their palette, and every one of these
+   colours already sits beside a text label that names the state — colour was
+   never the only carrier. What has to survive is the MARK and the SELECTION,
+   so both are re-expressed in system colours, which forced-colours honours.
+   !important because the values being overridden are inline styles. */
+@media (forced-colors: active) {
+  /* Status, priority and rating swatches: visible shapes again, one colour. */
+  .lh-swatch {
+    background-color: CanvasText !important;
+  }
+
+  /* Selected shelf tab, and any selected single-choice menu row. */
+  [aria-current="page"],
+  .dm-item[aria-checked="true"] {
+    background-color: Highlight !important;
+    color: HighlightText !important;
+  }
+
+  [aria-current="page"] .lh-swatch,
+  .dm-item[aria-checked="true"] .dm-strip {
+    background-color: HighlightText !important;
+  }
+}
+
+/* The `min-width: 200px` block that used to sit here set gap: 0.1rem and
+   declared the same columns as the base rule. It always matched, which made the
+   base rule above dead and gave every phone a 1.6px gutter: measured 1.6px at
+   393px against 16px at 420px. Cards abutted and their 1px borders merged into
+   a doubled hairline, so two columns read as one slab on the most common phone
+   width. 0.1rem existed nowhere else in a 4px-base system. Deleted rather than
+   corrected — the base rule already says 0.75rem, which is the ramp's real
+   first step. */
+
+@media (min-width: 400px) {
+  .game-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 1rem;
+  }
+}
+
+@media (min-width: 600px) {
+  .game-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 1rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .game-grid {
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 1.5rem;
+  }
+}
+
+
+/* Skeleton Loading — flat block with opacity pulse (no gradients) */
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.skeleton-placeholder {
+  background: var(--skeleton-shine);
+  animation: skeleton-pulse var(--skeleton-speed) ease-in-out infinite;
+}
+
+/* Platform Icon Hover Tooltip */
+.platform-tooltip {
+  position: fixed;
+  z-index: 99999;
+  background-color: #000000;
+  color: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 6px 10px;
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+  /* WCAG 1.4.13 Hoverable: the tooltip has to survive the pointer moving onto it,
+     which pointer-events:none makes impossible. The 8px gap is padding on the
+     wrapper instead of a transform offset, so there is no dead zone to cross. */
+  pointer-events: auto;
+  transform: translate(-50%, -100%) translateY(-8px);
+  animation: tooltip-fade-in 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes tooltip-fade-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -100%) translateY(-4px) scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, -100%) translateY(-8px) scale(1);
+  }
+}
+
+/* Hide alt text while image is loading, especially in Firefox */
+@layer base {
+  img {
+    color: transparent;
+  }
+}
+
+/* Event card background layered transitions */
+.event-card-bg {
+  position: absolute;
+  inset: 0;
+  clip-path: inset(8px 8px calc(100% - 116px) 8px);
+  background-color: #0e0e0e;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  transition: clip-path 0.3s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.3s ease;
+}
+
+.event-card:hover .event-card-bg {
+  clip-path: inset(0px);
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   LOREHAVEN GLOBAL OVERRIDES — Raw Geometry
+   ════════════════════════════════════════════════════════════════ */
+
+/* Sharp edges only. One rule de-rounds the entire app. */
+*,
+*::before,
+*::after {
+  border-radius: 0 !important;
+}
+
+/* Text selection: inverted, stark */
+@layer base {
+  ::selection {
+    background: #ffffff;
+    color: #000000;
+  }
+}
+
+/* ── Scroll-drawn charts ─────────────────────────────────────────────────────
+
+   The profile's and the yearly review's charts draw themselves as you scroll to
+   them: bars grow out of their baseline, dots settle into their stacks, the
+   verdict squares deal left to right, covers rise. Scroll position drives the
+   progress, not a clock, so the marks are drawn BY the reading rather than
+   performed at it — scroll back up and they undraw.
+
+   Four rules this is built on, in order of how much trouble each one saves:
+
+   1. EVERY KEYFRAME IS `from` ONLY. The end state is whatever the element already
+      computes to, so the drawn state is today's page byte for byte. There is no
+      second source of truth to drift, and a browser that runs none of this shows
+      exactly what it showed before.
+
+   2. TRANSFORM AND OPACITY ONLY. Both composite; a 180-game year puts ~370 of
+      these on screen at once and anything touching layout would jank on the
+      first scroll.
+
+   3. THE APP'S GLOBAL REDUCED-MOTION RULE DOES NOT COVER THESE. It clamps
+      `animation-duration`, and a scroll-driven animation has no duration to
+      clamp — its progress comes from the scrollport. Left alone these would be
+      the one thing on the page that ignored the preference, so the whole block
+      is scoped to `prefers-reduced-motion: no-preference` instead.
+
+   4. `@supports` GUARDS IT. Firefox ships this behind a flag, so it gets the
+      static page, which is the page as it was. Nothing here is load-bearing.
+
+   `--i` staggers a series; it is capped by the caller, because a 180-square grid
+   multiplied out would push the last cell's range past the end of the scroll. */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    /* A bar grows out of the axis it is measured from. */
+    @keyframes draw-bar { from { transform: scaleY(0); } }
+    /* A proportion bar unrolls from the edge it starts at. */
+    @keyframes draw-unroll { from { transform: scaleX(0); } }
+    /* A dot falls the last few pixels into its place in the stack. */
+    @keyframes draw-dot { from { opacity: 0; transform: translateY(9px); } }
+    /* A cell is dealt: it arrives small and lands at size. */
+    @keyframes draw-cell { from { opacity: 0; transform: scale(.55); } }
+    /* A poster rises into the row. */
+    @keyframes draw-rise { from { opacity: 0; transform: translateY(18px); } }
+
+    .draw-bar,
+    .draw-unroll,
+    .draw-dot,
+    .draw-cell,
+    .draw-rise {
+      animation-timeline: view();
+      animation-fill-mode: both;
+      animation-timing-function: linear;
+    }
+
+    /* Every range is anchored to `cover`, never to `entry`.
+       `entry` is the obvious choice and it is wrong for marks this small: its
+       length is the SUBJECT's own height, so a 32px verdict square would draw
+       over 32px of scroll and a 9px dot over nine. Measured — the squares, the
+       dots and the bars all read as already-drawn at every sampled position,
+       because their whole entrance happened between two frames of a flick.
+       `cover` spans the scrollport plus the element, so a mark of any size draws
+       over a few hundred pixels of reading and the stagger has room to tell. */
+    .draw-bar {
+      transform-origin: bottom center;
+      animation-name: draw-bar;
+      animation-range: cover 4% cover 34%;
+    }
+
+    .draw-unroll {
+      transform-origin: left center;
+      animation-name: draw-unroll;
+      animation-range: cover 4% cover 30%;
+    }
+
+    /* A chart that scrolls sideways has to lend its marks a timeline.
+       `view()` binds to the nearest scrollport, and the hours plot lives inside
+       the horizontal ScrollX box — so its dots bound to a scroller that never
+       moves vertically and sat frozen at their finished state forever. Measured:
+       identity transform at every scroll position while every other mark drew.
+       The section OUTSIDE the scroller names a timeline and scopes it to its
+       descendants, so the dots are driven by the section's travel through the
+       page rather than by a box that does not travel. */
+    .draw-scope {
+      view-timeline-name: --draw-scope;
+      timeline-scope: --draw-scope;
+    }
+
+    .draw-dot {
+      animation-name: draw-dot;
+      animation-range: cover calc(4% + var(--i, 0) * 0.7%) cover calc(28% + var(--i, 0) * 0.7%);
+    }
+
+    .draw-scope .draw-bar,
+    .draw-scope .draw-unroll,
+    .draw-scope .draw-dot,
+    .draw-scope .draw-cell,
+    .draw-scope .draw-rise {
+      animation-timeline: --draw-scope;
+    }
+
+    .draw-cell {
+      animation-name: draw-cell;
+      animation-range: cover calc(3% + var(--i, 0) * 0.8%) cover calc(26% + var(--i, 0) * 0.8%);
+    }
+
+    .draw-rise {
+      animation-name: draw-rise;
+      animation-range: cover calc(5% + var(--i, 0) * 2%) cover calc(34% + var(--i, 0) * 2%);
+    }
+  }
+}
+
+/* ── Touch targets ───────────────────────────────────────────────────────────
+   The layout is dense on purpose and every control already clears WCAG 2.5.8's
+   24px floor. A finger is not 24px: Apple and Android both ask for 44, and this
+   app ships as an Android bundle, not only as desktop web.
+
+   Gated on `pointer: coarse`, so the pointer layout keeps its editorial rhythm
+   and only a touch device pays the extra height. Screen width would be the wrong
+   question — a 1280px laptop can have a touchscreen and a tablet can carry a
+   trackpad; the input device is the thing that decides how big a target must be.
+
+   `.tap` is for inline and inline-block controls, which is why it also sets the
+   flex box: min-height alone does nothing useful to an inline link, and centring
+   keeps the label optically where it was. `.tap-block` is for controls that are
+   already block or flex and must keep their own display. */
+@media (pointer: coarse) {
+  .tap {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .tap-block {
+    min-height: 44px;
+  }
+}
+
+/* Stark uppercase label — nav, metadata, buttons */
+.lh-label {
+  font-family: var(--sans);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.6875rem;
+  line-height: 1;
+}
+
+/* .lh-label's line-height equals its font-size, so an 11px line box cannot hold a
+   15px glyph box: any label that is a line of copy rather than a chip loses 2px
+   top and bottom. Declared here, unlayered, because .lh-label is unlayered too
+   and a leading-* utility loses to it. */
+.lh-label.lh-multiline {
+  line-height: 1.4;
+}
+
+/* Courbe Sans accent — opt-in on labels via .font-label (special places only) */
+.lh-label.font-label {
+  font-family: var(--label);
+}
+
+/* The tagline.
+   Press Start 2P is drawn on an 8x8 grid, so it is set at 8px and one glyph
+   pixel lands on exactly one device pixel. At any other size the pixels fall on
+   fractions and every edge softens -- at 7px a glyph pixel is 0.875px.
+
+   That is why this is NOT a .lh-label variant any more. .lh-label sets
+   font-size: 0.6875rem unlayered, which beats every utility, so a label needing
+   another size has to drop the class and declare family, weight, tracking and
+   size itself. That rule is in DESIGN.md and this is its first real user.
+
+   The Hairline Ink Rule that used to govern this line is gone with Bungee
+   Hairline: Press Start 2P is solid blocks, not thin strokes, so it needs no
+   opacity compensation and sits at the ordinary secondary value. */
+.lh-brand-sub {
+  font-family: var(--brand-sub);
+  font-size: 8px;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+/* Display type — headings, big numerals */
+.lh-display {
+  font-family: var(--heading);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+}
+
+/* Brand type — the LoreHaven wordmark and special moments only */
+.lh-brand {
+  font-family: var(--brand);
+  font-weight: 400;
+  text-transform: uppercase;
+  /* 0, where Bungee took -0.01em. Bytesized is a pixel face: its sidebearings
+     are whole pixels by construction, and tracking it by a fraction of an em
+     pushes every glyph off the pixel grid the face exists to sit on. */
+  letter-spacing: 0;
+}
+
+/* ── Reduced motion ──────────────────────────────────────────────────────────
+   The app ships infinite marquee and shine animations. Anyone who has asked their
+   OS to reduce motion must not be given perpetual movement (WCAG 2.3.3, and a
+   baseline expectation regardless of level). Durations collapse rather than being
+   removed outright so transition-end handlers still fire and nothing hangs
+   mid-state. Scroll behaviour is reset too, since smooth scrolling is motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Marquee translates text to reveal overflow; with motion off, leave it parked. */
+  .marquee-text,
+  .marquee-text-v {
+    animation: none !important;
+    transform: none !important;
+  }
+  /* No scroll means no reason to release the box on hover: keep the ellipsis,
+     the title attribute carries the full text. */
+  .hover-game-card:hover .marquee-text-v,
+  .hover-game-card:focus-within .marquee-text-v {
+    display: block !important;
+    height: 100% !important;
+    overflow: hidden !important;
+  }
+}

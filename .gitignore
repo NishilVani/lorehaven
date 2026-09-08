@@ -1,0 +1,86 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+firebase-debug.log*
+firestore-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Rust / Tauri build output
+src-tauri/target/
+src-tauri/gen/android/app/build/
+src-tauri/gen/android/build/
+src-tauri/gen/android/.gradle/
+src-tauri/gen/android/local.properties
+src-tauri/gen/apple/build/
+
+# Cloudflare Worker local state
+.wrangler/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+.playwright-mcp/
+
+# Secrets — never commit
+*.keystore
+*.jks
+keystore.properties
+datbase_config.json
+google-services.json
+*-service-account*.json
+
+# Env files. .env.production and .env.development are tracked on purpose: both
+# hold only the public proxy hostname, which is not a secret. Anything else may
+# hold a credential, so it stays out.
+.env
+.env.*
+!.env.production
+!.env.development
+
+# Overnight QA run artifacts (STATUS.md carries the summary)
+qa/
+
+# Subagent-driven-development scratch: ledgers, briefs, review packages.
+.superpowers/
+
+# Agent-harness tooling. These are per-machine copies of the same skill set for
+# different harnesses (Antigravity, Codex, Copilot, Impeccable). They are kept on
+# disk because the local tooling reads them, but they are not project source and
+# tracking three near-identical copies bloats the repo. The design-system
+# reference that CLAUDE.md's file map points at — tokens/, components/,
+# accessibility/, workflows/, taste/, content/, frameworks/, design-systems/ —
+# stays tracked.
+.agents/
+.codex/
+.impeccable/
+Fable5.md
+.github/skills/
+.github/agents/
+.github/hooks/
+.github/copilot-instructions.md
+
+# Screenshots and scratch capture
+MoctaleSS/

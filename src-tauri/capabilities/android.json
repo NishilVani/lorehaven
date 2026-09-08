@@ -1,0 +1,18 @@
+{
+  "$schema": "../gen/schemas/android-schema.json",
+  "identifier": "android-public-storage",
+  "description": "Lets the wallpaper download write into the shared Pictures library, where the gallery can see it.",
+  "platforms": [
+    "android"
+  ],
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "android-fs:allow-create-new-public-image-file",
+    "android-fs:allow-write-file",
+    "android-fs:allow-set-public-file-pending",
+    "android-fs:allow-scan-public-file",
+    "android-fs:allow-remove-file"
+  ]
+}

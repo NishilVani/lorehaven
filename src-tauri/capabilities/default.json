@@ -1,0 +1,34 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Enables the default permissions. The http scope allows the IGDB proxy and the image CDN and nothing else: id.twitch.tv, api.igdb.com and query.wikidata.org were removed when functions/proxy.js took over the credential, so a regression that calls an upstream directly fails here instead of quietly working. The proxy origin is duplicated from VITE_PROXY_ORIGIN because a capability file cannot read the environment -- change the Worker hostname and change it here too.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "oauth:allow-start",
+    {
+      "identifier": "shell:allow-open",
+      "allow": [
+        "^https?://.+"
+      ]
+    },
+    "core:window:allow-minimize",
+    "core:window:allow-maximize",
+    "core:window:allow-close",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-start-dragging",
+    "http:default",
+    "fs:allow-write-file",
+    "fs:allow-download-write-recursive",
+    "fs:allow-picture-write-recursive",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://lorehaven-proxy.nishilvani.workers.dev/**" },
+        { "url": "https://images.igdb.com/**" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "lorehaven-proxy",
+  "description": "Server-side IGDB and Wikidata proxy. Holds the credential the clients used to carry. Runs as a Cloudflare Worker; serve.js runs the same code locally.",
+  "type": "module",
+  "main": "index.js",
+  "private": true,
+  "engines": {
+    "node": "20"
+  },
+  "scripts": {
+    "serve": "node serve.js",
+    "test": "node proxy.test.mjs"
+  }
+}

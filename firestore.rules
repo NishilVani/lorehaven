@@ -1,0 +1,95 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Legacy user doc — frozen, read once during migration
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    /* The IGDB credentials the client authenticates with.
+     *
+     * READABLE BY ANYONE, AND THAT IS NOT FIXED HERE. The document holds
+     * client_id AND client_secret (App.jsx reads both into localStorage), and
+     * every route works signed out, so requiring request.auth would break the
+     * catalogue for the visitors it is meant for. There is no server of ours to
+     * hold the secret instead: /api is a Vite dev proxy that rewrites straight
+     * to api.igdb.com, and the browser sends the credentials itself.
+     *
+     * So the secret is public, and the only real fix is architectural — a token
+     * endpoint the app owns, which mints short-lived IGDB tokens and never ships
+     * the secret to a browser. Until that exists, treat this credential as
+     * compromised and rotate it on the same schedule you would a leaked key.
+     *
+     * What this rule DOES do is stop the collection being a wildcard: only the
+     * one document the app reads is exposed, so a second config document added
+     * later is not world-readable by inheritance.
+     */
+    match /config/igdb {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Schema v2 — note the data block is NESTED inside this one
+    match /lorehaven_users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      match /data/{docId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // One-time migration backups
+    match /backups/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // --- Global Wikidata Awards Cache ---
+    //
+    // THIS is the collection the client uses. src/services/wikidata/awards.js
+    // sets AWARDS_COLLECTION = 'award_cache' and is the only reader or writer in
+    // the app. It holds one document per cache key -- a game id, the ceremonies
+    // index, or a single ceremony -- each shaped exactly { awards, updatedAt }.
+    //
+    // Readable by everyone including signed-out visitors: the whole point of the
+    // tier is that one person's Wikidata query serves the next visitor, and most
+    // people browsing /awards are not signed in. The payload is public Wikidata
+    // content, so there is nothing here to leak.
+    //
+    // Writes stay open for the same reason -- gating them on auth would leave the
+    // cache cold for most of the people it exists for -- but they are constrained
+    // three ways rather than blanket:
+    //
+    //   - only the two fields the client writes,
+    //   - a server-set timestamp, so a client cannot forge freshness and pin
+    //     stale data for the full 30-day TTL,
+    //   - and only the document ids the app actually writes. Without the last
+    //     one an anonymous client could create unbounded documents under names
+    //     nothing will ever read, which is a billing and storage problem rather
+    //     than a data one, but it is one nobody would notice.
+    //
+    // The three id shapes are awards.js's own: `ceremonies` (fetchCeremonies),
+    // `ceremony4_<QID>` (fetchCeremony), and the bare IGDB id (fetchGameAwards,
+    // which overrides docId so documents written by the previous implementation
+    // keep resolving). Adding a fourth cache key means adding it here too.
+    //
+    // Deletes are refused -- nothing in the app deletes, and a missing entry
+    // costs every visitor a slow cold query.
+    match /award_cache/{docId} {
+      allow read: if true;
+      allow create, update: if docId.matches('ceremonies|ceremony4_Q[0-9]+|[0-9]+')
+                            && request.resource.data.keys().hasOnly(['awards', 'updatedAt'])
+                            && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
+    }
+
+    /* `gameAwards`, `awardWins` and `awardsCatalog` were `allow read, write: if
+     * true` -- world-writable, unauthenticated, unconstrained -- and nothing in
+     * src/ has ever referenced any of them. They are removed rather than kept
+     * "in case", because an open write surface nobody reads is one nobody
+     * watches either. Removing the match denies every operation by default; it
+     * does not delete data, so anything already in them is still there to
+     * inspect with an admin credential before it is dropped.
+     */
+  }
+}

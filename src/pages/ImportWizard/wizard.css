@@ -1,0 +1,128 @@
+/* ════════════════════════════════════════════════════════════════
+   IMPORT WIZARD — Stark Editorial Brutalism
+   Everything structural is Tailwind in the step components.
+   This file only owns the shared checkbox control, which is imported
+   globally from main.jsx and used well outside the wizard:
+     components/ui/Checkbox.jsx  →  StepReview, TransferDataModal,
+                                    CategoryPage, GamePage
+   Sharp edges come free — index.css de-rounds the app globally.
+   ════════════════════════════════════════════════════════════════ */
+
+.ios-cb-label {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ios-cb {
+  --cb-size: 16px;
+  --cb-border: rgba(255, 255, 255, 0.35);
+
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+}
+
+/* Hide native input but keep it focusable/accessible */
+.ios-cb input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+/* WCAG 2.5.8 Target Size: the visible box is 16px, which is below the 24px
+   minimum. A layout-neutral pseudo-element extends the hit area to 24x24 without
+   moving anything around it. */
+.ios-cb::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 24px;
+  height: 24px;
+  transform: translate(-50%, -50%);
+}
+
+.ios-cb__wrapper {
+  position: relative;
+  width: var(--cb-size);
+  height: var(--cb-size);
+}
+
+.ios-cb__bg {
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--cb-border);
+  background: transparent;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.ios-cb__icon {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 72%;
+  height: 72%;
+  color: #000000;
+  /* black check on the inverted white fill */
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+
+/* ── Checked: INVERT — the signature interaction ── */
+.ios-cb input:checked + .ios-cb__wrapper .ios-cb__bg {
+  background: #ffffff;
+  border-color: #ffffff;
+}
+
+.ios-cb input:checked + .ios-cb__wrapper .ios-cb__icon {
+  opacity: 1;
+}
+
+/* ── Hover ── */
+.ios-cb:hover .ios-cb__bg {
+  border-color: rgba(255, 255, 255, 0.7);
+}
+
+/* ── Focus ── */
+.ios-cb input:focus-visible + .ios-cb__wrapper .ios-cb__bg {
+  border-color: #ffffff;
+  outline: 1px solid #ffffff;
+  outline-offset: 2px;
+}
+
+/* ── Indeterminate: hairline dash ── */
+.ios-cb input:indeterminate + .ios-cb__wrapper .ios-cb__bg {
+  border-color: rgba(255, 255, 255, 0.7);
+}
+
+.ios-cb input:indeterminate + .ios-cb__wrapper .ios-cb__bg::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 20%;
+  right: 20%;
+  height: 1px;
+  transform: translateY(-50%);
+  background: #ffffff;
+}
+
+/* Checkbox laid over cover art — needs a plate to stay legible */
+.ios-cb--onart .ios-cb__bg {
+  background: rgba(0, 0, 0, 0.75);
+  border-color: rgba(255, 255, 255, 0.7);
+}
+
+.ios-cb--onart input:checked + .ios-cb__wrapper .ios-cb__bg {
+  background: #ffffff;
+}

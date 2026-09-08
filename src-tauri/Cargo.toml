@@ -1,0 +1,40 @@
+[package]
+name = "app"
+version = "0.1.0"
+description = "A Tauri App"
+authors = ["you"]
+license = ""
+repository = ""
+edition = "2021"
+rust-version = "1.77.2"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6.2", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+log = "0.4"
+tauri = { version = "2.11.2", features = [] }
+tauri-plugin-log = "2"
+tauri-plugin-oauth = "2.0.0"
+tauri-plugin-shell = "2.3.5"
+tauri-plugin-http = "2"
+tauri-plugin-fs = "2"
+
+# Android only. tauri-plugin-fs cannot reach shared storage on Android: every
+# BaseDirectory it offers resolves through getExternalFilesDir(), i.e.
+# Android/data/com.lorehaven.games/files/... — written successfully, hidden from
+# the gallery, and effectively unreachable in a file manager. Public
+# Pictures/ needs MediaStore, which is what this plugin wraps.
+#
+# The version is pinned exactly because the crate and its npm binding
+# (tauri-plugin-android-fs-api) must match version-for-version.
+[target.'cfg(target_os = "android")'.dependencies]
+tauri-plugin-android-fs = "=29.0.0"

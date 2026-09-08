@@ -1,0 +1,222 @@
+name: Release
+
+# Cut a release by pushing a tag that matches the version in
+# src-tauri/tauri.conf.json, e.g.  git tag v0.1.0 && git push origin v0.1.0
+#
+# The tag creates a draft GitHub Release, the desktop matrix and the Android job
+# attach their bundles to it, and the final job publishes it. Nothing goes public
+# until every platform has uploaded, so a half-built release is never visible.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build (must already exist)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    name: Create draft release
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create.outputs.id }}
+      upload_url: ${{ steps.create.outputs.upload_url }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Check the tag matches tauri.conf.json
+        run: |
+          CONF=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          TAG_VERSION="${{ steps.version.outputs.version }}"
+          if [ "$CONF" != "$TAG_VERSION" ]; then
+            echo "Tag v$TAG_VERSION does not match tauri.conf.json version $CONF." >&2
+            echo "Bump src-tauri/tauri.conf.json, or retag." >&2
+            exit 1
+          fi
+          echo "Version $CONF matches the tag."
+
+      - name: Create draft release
+        id: create
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: LoreHaven ${{ steps.version.outputs.version }}
+          draft: true
+          generate_release_notes: true
+
+  desktop:
+    name: Desktop (${{ matrix.label }})
+    needs: create-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: macOS (Apple Silicon)
+            platform: macos-latest
+            args: "--target aarch64-apple-darwin"
+          - label: macOS (Intel)
+            platform: macos-latest
+            args: "--target x86_64-apple-darwin"
+          - label: Linux
+            platform: ubuntu-22.04
+            args: ""
+          - label: Windows
+            platform: windows-latest
+            args: ""
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Linux build dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libxdo-dev \
+            build-essential \
+            file \
+            wget
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      - name: Build and upload bundles
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          releaseId: ${{ needs.create-release.outputs.release_id }}
+          args: ${{ matrix.args }}
+
+  android:
+    name: Android
+    needs: create-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platforms;android-36 build-tools;36.0.0 ndk;27.2.12479018"
+
+      - name: Point the build at the NDK
+        run: echo "NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      # The signing key never lives in the repository. It is a base64 blob in
+      # Actions secrets, written to disk here and read by app/build.gradle.kts
+      # through the same keystore.properties a local release build uses.
+      - name: Restore the signing keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "ANDROID_KEYSTORE_BASE64 is not set. See docs/RELEASING.md." >&2
+            exit 1
+          fi
+          cd src-tauri/gen/android/app
+          echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
+          {
+            echo "storeFile=release.keystore"
+            echo "storePassword=$STORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+          } > keystore.properties
+
+      - name: Build AAB and APK
+        run: npm run tauri android build -- --aab --apk
+
+      - name: Collect the bundles
+        id: collect
+        run: |
+          VERSION="${{ needs.create-release.outputs.version }}"
+          OUT="$RUNNER_TEMP/android-out"
+          mkdir -p "$OUT"
+          find src-tauri/gen/android/app/build/outputs -name '*.aab' -exec \
+            sh -c 'cp "$1" "$2/LoreHaven-$3.aab"' _ {} "$OUT" "$VERSION" \;
+          find src-tauri/gen/android/app/build/outputs -name '*-universal-release*.apk' -exec \
+            sh -c 'cp "$1" "$2/LoreHaven-$3-universal.apk"' _ {} "$OUT" "$VERSION" \;
+          ls -la "$OUT"
+          echo "dir=$OUT" >> "$GITHUB_OUTPUT"
+
+      - name: Attach to the draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          draft: true
+          files: ${{ steps.collect.outputs.dir }}/*
+
+      # Leaving a decrypted signing key on a runner is how keys leak out of CI.
+      # This runs even when the build above fails.
+      - name: Shred the keystore
+        if: always()
+        run: |
+          rm -f src-tauri/gen/android/app/release.keystore \
+                src-tauri/gen/android/app/keystore.properties
+
+  publish:
+    name: Publish release
+    needs: [create-release, desktop, android]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Undraft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api \
+            --method PATCH \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/releases/${{ needs.create-release.outputs.release_id }}" \
+            -f draft=false

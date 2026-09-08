@@ -1,0 +1,103 @@
+# LoreHaven
+
+A personal game library: track what you own across every platform, browse an
+awards corpus, and keep a profile of what you have played. Runs as a web app, a
+desktop app, and an Android app from one React codebase.
+
+- **Web** — https://moctalegames.web.app
+- **Desktop** — Windows, macOS and Linux, via Tauri
+- **Android** — via Tauri
+
+## Stack
+
+| Layer | Choice |
+|---|---|
+| UI | React 19, React Router 7, Tailwind CSS 4 |
+| Build | Vite 8 |
+| Native shell | Tauri 2 (Rust) |
+| Data | Firebase Auth + Firestore |
+| Game metadata | IGDB, through a Cloudflare Worker proxy |
+| Tests | Playwright (e2e), Node test scripts (unit) |
+
+## Getting started
+
+```bash
+npm install
+npm run dev
+```
+
+The dev server runs on http://localhost:5173.
+
+No IGDB credential is needed on a developer machine. `.env.development` points
+at the deployed Cloudflare Worker proxy, which holds the credential server-side.
+
+### Desktop
+
+```bash
+npm run tauri dev
+```
+
+Building a desktop bundle needs a Rust toolchain (1.77.2 or newer) and the
+platform prerequisites listed in the [Tauri
+docs](https://v2.tauri.app/start/prerequisites/).
+
+```bash
+npm run tauri build
+```
+
+### Android
+
+Needs the Android SDK, NDK, and a JDK. Set `ANDROID_HOME` and `NDK_HOME`, then:
+
+```bash
+npm run tauri android build
+```
+
+Release builds are signed with a keystore that is **not** in this repository.
+See [docs/RELEASING.md](docs/RELEASING.md).
+
+## Testing
+
+```bash
+npm test                  # unit tests: cache, profile stats, sorting, platform match, hero pick
+npm run test:e2e          # Playwright, Chromium
+npm run test:e2e:webkit   # sharded; WebKit wedges past ~37 contexts in one process
+npm run test:e2e:ios      # judge by reported pass counts, not the exit code
+npm run lint              # ESLint
+npm run lint:a11y         # accessibility gate
+```
+
+`tests/phase7-mobile.spec.ts` is restricted by the CLI invocation, not by a
+`test.skip`. Run it with `--project="Mobile Chrome"` or
+`--project="Mobile Safari"`; under a desktop project its cases fail by design.
+
+## Deploying
+
+```bash
+npm run build
+firebase deploy --only hosting
+```
+
+Firestore rules and indexes deploy with `firebase deploy --only firestore`.
+
+Releases for desktop and Android are cut by pushing a tag — see
+[docs/RELEASING.md](docs/RELEASING.md).
+
+## Repository layout
+
+```
+src/            Application source
+src-tauri/      Rust shell, native config, Android/desktop bundle setup
+public/         Static assets
+functions/      Cloudflare Worker IGDB proxy
+scripts/        Build and quality-gate scripts
+tests/          Playwright specs and Node unit tests
+tokens/         Design tokens (DTCG)
+components/     Component specs
+accessibility/  WCAG checklists and ARIA patterns
+design-systems/ Design-system reference
+```
+
+Design rules that contributors and agents must follow are in
+[AGENTS.md](AGENTS.md) and [CLAUDE.md](CLAUDE.md). Product intent is in
+[PRODUCT.md](PRODUCT.md); the visual system is in [DESIGN.md](DESIGN.md).
