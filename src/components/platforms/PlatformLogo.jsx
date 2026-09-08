@@ -1,5 +1,3 @@
-import { useState, useRef, useEffect, cloneElement } from "react";
-import { createPortal } from "react-dom";
 
 // ─────────────────────────────────────────────
 // Short Platform Name Resolver
@@ -39,7 +37,7 @@ export { Tooltip };
 // A simple card displaying the logo image as is without canvas operations,
 // keying, or caching.
 // ─────────────────────────────────────────────
-export function LogoCard({ src, alt, brandColor, className = "", style = {} }) {
+export function LogoCard({ src, alt, className = "", style = {} }) {
   return (
     <Tooltip text={alt}>
       <div

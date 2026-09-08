@@ -16,8 +16,7 @@ import {
   Gamepad2, List as ListIcon, Heart, Trophy, CircleMinus, CalendarClock,
   FilterX, Database, Edit3, Puzzle, Store,
   ArrowDownAZ, ArrowUpZA, AlertCircle, Star, Globe, Timer, Calendar, CalendarCheck,
-  Search, X, SlidersHorizontal, ChevronRight, ChevronDown, Filter, Grid, RefreshCw, ArrowLeft,
-  Upload, Download, Copy, Trash2, Settings, LayoutGrid, Library as LibraryIcon, ArrowUpDown, Play, ChevronsUpDown, Target
+  Search, X, ChevronDown, Filter, Grid, RefreshCw, Trash2, ArrowUpDown, Target
 } from 'lucide-react';
 /* The shared toast, not a private one. This page used to define its own —
    bottom-centre, 2300ms, pointer-events-none, no role, no aria-live, no dismiss —
@@ -226,9 +225,6 @@ export default function Library() {
 
   // ── Transfer Data state ──────────────────────────────────────────
   const [transferSourceGame, setTransferSourceGame] = useState(null);
-
-  // ── Mobile responsive state ──────────────────────────────────────
-  const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
 
   // ── Sidebar filter/sort state ────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState(() => searchParams.get('q') || '');
@@ -812,7 +808,7 @@ export default function Library() {
       const img = new Image();
       img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
       e.dataTransfer.setDragImage(img, 0, 0);
-    } catch (err) {
+    } catch {
       // Ignore
     }
 

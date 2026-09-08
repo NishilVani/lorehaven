@@ -445,7 +445,7 @@ export default function StepReviewV2({
                                 <span className="lh-label text-white/50 w-20 shrink-0 text-right">Action</span>
                             </div>
 
-                            {filteredItems.map((item, i) => (
+                            {filteredItems.map((item) => (
                                 <ReviewRow
                                     key={item.id}
                                     item={item}

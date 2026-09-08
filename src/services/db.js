@@ -416,7 +416,7 @@ const applyDomainDoc = (docId, data) => {
     const localAt = Number(window.localStorage.getItem(`${mapping.key}_mt`) || 0);
 
     if (Array.isArray(value)) {
-        let localArr = [];
+        let localArr;
         try { localArr = JSON.parse(local || '[]'); } catch { localArr = []; }
         // Feedback uses replacement semantics. Its list represents current
         // preference state, so unioning would turn a missing id (a clear) into
@@ -612,7 +612,7 @@ const normalizeStoreList = (stores) => {
 //   custom_platforms: Platform[]  — user-created platform labels (e.g. "Steam Deck")
 // }
 // ─────────────────────────────────────────────────────────────────────────────
-const DEFAULT_CUSTOM_PLATFORMS = [
+export const DEFAULT_CUSTOM_PLATFORMS = [
   // PC
   { name: 'Steam', category: 'store', linkedIgdbId: 6, linkedIgdbName: 'PC (Windows)' },
   { name: 'Epic Games Store', category: 'store', linkedIgdbId: 6, linkedIgdbName: 'PC (Windows)' },
@@ -839,12 +839,10 @@ export const getLibrary = () => {
     let dirty = false;
     const migrated = library.map(g => {
       let updatedGame = { ...g };
-      let gameModified = false;
 
       // 1. One-time migration: completion_date → dateCompleted
       if (Object.prototype.hasOwnProperty.call(g, 'completion_date')) {
         dirty = true;
-        gameModified = true;
         const { completion_date, ...rest } = updatedGame;
         updatedGame = { ...rest, dateCompleted: completion_date ?? g.dateCompleted ?? null };
       }
@@ -861,7 +859,6 @@ export const getLibrary = () => {
          normalise what it can derive; it never persists a derivation that failed. */
       if (updatedGame.dateCompleted && normalizedDate && normalizedDate !== updatedGame.dateCompleted) {
         dirty = true;
-        gameModified = true;
         updatedGame = { ...updatedGame, dateCompleted: normalizedDate };
       }
 
@@ -877,7 +874,6 @@ export const getLibrary = () => {
           });
 
         if (needsUpdate) {
-          gameModified = true;
           updatedGame.user_platforms = normalized;
           /* Same invariant: normalizePlatformList drops rows it cannot normalise and
              de-duplicates by key. A list that lost rows is used for this read but
@@ -895,7 +891,6 @@ export const getLibrary = () => {
       };
       if (g.priority && PRIORITY_MIGRATION[g.priority]) {
         dirty = true;
-        gameModified = true;
         updatedGame.priority = PRIORITY_MIGRATION[g.priority];
       }
 

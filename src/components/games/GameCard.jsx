@@ -76,7 +76,6 @@ export default function GameCard({
   onDragStart,
   onLift,
   onDragEnd,
-  isDraggingAny = false,
   linkTo,
   menuOptions = [],
   onLibraryChange,   // (gameId) => void — after any internal add/move/remove
@@ -416,7 +415,6 @@ export default function GameCard({
         .filter(Boolean)
         .filter((x) => x !== bandText)
         .join(' • ');
-  const isUnreleased = game.first_release_date && (game.first_release_date * 1000 > Date.now());
 
 
 
@@ -464,7 +462,7 @@ export default function GameCard({
            with overflow-hidden, so an outward ring paints outside the clip box and is
            never visible. Verified: overlay 178x255 == parent 178x255. */
         className="absolute inset-0 z-10 cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-white"
-        onClick={(e) => {
+        onClick={() => {
           /* A lift released back over its own card still emits a click. Opening
              the game the user just decided not to move is the one outcome the
              gesture must never produce. */

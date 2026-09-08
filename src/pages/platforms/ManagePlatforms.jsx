@@ -2,10 +2,10 @@ import PageHeader from '../../components/ui/PageHeader';
 import EmptyPlate from '../../components/ui/EmptyPlate';
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Plus, Trash2, Search, X, Laptop, Store, CreditCard, Link2, Link2Off } from 'lucide-react';
+import { Plus, Trash2, Search, X, Laptop, Store, CreditCard, Link2, Link2Off } from 'lucide-react';
 import Heading from '../../components/ui/Heading';
 import { toast } from '../../components/ui/Toast';
-import { PlatformLogo, getPlatformLogoUrl, getShortPlatformName } from '../../components/platforms/PlatformLogo';
+import { PlatformLogo } from '../../components/platforms/PlatformLogo';
 import PlatformPill from '../../components/platforms/PlatformPill';
 import {
   getUserOwnedPlatforms,
@@ -54,7 +54,7 @@ export default function ManagePlatforms() {
 
   // Link/Transfer utility state
   const [transferModal, setTransferModal] = useState({ isOpen: false, sourcePlatform: null, step: 'select' });
-  const [transferTargetId, setTransferTargetId] = useState('');
+  const [, setTransferTargetId] = useState('');
   const [selectedTarget, setSelectedTarget] = useState(null);
   const [targetSearchQuery, setTargetSearchQuery] = useState('');
   const [targetSearchResults, setTargetSearchResults] = useState({
@@ -530,7 +530,7 @@ export default function ManagePlatforms() {
   // STEP 3a: delete custom source entry then close
   const handleTransferDelete = () => {
     const { sourcePlatform, isOfficial } = transferModal;
-    const { affectedGames, updatedCount, targetPlatform } = transferData;
+    const { affectedGames, updatedCount } = transferData;
 
     // 1. Remove the platform from the profile
     if (isOfficial) {

@@ -37,7 +37,6 @@ export default function CollectionCard({
   isDragging = false,
   onDragStart,
   onDragEnd,
-  isDraggingAny = false,
   linkTo,
   menuOptions = [],
 }) {

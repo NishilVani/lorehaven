@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate, useLocation, Link } from 'react-router-dom';
-import { Search, X, Layers, Gamepad2, History, Trash2, TrendingUp, Library, Ghost, SearchX, HeartPlus, Building2, CircleCheck, BookmarkPlus, BookmarkMinus } from 'lucide-react';
+import { X, Layers, Gamepad2, Library, HeartPlus, Building2, CircleCheck, BookmarkPlus, BookmarkMinus } from 'lucide-react';
 import { searchGames, searchFranchises, searchIgdbCollections, searchCompanies } from '../../services/igdb';
 import { 
     getCollections, getLibrary, saveToLibrary,

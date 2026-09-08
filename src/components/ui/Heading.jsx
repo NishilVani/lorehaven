@@ -1,4 +1,3 @@
-import React from 'react';
 
 /**
  * A unified Heading component for the application.

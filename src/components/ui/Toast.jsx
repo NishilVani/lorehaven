@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import useSwipe from '../../hooks/useSwipe';
 import { createPortal } from 'react-dom';
 
