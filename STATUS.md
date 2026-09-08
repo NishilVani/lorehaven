@@ -83,6 +83,28 @@ npm run test:e2e:ios            # judge by the reported pass counts, not the exi
 `test.skip`. Run it with `--project="Mobile Chrome"` or `--project="Mobile Safari"`;
 under a desktop project its cases fail by design.
 
+## Known test failures
+
+Measured on `--project=chromium`, 421 cases, and each one checked against the
+pre-refactor tree before being written down here.
+
+| Case | State |
+|---|---|
+| `phase4-deep:857` Clone writes a local copy and navigates to it | **Real, pre-existing.** The clone is written and the URL changes, but the new page renders its Not Found branch instead of the `(Clone)` heading. Reproduces identically on the pre-refactor tree. |
+| `phase4-deep:870` FINDING 11 — Clone twice | **Real, pre-existing.** Same cause. |
+| `phase2-deep:912` no duplicate cards while scrolling | Flake. Passes in isolation. The grid de-duplicates by id; the assertion compares names, and IGDB can ship two ids with one name. |
+| `phase3-deep:1276` Save to Shelves | Order-dependent. Fails alone on the pre-refactor tree too, passes inside a batch. |
+
+`phase7-mobile.spec.ts` is now excluded from the desktop projects in
+`playwright.config.ts`. It asserts phone-only behaviour, so all ~47 of its cases
+failed by design under `--project=chromium` and made the suite look far worse
+than it was.
+
+A worker crash (`code=3221226091`) has been seen partway through a full local
+run on Windows, which reports every remaining case as failed. It is the same
+class of process instability the config header documents for webkit. Judge a
+full local run by the named failures, not the tally.
+
 ## Known follow-up
 
 - The screen-reader summary on a failed category load still reads "0 of 0 games"

@@ -19,6 +19,15 @@ import { defineConfig, devices } from '@playwright/test';
 
    tests/smoke.spec.ts is unrestricted and still covers all five projects. */
 const ROUTE_PROBE = /routes\.spec\.ts/;
+
+/* tests/phase7-mobile.spec.ts asserts phone behaviour — 24px touch targets, the
+   56px header, the drawer, the compact shelf picker. None of it exists above
+   lg, so under a desktop project every one of its cases fails by design. That
+   was documented in STATUS.md as "run it with --project=Mobile Chrome" and
+   enforced nowhere, which meant `npm run test:e2e` reported ~47 failures that
+   were not failures. Same argument as ROUTE_PROBE: exclude at collection time
+   so the contexts are never built. */
+const MOBILE_ONLY = /phase7-mobile\.spec\.ts/;
 export default defineConfig({
   testDir: './tests',
   /* Only Playwright specs. tests/ also holds plain `node` .test.mjs files run by
@@ -78,18 +87,19 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+      testIgnore: MOBILE_ONLY,
     },
 
     {
       name: 'firefox',
       use: { ...devices['Desktop Firefox'] },
-      testIgnore: ROUTE_PROBE,
+      testIgnore: [ROUTE_PROBE, MOBILE_ONLY],
     },
 
     {
       name: 'webkit',
       use: { ...devices['Desktop Safari'] },
-      testIgnore: ROUTE_PROBE,
+      testIgnore: [ROUTE_PROBE, MOBILE_ONLY],
     },
 
     /* Test against mobile viewports. A desktop pass proves nothing here: the
