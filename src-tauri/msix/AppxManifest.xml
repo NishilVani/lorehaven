@@ -55,12 +55,14 @@
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png"
         Square44x44Logo="Assets\Square44x44Logo.png">
-        <!-- Only the logos Tauri actually generates are referenced. A manifest
-             that names an asset the package does not contain fails to build, and
-             the wide tile and splash screen are both optional for a full-trust
-             desktop app: the splash is never shown for one at all. -->
+        <!-- Only the logos Tauri actually generates are referenced, and only
+             those that validate together. Square310x310Logo is deliberately
+             absent: makeappx rejects it unless Wide310x150Logo is supplied too
+             (error 80080204), Tauri generates no wide asset, and a stretched
+             fake would look worse than simply not offering the large tile.
+             The splash screen is skipped as well — a full-trust desktop app
+             never shows one. -->
         <uap:DefaultTile
-          Square310x310Logo="Assets\Square310x310Logo.png"
           Square71x71Logo="Assets\Square71x71Logo.png"
           ShortName="LoreHaven" />
       </uap:VisualElements>

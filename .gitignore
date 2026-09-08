@@ -87,3 +87,6 @@ MoctaleSS/
 
 # Firebase CLI local deploy cache
 .firebase/
+
+# Locally packed MSIX
+msix-out/

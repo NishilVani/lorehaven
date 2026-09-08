@@ -18,7 +18,11 @@
 [CmdletBinding()]
 param(
   [Parameter(Mandatory = $true)][string]$Version,
-  [string]$ExePath = "src-tauri/target/release/LoreHaven.exe",
+  # The Cargo package is named "app" (src-tauri/Cargo.toml), so cargo emits
+  # app.exe. Tauri only renames it to productName while bundling, and the MSIX
+  # is packed from the raw target directory — so app.exe is what is there.
+  # It is copied in as LoreHaven.exe, which is what AppxManifest declares.
+  [string]$ExePath = "src-tauri/target/release/app.exe",
   [string]$OutDir = "msix-out"
 )
 
@@ -38,8 +42,9 @@ $makeappx = Get-ChildItem -Path $sdkRoot -Filter 'makeappx.exe' -Recurse -ErrorA
 if (-not $makeappx) { throw "makeappx.exe not found under $sdkRoot. Is the Windows SDK installed?" }
 Write-Host "Using $($makeappx.FullName)"
 
-$stage = Join-Path $env:RUNNER_TEMP 'msix-stage'
-if (-not $env:RUNNER_TEMP) { $stage = Join-Path ([IO.Path]::GetTempPath()) 'msix-stage' }
+# RUNNER_TEMP only exists on a GitHub runner; fall back for local runs.
+$tempRoot = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [IO.Path]::GetTempPath() }
+$stage = Join-Path $tempRoot 'msix-stage'
 if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
 New-Item -ItemType Directory -Path (Join-Path $stage 'Assets') -Force | Out-Null
 
@@ -53,7 +58,7 @@ Get-ChildItem (Split-Path $ExePath -Parent) -Filter '*.dll' -File -ErrorAction S
 # Every logo the manifest names has to exist in the package.
 $required = @(
   'Square44x44Logo.png', 'Square71x71Logo.png', 'Square150x150Logo.png',
-  'Square310x310Logo.png', 'StoreLogo.png'
+  'StoreLogo.png'
 )
 foreach ($asset in $required) {
   $src = Join-Path 'src-tauri/icons' $asset
@@ -74,4 +79,6 @@ $out = Join-Path $OutDir "LoreHaven-$Version.msix"
 if ($LASTEXITCODE -ne 0) { throw "makeappx failed with exit code $LASTEXITCODE" }
 
 Write-Host "Packed $out ($([math]::Round((Get-Item $out).Length / 1MB, 2)) MB)"
-"msix=$out" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+if ($env:GITHUB_OUTPUT) {
+  "msix=$out" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+}
