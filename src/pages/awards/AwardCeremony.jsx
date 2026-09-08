@@ -7,7 +7,7 @@ import {
 import EmptyPlate from '../../components/ui/EmptyPlate';
 import GameCard from '../../components/games/GameCard';
 import DropdownMenu from '../../components/ui/DropdownMenu';
-import { toast } from '../../components/ui/Toast';
+import { toast } from '../../components/ui/toastBus';
 import { fetchCeremony, stripCeremonyPrefix, getCachedAwardGames, cacheAwardGames } from '../../services/wikidata/awards';
 import { getGamesByIds } from '../../services/igdb';
 import { getLibrary, saveToLibrary, removeFromLibrary } from '../../services/db';

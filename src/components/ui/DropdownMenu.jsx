@@ -66,7 +66,7 @@ export default function DropdownMenu({
     const spaceBelow = vpH - r.bottom - 16;
     const spaceAbove = r.top - 16;
 
-    let top = r.bottom + 6;
+    let top;
     let maxHeight = undefined;
     let openUpward = false;
     let left = align === 'right' ? r.right - actualWidth : r.left;

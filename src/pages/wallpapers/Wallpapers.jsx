@@ -28,13 +28,14 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { getLibrary } from '../../services/db';
 import { getGamesForWallpapers } from '../../services/igdb';
-import { toast } from '../../components/ui/Toast';
+import { toast } from '../../components/ui/toastBus';
 import MarqueeText from '../../components/ui/MarqueeText';
 import DropdownMenu from '../../components/ui/DropdownMenu';
 import { Skeleton } from '../../components/ui/Skeleton';
 import useSwipe from '../../hooks/useSwipe';
 import useZoomPan from '../../hooks/useZoomPan';
-import Dialog, { useFocusTrap } from '../../components/ui/Dialog';
+import Dialog from '../../components/ui/Dialog';
+import { useFocusTrap } from '../../components/ui/useFocusTrap';
 import {
   Download,
   X,

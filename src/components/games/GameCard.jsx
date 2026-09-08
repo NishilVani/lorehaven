@@ -17,7 +17,7 @@ import {
 import MarqueeText from '../ui/MarqueeText';
 import DropdownMenu from '../ui/DropdownMenu';
 import { saveToLibrary, removeFromLibrary, getLibraryIndex, getRecFeedbackIndex } from '../../services/db';
-import { toast } from '../ui/Toast';
+import { toast } from '../ui/toastBus';
 import { statusBadge as makeStatusBadge } from '../../constants/stateColors';
 import { PRIORITY_MENU, FEEL_MENU, priorityBadge, feelColor, statusColor } from '../../constants/stateColors';
 import useConfirm from '../../hooks/useConfirm';
@@ -204,7 +204,7 @@ export default function GameCard({
       };
     });
 
-    let subOpts = [];
+    let subOpts;
     if (entry.status === 'Beaten') {
       /* FEEL_MENU, not a local copy — this list was an eleventh inline duplicate
          of the rating scale. */

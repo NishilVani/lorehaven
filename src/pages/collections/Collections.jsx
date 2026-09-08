@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import EmptyPlate from '../../components/ui/EmptyPlate';
 import { Plus, Search, X, Bookmark, BookmarkCheck, Trash2, SearchX } from 'lucide-react';
 import CollectionTile from '../../components/collections/CollectionTile';
-import { toast } from '../../components/ui/Toast';
+import { toast } from '../../components/ui/toastBus';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import {
   getCollections, saveCollection, deleteCollection,

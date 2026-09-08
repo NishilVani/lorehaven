@@ -31,7 +31,7 @@ import PageHeader from '../../components/ui/PageHeader';
 /* The three taxonomies IGDB holds in readable numbers. Companies and engines
    run to tens of thousands with no useful index, so they stay where they are:
    on the game that made you curious about them. */
-export const TAXONOMIES = {
+const TAXONOMIES = {
   genres: { type: 'genre', title: 'Genres', blurb: 'What kind of game it is.', load: getGenres },
   themes: { type: 'theme', title: 'Themes', blurb: 'The mood and setting it plays in.', load: getThemes },
   modes: { type: 'mode', title: 'Modes', blurb: 'How many people play, and how.', load: getGameModes },

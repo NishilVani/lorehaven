@@ -4,9 +4,10 @@ import EmptyPlate from '../../components/ui/EmptyPlate';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { X, Bookmark, BookmarkCheck, Trash2, Search, Plus, Pencil, Copy } from 'lucide-react';
 import GameCard from '../../components/games/GameCard';
-import { useGameGridControls, GroupHeader } from '../../components/games/GameGridControls';
+import { useGameGridControls } from '../../components/games/GameGridControls';
+import { GroupHeader } from '../../components/games/GroupHeader';
 import { GameCardSkeleton } from '../../components/ui/Skeleton';
-import { toast } from '../../components/ui/Toast';
+import { toast } from '../../components/ui/toastBus';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import {
   getCollections, saveCollection, deleteCollection, removeGameFromCollection, addGameToCollection,

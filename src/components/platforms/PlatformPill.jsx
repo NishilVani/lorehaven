@@ -1,4 +1,5 @@
-import { PlatformLogo, getPlatformLogoUrl, getShortPlatformName } from './PlatformLogo';
+import { PlatformLogo } from './PlatformLogo';
+import { getPlatformLogoUrl, getShortPlatformName } from './platformLogoUtils';
 import { Tooltip } from '../ui/Tooltip';
 
 export function PlatformPill({ platform, isSelected, onClick, className = "", isFullWidth = false, showType = false, subtitle = null, children }) {

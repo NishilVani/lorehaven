@@ -1,6 +1,7 @@
 import { useId, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { PlatformLogo, getShortPlatformName } from '../platforms/PlatformLogo';
+import { PlatformLogo } from '../platforms/PlatformLogo';
+import { getShortPlatformName } from '../platforms/platformLogoUtils';
 import { platKey, normalizePlat, matchPlatformsForGame } from '../../services/platformMatch';
 
 /* One row: the platforms the game runs on, with the ones you own marked.

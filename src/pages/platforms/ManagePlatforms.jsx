@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Trash2, Search, X, Laptop, Store, CreditCard, Link2, Link2Off } from 'lucide-react';
 import Heading from '../../components/ui/Heading';
-import { toast } from '../../components/ui/Toast';
+import { toast } from '../../components/ui/toastBus';
 import { PlatformLogo } from '../../components/platforms/PlatformLogo';
 import PlatformPill from '../../components/platforms/PlatformPill';
 import {

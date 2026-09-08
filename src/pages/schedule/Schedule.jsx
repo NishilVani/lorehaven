@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import EmptyPlate from '../../components/ui/EmptyPlate';
 import { useSearchParams } from 'react-router-dom';
 import GameCard from '../../components/games/GameCard';
-import { GroupHeader } from '../../components/games/GameGridControls';
+import { GroupHeader } from '../../components/games/GroupHeader';
 import { GameCardSkeleton } from '../../components/ui/Skeleton';
 import DropdownMenu from '../../components/ui/DropdownMenu';
 import { getReleaseDates, getAnnouncedGames } from '../../services/igdb';

@@ -7,10 +7,10 @@ import {
     getSavedFranchises, saveFranchise, removeFranchise,
     getSavedIgdbCollections, saveIgdbCollection, removeIgdbCollection
 } from '../../services/db';
-import { toast } from '../ui/Toast';
+import { toast } from '../ui/toastBus';
 import GameCard from '../games/GameCard';
 import { GameCardSkeleton, CollectionSkeleton } from '../ui/Skeleton';
-import { useFocusTrap } from '../ui/Dialog';
+import { useFocusTrap } from '../ui/useFocusTrap';
 import CollectionCard from '../collections/CollectionCard';
 import EmptyPlate from '../ui/EmptyPlate';
 import useAnnounce from '../ui/useAnnounce';

@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { X, Mail, Lock, Loader2 } from 'lucide-react';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../../services/firebase';
-import { toast } from './Toast';
+import { toast } from './toastBus';
 import Dialog from './Dialog';
 
 export default function AuthModal({ isOpen, onClose }) {

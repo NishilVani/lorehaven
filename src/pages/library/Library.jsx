@@ -25,7 +25,7 @@ import {
    states). It also meant "Moved to Beaten" appeared in a different corner
    depending on which page fired it. Per-message icons went with it: one status
    channel, one appearance. */
-import { toast } from '../../components/ui/Toast';
+import { toast } from '../../components/ui/toastBus';
 import useAnnounce from '../../components/ui/useAnnounce';
 import useSwipe from '../../hooks/useSwipe';
 import { PRIORITY_MENU, FEEL_MENU, priorityColor, statusColor, normalizeStatus } from '../../constants/stateColors';

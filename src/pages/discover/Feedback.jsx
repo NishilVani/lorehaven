@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import GameCard from '../../components/games/GameCard';
 import EmptyPlate from '../../components/ui/EmptyPlate';
 import { ThumbsUp, EyeOff } from 'lucide-react';
-import { toast } from '../../components/ui/Toast';
+import { toast } from '../../components/ui/toastBus';
 import { getRecFeedbackList, setRecFeedback } from '../../services/db';
 
 /** Manage the Interested / Not Interested signals that tune recommendations. */

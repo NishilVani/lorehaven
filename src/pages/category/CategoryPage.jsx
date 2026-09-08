@@ -43,7 +43,7 @@ import GameCard from '../../components/games/GameCard';
 import DropdownMenu from '../../components/ui/DropdownMenu';
 import { GameCardSkeleton } from '../../components/ui/Skeleton';
 import { ChevronDown, HeartPlus, X, Info, RefreshCw } from 'lucide-react';
-import { toast } from '../../components/ui/Toast';
+import { toast } from '../../components/ui/toastBus';
 import useAnnounce from '../../components/ui/useAnnounce';
 import { PRIORITY_MENU, statusBadge as makeStatusBadge } from '../../constants/stateColors';
 import { PlatformGlyph } from '../../components/platforms/PlatformLogo';

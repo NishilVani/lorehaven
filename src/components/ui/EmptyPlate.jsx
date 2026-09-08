@@ -3,7 +3,7 @@
    away; `failed` swaps the copy tone and supplies a Retry that remounts the
    route through the same event ApiErrorBanner uses, so a failed index never
    reads as an empty one. */
-export const retryRoutes = () => window.dispatchEvent(new Event('moctale_sync_update'));
+const retryRoutes = () => window.dispatchEvent(new Event('moctale_sync_update'));
 
 export default function EmptyPlate({ icon: Icon, title, body, action = null, failed = false }) {
   return (

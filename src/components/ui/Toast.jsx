@@ -2,17 +2,6 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import useSwipe from '../../hooks/useSwipe';
 import { createPortal } from 'react-dom';
 
-// The exported function to call the toast
-/* `action` is an optional { label, onClick }. It exists so a mutation can offer a
-   reversal in the same place it announces itself: the library's move, priority and
-   rating handlers all wrote and toasted with no way back, so recovering from a
-   mis-drop meant switching shelf, finding the game and moving it by hand. The
-   action rides the toast's own timer, so the offer expires with the message. */
-export const toast = (message, type = 'info', action = null) => {
-  const event = new CustomEvent('show-toast', { detail: { message, type, action } });
-  window.dispatchEvent(event);
-};
-
 /* 2s was not enough time to read a toast, let alone for a screen reader to finish
    speaking it (WCAG 2.2.1 Timing Adjustable). Six seconds, and the countdown pauses
    whenever the toast is hovered or holds focus, so the dismiss button is reachable. */

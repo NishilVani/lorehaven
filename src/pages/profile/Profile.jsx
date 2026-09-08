@@ -7,7 +7,7 @@ import LibraryNumbers from './LibraryNumbers';
 import YourTaste from './YourTaste';
 import YourData from './YourData';
 import { libraryStats } from '../../services/libraryStats';
-import { toast } from '../../components/ui/Toast';
+import { toast } from '../../components/ui/toastBus';
 import { getUserName, setUserName, getSyncState } from '../../services/db';
 
 /* Band A — who you are and whether your library is safe.

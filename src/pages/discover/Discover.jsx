@@ -7,7 +7,7 @@ import CollectionTile from '../../components/collections/CollectionTile';
 import UpdateCountBadge from './UpdateCountBadge';
 import { Bookmark, Check, X } from 'lucide-react';
 import { getLibrary, saveToLibrary, saveIgdbCollection, saveFranchise } from '../../services/db';
-import { toast } from '../../components/ui/Toast';
+import { toast } from '../../components/ui/toastBus';
 import {
   getRecommendations, refreshLibraryUpdates, updatesToCards,
   getAnnounced, getTrending, setRecFeedback, enrichHero, pickHero,

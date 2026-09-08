@@ -12,8 +12,8 @@ import {
   getCollections, getCollectionsWithGame, addGameToCollection, removeGameFromCollection,
 } from '../../services/db';
 import { toDateInputValue, readNoteDraft, writeNoteDraft, clearNoteDraft } from '../../services/libraryFields';
-import { getShortPlatformName } from '../../components/platforms/PlatformLogo';
-import { toast } from '../../components/ui/Toast';
+import { getShortPlatformName } from '../../components/platforms/platformLogoUtils';
+import { toast } from '../../components/ui/toastBus';
 import { Skeleton } from '../../components/ui/Skeleton';
 import AwardsSection from '../../components/GameDetail/AwardsSection';
 import Dialog from '../../components/ui/Dialog';
@@ -200,7 +200,7 @@ export default function GameDetail() {
     setGame(null);
     setLoadError(null);
     (async () => {
-      let data = null;
+      let data;
       try {
         data = await getGameById(id);
       } catch (err) {
@@ -224,7 +224,11 @@ export default function GameDetail() {
     return () => { cancelled = true; };
   }, [id]);
 
-  const isUnreleased = game?.first_release_date ? game.first_release_date * 1000 > Date.now() : !game?.first_release_date;
+  /* Date.now() is impure and cannot be called during render. The released/unreleased
+     boundary only has to hold for the life of this page, so the clock is read once
+     on mount and every comparison is made against that fixed instant. */
+  const [nowMs] = useState(() => Date.now());
+  const isUnreleased = game?.first_release_date ? game.first_release_date * 1000 > nowMs : !game?.first_release_date;
 
   const derived = useMemo(() => {
     if (!game) return {};
