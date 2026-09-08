@@ -71,12 +71,19 @@ later rename.
 
 ## What still needs doing
 
+The first submission is **done**: `LoreHaven-0.1.0.msix` went through Partner
+Center by hand with the full listing, and is in certification. That was always
+going to be manual — the automation *updates* an app that already exists, it
+does not create a listing.
+
+What is left is the automation for later releases:
+
 1. **Register an application in Microsoft Entra ID**, then add it in Partner
    Center under **Account settings → User management → Microsoft Entra
    applications** with the **Manager** role.
-2. **Create the first submission by hand** in Partner Center — listing text,
-   screenshots, age rating, and the first MSIX. The automation *updates* an app
-   that already exists; it does not create the listing.
+2. **Add the four secrets below.** Until they exist, `store-submission.yml`
+   fails on a tagged release. That is deliberate: a green run that submitted
+   nothing is worse than a red one.
 
 ## Repository secrets
 
@@ -98,8 +105,15 @@ step needs these.
 1. You tag a version. The Windows job builds the app, packs the MSIX, and
    attaches `LoreHaven-<version>.msix` to the draft release.
 2. When every platform succeeds the release is published.
-3. **Store — submit release** fires on that event, downloads the MSIX from the
-   release, and runs `msstore publish`.
+3. **Store — submit release** fires when the whole **Release** workflow
+   completes, downloads the MSIX from the release, and runs `msstore publish`.
+
+Step 3 keys off the *workflow* finishing rather than the release being
+published, and that is not a stylistic choice. The `publish` job undrafts the
+release using `GITHUB_TOKEN`, and GitHub will not let an action authenticated
+with `GITHUB_TOKEN` raise events that start further workflow runs — the rule
+that stops a workflow from triggering itself forever. A `release: published`
+trigger here therefore never fires. It looked correct and sat at zero runs.
 
 Version numbering: the manifest uses four fields and the Store reserves the
 last, so `0.2.0` is packed as `0.2.0.0`. The packing script appends the zero.

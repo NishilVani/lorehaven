@@ -23,23 +23,30 @@ infinite-scroll audit, with the measurement behind every claim.
 | `ci.yml` | push / PR to main | lint, unit tests, build; Playwright chromium (advisory) |
 | `firebase-hosting.yml` | push / PR to main | deploys live, or a 7-day PR preview channel |
 | `release.yml` | tag `v*` | macOS (arm64 + Intel), Linux, Windows (incl. MSIX), Android APKs into one draft release, published only when every platform succeeds |
-| `store-submission.yml` | release published | downloads that release's MSIX and publishes it to the Microsoft Store |
+| `store-submission.yml` | `release.yml` completing | downloads that release's MSIX and publishes it to the Microsoft Store |
 
-`v0.1.0` proved the desktop matrix: all four platforms built first time and
-uploaded nine bundles. The Android job failed on missing secrets, which is
-correct — it has none yet — so the release is still a draft.
+`v0.1.0` is **published**, from commit `772a0b3`, with every platform in one
+release: the four desktop bundles, `LoreHaven-0.1.0.msix`, and
+`LoreHaven-0.1.0-universal.apk`. Every job passed, so `publish` undrafted it
+automatically — which is the whole design.
+
+Its first run, at `3e20502`, is worth remembering: Android failed for want of
+the signing secrets, and the release correctly stayed a draft rather than
+shipping a half-built version. The tag was later re-pointed at `772a0b3` and the
+stale draft deleted first, so the new run could not append to it.
 
 ## What is waiting on a human
 
-- **Android releases** need four repository secrets: `ANDROID_KEYSTORE_BASE64`,
-  `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`.
-  `docs/RELEASING.md` has the base64 command. The keystore is on disk and
-  gitignored; losing it means no more updates to the same Play listing.
-- **Microsoft Store**: LoreHaven is already reserved (Store ID `9N7FD5QBSMBB`)
-  and its package identity is baked into the manifest. **No code signing
-  certificate** — the listing is an MSIX and Microsoft re-signs it. What is left
-  is an Entra app with the Manager role, four repository secrets, and the first
-  submission created by hand. See
+- **Microsoft Store**: the first submission is done — `LoreHaven-0.1.0.msix`
+  was submitted by hand through Partner Center with the full listing, and it is
+  **in certification** (Store ID `9N7FD5QBSMBB`). **No code signing certificate
+  was needed**: the listing is an MSIX and Microsoft re-signs it. What is left is
+  only the automation for *later* releases — an Entra app with the Manager role
+  and four repository secrets (`AZURE_AD_TENANT_ID`,
+  `AZURE_AD_APPLICATION_CLIENT_ID`, `AZURE_AD_APPLICATION_SECRET`, `SELLER_ID`).
+  The Seller ID page returned "Access restricted" on this account, so that one
+  may need a different role. Until they exist, `store-submission.yml` fails
+  loudly on a tagged release rather than passing green having done nothing. See
   [docs/MICROSOFT-STORE.md](docs/MICROSOFT-STORE.md), which also flags that the
   publisher name in Partner Center reads "LoreHeaven".
 - **The Clone pair in `phase4-deep`** is the only real test failure left, and it

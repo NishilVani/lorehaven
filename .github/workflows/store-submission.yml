@@ -8,12 +8,21 @@ name: Store — submit release
 # no installer URL to keep alive. An MSI/EXE listing gets neither — the Store
 # does not re-sign those, and you must Authenticode-sign them yourself.
 #
-# Runs when the Release workflow publishes a release, so a submission can never
-# point at a draft or a half-uploaded package.
+# Triggered by the Release workflow finishing, NOT by `release: published`.
+# That distinction matters and cost a silent failure to find: the Release
+# workflow undrafts the release with GITHUB_TOKEN, and GitHub deliberately does
+# not let a GITHUB_TOKEN action emit events that start further workflow runs —
+# it is how they stop a workflow triggering itself forever. So `release:
+# published` never fired here and this workflow sat at zero runs looking healthy.
+#
+# workflow_run fires on the Release run itself, which a human started by pushing
+# a tag, so it is not suppressed. The `success()` guard keeps it from submitting
+# a release whose jobs failed.
 
 on:
-  release:
-    types: [published]
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
   workflow_dispatch:
     inputs:
       tag:
@@ -27,18 +36,10 @@ jobs:
   submit:
     name: Publish to the Store
     runs-on: windows-latest
+    # A failed or cancelled Release must not reach the Store.
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     steps:
       - uses: actions/checkout@v4
-
-      - name: Check the Store credentials are present
-        shell: pwsh
-        env:
-          TENANT: ${{ secrets.AZURE_AD_TENANT_ID }}
-        run: |
-          if ([string]::IsNullOrWhiteSpace($env:TENANT)) {
-            Write-Error "Store credentials are not set. See docs/MICROSOFT-STORE.md."
-            exit 1
-          }
 
       - name: Download the MSIX from the release
         id: fetch
@@ -46,8 +47,18 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # head_branch is the ref the Release run was started from, i.e. the tag.
           $tag = "${{ github.event.inputs.tag }}"
-          if ([string]::IsNullOrWhiteSpace($tag)) { $tag = "${{ github.event.release.tag_name }}" }
+          if ([string]::IsNullOrWhiteSpace($tag)) { $tag = "${{ github.event.workflow_run.head_branch }}" }
+          if ([string]::IsNullOrWhiteSpace($tag) -or -not $tag.StartsWith('v')) {
+            # The Release workflow can also be started by hand against a branch.
+            # `exit 0` alone would not be enough - later steps would still run and
+            # hand msstore an empty path - so the remaining steps are gated on
+            # this output rather than on the step succeeding.
+            Write-Host "::notice::'$tag' is not a release tag - nothing to submit."
+            "submit=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            exit 0
+          }
           $version = $tag -replace '^v', ''
           $asset = "LoreHaven-$version.msix"
 
@@ -61,10 +72,29 @@ jobs:
           $path = (Resolve-Path "release/$asset").Path
           Write-Host "Got $path ($([math]::Round((Get-Item $path).Length / 1MB, 2)) MB)"
           "msix=$path" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "submit=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      # After the tag is resolved, not before: a Release run started by hand
+      # against a branch has nothing to submit, and failing that for a missing
+      # secret would be a red run for no reason. A tagged release with no
+      # credentials does fail, deliberately - a green run that submitted nothing
+      # is the exact failure mode this workflow already had once.
+      - name: Check the Store credentials are present
+        if: steps.fetch.outputs.submit == 'true'
+        shell: pwsh
+        env:
+          TENANT: ${{ secrets.AZURE_AD_TENANT_ID }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:TENANT)) {
+            Write-Error "Store credentials are not set. See docs/MICROSOFT-STORE.md."
+            exit 1
+          }
 
       - uses: microsoft/microsoft-store-apppublisher@v1.1
+        if: steps.fetch.outputs.submit == 'true'
 
       - name: Configure MSStore CLI
+        if: steps.fetch.outputs.submit == 'true'
         shell: pwsh
         run: |
           msstore reconfigure `
@@ -74,6 +104,7 @@ jobs:
             --clientSecret ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
 
       - name: Publish the package
+        if: steps.fetch.outputs.submit == 'true'
         shell: pwsh
         # 9N7FD5QBSMBB is the Store ID for LoreHaven. It is public — it is the
         # listing URL, https://apps.microsoft.com/detail/9N7FD5QBSMBB — so it
