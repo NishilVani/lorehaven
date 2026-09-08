@@ -117,6 +117,8 @@ pre-refactor tree before being written down here.
 | `phase4-deep:870` FINDING 11 — Clone twice | **Real, pre-existing.** Same cause. |
 | `phase2-deep:912` no duplicate cards while scrolling | Flake. Passes in isolation. The grid de-duplicates by id; the assertion compares names, and IGDB can ship two ids with one name. |
 | `phase3-deep:1276` Save to Shelves | Order-dependent. Fails alone on the pre-refactor tree too, passes inside a batch. |
+| `phase6-deep:629` Reload refetches from IGDB | Order-dependent. Run as a pair with case 41 it fails on the pre-refactor tree identically; it passes inside a full-file run. |
+| `phase6-deep:862` a failed reload clears the stale plates | Real, pre-existing. Fails on the pre-refactor tree in every arrangement tried. |
 
 `phase7-mobile.spec.ts` is now excluded from the desktop projects in
 `playwright.config.ts`. It asserts phone-only behaviour, so all ~47 of its cases

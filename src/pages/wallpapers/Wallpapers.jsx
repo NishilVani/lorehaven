@@ -474,11 +474,13 @@ function Rows({ rows, gap, sel, selectMode, wide, onOpen, onToggle }) {
 
 export default function Wallpapers() {
   // Filters and Settings
-  /* Seeded from localStorage rather than by the first fetch, so the page does
-     not render an empty register for a frame before its own library lands. */
   const [libraryGames, setLibraryGames] = useState(getLibrary);
   const [wallpapers, setWallpapers] = useState([]);
-  const [loading, setLoading] = useState(false);
+  /* True from the first render, because the page always fetches on mount. It
+     used to start false and be raised by the fetch, which meant one painted
+     frame of an empty, settled-looking feed — "No Plates Match" over a library
+     that had not been read yet. */
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [aspectRatio, setAspectRatio] = useState('all'); // 'all' | 'pc' | 'mobile'
   const [sourceMode, setSourceMode] = useState('both'); // 'both' | 'library' | 'similar'
@@ -596,18 +598,17 @@ export default function Wallpapers() {
   }, [activePreviewIndex]);
 
   // Load Library Games and Fetch Wallpapers
-  /* `reset` is false only for the call the filter-change effect makes, because
-     the block below has already cleared the feed during that render. The reload
-     button and the retry plate both call it with the default and get the full
-     clear. */
   const fetchAllData = useCallback(async (reset = true) => {
     const lib = getLibrary();
+    /* Outside the reset guard on purpose. This is not part of clearing the feed,
+       it is reading what the register currently holds, and libraryGames.length
+       is what chooses between the grid and the bare-print-room plate. */
+    setLibraryGames(lib);
     if (reset) {
       setLoading(true);
       setLoadError(null);
       // A failed reload used to keep the previous plates on screen under a toast.
       setWallpapers([]);
-      setLibraryGames(lib);
     }
 
     if (lib.length === 0) {
@@ -759,8 +760,8 @@ export default function Wallpapers() {
 
   /* fetchAllData is a useCallback over the source filters, so a new identity
      means the feed it produced is the wrong feed. Cleared during render so the
-     previous game's plates are never painted under the new filters. Initial
-     render is a no-op: loading starts true and wallpapers starts empty. */
+     previous filters' plates are never painted under the new ones. Initial
+     render is a no-op: dataFor is seeded with the same function. */
   const [dataFor, setDataFor] = useState(() => fetchAllData);
   if (dataFor !== fetchAllData) {
     setDataFor(() => fetchAllData);
@@ -773,8 +774,9 @@ export default function Wallpapers() {
   useEffect(() => {
     /* eslint-disable-next-line react-hooks/set-state-in-effect --
        reset is false, so the synchronous part of fetchAllData reaches no
-       setState; the clear happened in the block above, during render. The rule
-       cannot follow a boolean across a call boundary. */
+       setState beyond setLibraryGames, which is a read of the register rather
+       than part of the clear. The rule cannot follow a boolean across a call
+       boundary. */
     fetchAllData(false);
   }, [fetchAllData]);
 
@@ -828,8 +830,8 @@ export default function Wallpapers() {
   }, [displayedWallpapers, gridW, gap, rowTarget]);
 
   /* Reset pagination on filter change, during render. As an effect it painted
-     the newly filtered feed at the old scroll depth first — briefly showing
-     more rows than the filter had any business showing. */
+     the newly filtered feed at the old scroll depth first — briefly showing more
+     rows than the filter had any business showing. */
   const filterKey = `${searchQuery}|${aspectRatio}|${sourceMode}|${typeFilter}`;
   const [visibleFor, setVisibleFor] = useState(filterKey);
   if (visibleFor !== filterKey) {
