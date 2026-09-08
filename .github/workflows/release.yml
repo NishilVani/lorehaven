@@ -110,6 +110,42 @@ jobs:
 
       - run: npm ci
 
+      # Authenticode signing. The Microsoft Store rejects an unsigned installer,
+      # and Windows SmartScreen warns on one, so this runs whenever the
+      # certificate secrets are present. Without them the build still succeeds —
+      # it just produces an unsigned installer, which is fine for direct download
+      # but not for a Store submission. See docs/MICROSOFT-STORE.md.
+      - name: Configure Windows code signing
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        env:
+          CERT_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          # The secrets context is not available in a step-level `if`, so the
+          # presence check happens here rather than in a condition.
+          if ([string]::IsNullOrWhiteSpace($env:CERT_BASE64)) {
+            Write-Host "::warning::WINDOWS_CERTIFICATE_BASE64 is not set - the installer will be unsigned and cannot be submitted to the Microsoft Store."
+            exit 0
+          }
+          $pfx = Join-Path $env:RUNNER_TEMP "signing.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:CERT_BASE64))
+          $password = ConvertTo-SecureString -String $env:CERT_PASSWORD -Force -AsPlainText
+          $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password
+          Remove-Item $pfx -Force
+          # tauri.windows.conf.json is merged into tauri.conf.json automatically on
+          # Windows, so the thumbprint never has to be committed.
+          @{
+            bundle = @{
+              windows = @{
+                certificateThumbprint = $cert.Thumbprint
+                digestAlgorithm       = "sha256"
+                timestampUrl          = "http://timestamp.digicert.com"
+              }
+            }
+          } | ConvertTo-Json -Depth 5 | Set-Content src-tauri/tauri.windows.conf.json -Encoding utf8
+          Write-Host "Signing configured for thumbprint $($cert.Thumbprint)"
+
       - name: Build and upload bundles
         uses: tauri-apps/tauri-action@v0
         env:

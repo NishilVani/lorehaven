@@ -1,0 +1,47 @@
+name: Store — fetch base submission
+
+# One-time (and occasional) helper. The Microsoft Store submission for an
+# MSI/EXE app is a JSON document that Partner Center owns; you cannot invent its
+# shape, you have to read the real one first.
+#
+# Run this from the Actions tab, copy the two JSON blocks out of the log, and
+# commit them as store/package.json and store/metadata.json. From then on
+# store-submission.yml patches the installer URL in store/package.json on every
+# release and publishes the update.
+#
+# Docs: https://learn.microsoft.com/en-us/windows/apps/publish/msstore-dev-cli/github-actions
+
+on:
+  workflow_dispatch:
+    inputs:
+      module:
+        description: "Metadata module to fetch (leave blank to skip metadata)"
+        required: false
+        default: ""
+
+jobs:
+  fetch:
+    name: Fetch base JSON
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: microsoft/microsoft-store-apppublisher@v1.1
+
+      - name: Configure MSStore CLI
+        shell: pwsh
+        run: |
+          msstore reconfigure `
+            --tenantId ${{ secrets.AZURE_AD_TENANT_ID }} `
+            --sellerId ${{ secrets.SELLER_ID }} `
+            --clientId ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }} `
+            --clientSecret ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
+
+      - name: Base package JSON
+        shell: pwsh
+        run: msstore submission get ${{ vars.MS_STORE_PRODUCT_ID }}
+
+      - name: Base metadata JSON
+        if: inputs.module != ''
+        shell: pwsh
+        run: msstore submission get ${{ vars.MS_STORE_PRODUCT_ID }} -m ${{ inputs.module }}

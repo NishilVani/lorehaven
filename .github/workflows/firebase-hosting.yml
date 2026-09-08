@@ -1,0 +1,72 @@
+name: Deploy web
+
+# Continuous deployment of the web app to Firebase Hosting.
+#
+#   push to main  -> builds, tests, deploys to the live channel (moctalegames.web.app)
+#   pull request  -> builds and deploys to a throwaway preview channel, and comments
+#                    the preview URL on the PR
+#
+# The tests run before the deploy in the same job on purpose: a red suite must
+# not be able to reach the live site.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Never let two deploys of the same ref race each other to the live channel.
+concurrency:
+  group: hosting-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  deploy:
+    name: Build and deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Advisory, not a gate. The tree currently has ~270 pre-existing ESLint
+      # errors (mostly react-hooks/set-state-in-effect and no-unused-vars), so a
+      # blocking lint step would mean the site never deploys again. Flip this to
+      # a hard gate once the backlog is cleared.
+      - name: Lint
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Deploy to live channel
+        if: github.event_name == 'push'
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MOCTALEGAMES }}
+          projectId: moctalegames
+          channelId: live
+
+      - name: Deploy to preview channel
+        if: github.event_name == 'pull_request'
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MOCTALEGAMES }}
+          projectId: moctalegames
+          expires: 7d

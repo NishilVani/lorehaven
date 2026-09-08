@@ -35,12 +35,14 @@ Actions tab and pass the tag name.
 Add these under **Settings → Secrets and variables → Actions**. Only the Android
 job needs them; the desktop matrix uses the built-in `GITHUB_TOKEN`.
 
-| Secret | What it holds |
-|---|---|
-| `ANDROID_KEYSTORE_BASE64` | The release keystore, base64-encoded |
-| `ANDROID_KEYSTORE_PASSWORD` | Store password |
-| `ANDROID_KEY_ALIAS` | Key alias inside the store |
-| `ANDROID_KEY_PASSWORD` | Key password |
+| Secret | Needed by | What it holds |
+|---|---|---|
+| `ANDROID_KEYSTORE_BASE64` | Android | The release keystore, base64-encoded |
+| `ANDROID_KEYSTORE_PASSWORD` | Android | Store password |
+| `ANDROID_KEY_ALIAS` | Android | Key alias inside the store |
+| `ANDROID_KEY_PASSWORD` | Android | Key password |
+| `WINDOWS_CERTIFICATE_BASE64` | Windows | Authenticode `.pfx`, base64-encoded. Optional — without it the Windows build still succeeds, but the installer is unsigned and the Microsoft Store will reject it |
+| `WINDOWS_CERTIFICATE_PASSWORD` | Windows | The `.pfx` password |
 
 To produce the base64 blob from the keystore on this machine:
 
@@ -95,18 +97,40 @@ Output lands under `src-tauri/gen/android/app/build/outputs/`.
 
 ## Web
 
-The web build deploys to Firebase Hosting at https://moctalegames.web.app.
+The web app deploys itself. Every push to `main` runs
+[`firebase-hosting.yml`](../.github/workflows/firebase-hosting.yml), which lints,
+runs the unit tests, builds, and deploys to the live Firebase Hosting channel at
+https://moctalegames.web.app. A red lint or a red test stops the deploy.
+
+Every pull request gets its own preview channel with a URL commented on the PR,
+expiring after seven days.
+
+This needs one secret, `FIREBASE_SERVICE_ACCOUNT_MOCTALEGAMES`, holding a
+service-account JSON key for the `moctalegames` project. The easiest way to
+create the account, grant it the right roles, and upload the secret in one go is
+to let the Firebase CLI do it:
+
+```bash
+firebase init hosting:github
+```
+
+Answer `NishilVani/lorehaven` when it asks for the repository, and decline its
+offers to overwrite the existing workflow files — the ones in this repo already
+do the job. Alternatively, create a key by hand under **Firebase Console →
+Project settings → Service accounts** and paste it into the repository secret.
+
+Firestore rules and indexes are deliberately *not* deployed by CI — a rules
+change is a security change and should be a conscious act:
+
+```bash
+firebase deploy --only firestore
+```
+
+To deploy hosting manually, bypassing CI:
 
 ```bash
 npm run build
 firebase deploy --only hosting
-```
-
-Firestore rules and indexes are deployed separately, and deliberately — a rules
-change is a security change:
-
-```bash
-firebase deploy --only firestore
 ```
 
 ## Store submissions

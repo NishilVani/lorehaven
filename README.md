@@ -73,15 +73,18 @@ npm run lint:a11y         # accessibility gate
 
 ## Deploying
 
-```bash
-npm run build
-firebase deploy --only hosting
-```
+- **Web** deploys itself. Every push to `main` lints, tests, builds and ships to
+  Firebase Hosting; every pull request gets a preview channel.
+- **Desktop and Android** releases are cut by pushing a tag. One tag builds
+  macOS, Linux, Windows and Android into a single GitHub Release.
+- **Microsoft Store** submissions update automatically when a release is
+  published, pointing at that release's installer.
 
-Firestore rules and indexes deploy with `firebase deploy --only firestore`.
+Firestore rules are deployed by hand on purpose (`firebase deploy --only
+firestore`) — a rules change is a security change.
 
-Releases for desktop and Android are cut by pushing a tag — see
-[docs/RELEASING.md](docs/RELEASING.md).
+The runbooks are [docs/RELEASING.md](docs/RELEASING.md) and
+[docs/MICROSOFT-STORE.md](docs/MICROSOFT-STORE.md).
 
 ## Repository layout
 

@@ -84,3 +84,6 @@ Fable5.md
 
 # Screenshots and scratch capture
 MoctaleSS/
+
+# Firebase CLI local deploy cache
+.firebase/
