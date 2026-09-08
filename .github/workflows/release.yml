@@ -211,19 +211,39 @@ jobs:
             echo "keyPassword=$KEY_PASSWORD"
           } > keystore.properties
 
-      - name: Build AAB and APK
-        run: npm run tauri android build -- --aab --apk
+      # APK, not AAB. An .aab is a Play Store upload format and cannot be
+      # installed on a device; this project does not ship to Play, so the APK
+      # goes into the same GitHub Release as the desktop bundles and is
+      # sideloaded from there.
+      - name: Build APK
+        run: npm run tauri android build -- --apk
 
-      - name: Collect the bundles
+      - name: Collect the APKs
         id: collect
         run: |
           VERSION="${{ needs.create-release.outputs.version }}"
           OUT="$RUNNER_TEMP/android-out"
           mkdir -p "$OUT"
-          find src-tauri/gen/android/app/build/outputs -name '*.aab' -exec \
-            sh -c 'cp "$1" "$2/LoreHaven-$3.aab"' _ {} "$OUT" "$VERSION" \;
-          find src-tauri/gen/android/app/build/outputs -name '*-universal-release*.apk' -exec \
-            sh -c 'cp "$1" "$2/LoreHaven-$3-universal.apk"' _ {} "$OUT" "$VERSION" \;
+
+          # The universal APK carries every ABI, so one file installs anywhere.
+          # That is the one to hand someone who just wants the app.
+          find src-tauri/gen/android/app/build/outputs -name '*universal*release*.apk' \
+            -exec sh -c 'cp "$1" "$2/LoreHaven-$3-universal.apk"' _ {} "$OUT" "$VERSION" ';'
+
+          # Per-ABI builds as well: roughly a third of the size each, for anyone
+          # who knows what their device wants.
+          for abi in arm64-v8a armeabi-v7a x86_64 x86; do
+            find src-tauri/gen/android/app/build/outputs -name "*${abi}*release*.apk" \
+              -exec sh -c 'cp "$1" "$2/LoreHaven-$3-$4.apk"' _ {} "$OUT" "$VERSION" "$abi" ';'
+          done
+
+          # Fail loudly rather than publishing a release with no Android build in
+          # it: a rename upstream would otherwise pass silently.
+          if [ -z "$(ls -A "$OUT")" ]; then
+            echo "No APK matched. Everything under outputs/:" >&2
+            find src-tauri/gen/android/app/build/outputs -name '*.apk' >&2
+            exit 1
+          fi
           ls -la "$OUT"
           echo "dir=$OUT" >> "$GITHUB_OUTPUT"
 

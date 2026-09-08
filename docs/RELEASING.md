@@ -20,7 +20,7 @@ The `Release` workflow then:
 |---|---|
 | `create-release` | A **draft** GitHub Release, after checking the tag matches `tauri.conf.json` |
 | `desktop` | `.dmg` + `.app` (Apple Silicon and Intel), `.deb` + `.AppImage` + `.rpm` (Linux), `.msi` + `.exe` NSIS (Windows) |
-| `android` | A signed `.aab` for Play, and a signed universal `.apk` for sideloading |
+| `android` | Signed APKs — one universal, plus one per ABI |
 | `publish` | Flips the release from draft to public |
 
 Nothing is visible until every platform has uploaded, so a partially built
@@ -61,8 +61,9 @@ The workflow writes the key to the runner, builds, and shreds it in an
 `if: always()` step, so a failed build does not leave a key behind.
 
 **The keystore is never committed.** `.gitignore` blocks `*.keystore`, `*.jks`
-and `keystore.properties`. Losing it means you can no longer ship an update to
-the same Play listing — keep an offline backup.
+and `keystore.properties`. Losing it means an installed copy of the app can
+never be updated in place — Android only accepts an update signed with the same
+key, so everyone would have to uninstall first. Keep an offline backup.
 
 ## Building locally
 
@@ -90,7 +91,7 @@ keyPassword=...
 Then:
 
 ```bash
-npm run tauri android build -- --aab --apk
+npm run tauri android build -- --apk
 ```
 
 Output lands under `src-tauri/gen/android/app/build/outputs/`.
@@ -133,7 +134,22 @@ npm run build
 firebase deploy --only hosting
 ```
 
+## Android distribution
+
+There is no Google Play listing, so the release builds APKs rather than an
+`.aab` — an app bundle is a Play upload format and cannot be installed on a
+device at all. Each release carries:
+
+- `LoreHaven-<version>-universal.apk` — every ABI in one file. This is the one
+  to hand someone.
+- `LoreHaven-<version>-arm64-v8a.apk` and friends — about a third of the size,
+  for anyone who knows what their device wants.
+
+They still have to be signed, even though nothing checks them against a store:
+Android refuses to install an unsigned APK, and an update only installs over an
+existing app if it carries the **same** key. So the keystore still matters, and
+losing it still means users must uninstall before they can update.
+
 ## Store submissions
 
-- **Google Play** — upload the `.aab` from the release to the Play Console.
 - **Microsoft Store** — see [MICROSOFT-STORE.md](MICROSOFT-STORE.md).
