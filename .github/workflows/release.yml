@@ -243,17 +243,14 @@ jobs:
           OUT="$RUNNER_TEMP/android-out"
           mkdir -p "$OUT"
 
-          # The universal APK carries every ABI, so one file installs anywhere.
-          # That is the one to hand someone who just wants the app.
+          # One universal APK, carrying every ABI, so a single file installs on
+          # any device. `tauri android build --apk` produces only this — verified
+          # by running it: per-ABI files need --split-per-abi, which produces
+          # them *instead of* the universal one, not alongside it. For a sideload
+          # channel one file that always works beats the size saving. It is large
+          # (84.6 MB at v0.1.0): four architectures of compiled Rust.
           find src-tauri/gen/android/app/build/outputs -name '*universal*release*.apk' \
             -exec sh -c 'cp "$1" "$2/LoreHaven-$3-universal.apk"' _ {} "$OUT" "$VERSION" ';'
-
-          # Per-ABI builds as well: roughly a third of the size each, for anyone
-          # who knows what their device wants.
-          for abi in arm64-v8a armeabi-v7a x86_64 x86; do
-            find src-tauri/gen/android/app/build/outputs -name "*${abi}*release*.apk" \
-              -exec sh -c 'cp "$1" "$2/LoreHaven-$3-$4.apk"' _ {} "$OUT" "$VERSION" "$abi" ';'
-          done
 
           # Fail loudly rather than publishing a release with no Android build in
           # it: a rename upstream would otherwise pass silently.

@@ -20,7 +20,7 @@ The `Release` workflow then:
 |---|---|
 | `create-release` | A **draft** GitHub Release, after checking the tag matches `tauri.conf.json` |
 | `desktop` | `.dmg` + `.app` (Apple Silicon and Intel), `.deb` + `.AppImage` + `.rpm` (Linux), `.msi` + `.exe` NSIS + `.msix` (Windows) |
-| `android` | Signed APKs — one universal, plus one per ABI |
+| `android` | A signed universal APK |
 | `publish` | Flips the release from draft to public |
 
 Nothing is visible until every platform has uploaded, so a partially built
@@ -141,10 +141,11 @@ There is no Google Play listing, so the release builds APKs rather than an
 `.aab` — an app bundle is a Play upload format and cannot be installed on a
 device at all. Each release carries:
 
-- `LoreHaven-<version>-universal.apk` — every ABI in one file. This is the one
-  to hand someone.
-- `LoreHaven-<version>-arm64-v8a.apk` and friends — about a third of the size,
-  for anyone who knows what their device wants.
+`LoreHaven-<version>-universal.apk` — every ABI in one file, so it installs on
+any device. It is large (84.6 MB at v0.1.0) because it carries four
+architectures of compiled Rust. `--split-per-abi` would cut that to roughly a
+quarter each, but it produces per-ABI files *instead of* the universal one, and
+for sideloading a single file that always works is worth more than the saving.
 
 They still have to be signed, even though nothing checks them against a store:
 Android refuses to install an unsigned APK, and an update only installs over an
