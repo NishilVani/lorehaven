@@ -8,8 +8,8 @@
   code-signing certificate at all — see docs/MICROSOFT-STORE.md. A package
   signed by us would just have that signature replaced.
 
-  Three identity values come from Partner Center and must match the reservation
-  exactly, or the upload is rejected.
+  The Partner Center identity lives in src-tauri/msix/AppxManifest.xml. It is
+  fixed for the life of the app and is not secret, so it is not passed in.
 
 .PARAMETER Version
   Three-part version, e.g. 0.1.0. The fourth field is appended as 0 because the
@@ -18,9 +18,6 @@
 [CmdletBinding()]
 param(
   [Parameter(Mandatory = $true)][string]$Version,
-  [Parameter(Mandatory = $true)][string]$IdentityName,
-  [Parameter(Mandatory = $true)][string]$Publisher,
-  [Parameter(Mandatory = $true)][string]$PublisherDisplayName,
   [string]$ExePath = "src-tauri/target/release/LoreHaven.exe",
   [string]$OutDir = "msix-out"
 )
@@ -64,12 +61,10 @@ foreach ($asset in $required) {
   Copy-Item $src (Join-Path $stage "Assets\$asset")
 }
 
-$manifest = Get-Content 'src-tauri/msix/AppxManifest.xml' -Raw
-$manifest = $manifest.
-  Replace('{{IDENTITY_NAME}}', $IdentityName).
-  Replace('{{PUBLISHER}}', $Publisher).
-  Replace('{{PUBLISHER_DISPLAY_NAME}}', $PublisherDisplayName).
-  Replace('{{VERSION}}', "$Version.0")
+$manifest = (Get-Content 'src-tauri/msix/AppxManifest.xml' -Raw).Replace('{{VERSION}}', "$Version.0")
+if ($manifest -match '\{\{') {
+  throw "AppxManifest.xml still has an unsubstituted placeholder."
+}
 Set-Content -Path (Join-Path $stage 'AppxManifest.xml') -Value $manifest -Encoding UTF8
 
 if (-not (Test-Path $OutDir)) { New-Item -ItemType Directory -Path $OutDir | Out-Null }

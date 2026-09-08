@@ -43,7 +43,7 @@ job needs them; the desktop matrix uses the built-in `GITHUB_TOKEN`.
 | `ANDROID_KEY_PASSWORD` | Android | Key password |
 | `WINDOWS_CERTIFICATE_BASE64` | Windows | Authenticode `.pfx`, base64-encoded. **Optional, and not needed for the Store** — the Store listing is an MSIX, which Microsoft signs. This only affects the MSI/NSIS people download straight from GitHub: unsigned, those raise a SmartScreen warning |
 | `WINDOWS_CERTIFICATE_PASSWORD` | Windows | The `.pfx` password |
-| `MS_STORE_*` | Store | See [MICROSOFT-STORE.md](MICROSOFT-STORE.md) |
+| `AZURE_AD_TENANT_ID`, `AZURE_AD_APPLICATION_CLIENT_ID`, `AZURE_AD_APPLICATION_SECRET`, `SELLER_ID` | Store | Microsoft Store submission. See [MICROSOFT-STORE.md](MICROSOFT-STORE.md) |
 
 To produce the base64 blob from the keystore on this machine:
 

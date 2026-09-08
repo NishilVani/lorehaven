@@ -32,7 +32,7 @@ download outside the Store — they are simply not what the Store listing uses.
 Tauri has no MSIX bundle target, so [`scripts/pack_msix.ps1`](../scripts/pack_msix.ps1)
 does it: it takes the `LoreHaven.exe` that `tauri build` produced, stages it
 alongside the Store logos Tauri already generates in `src-tauri/icons/`,
-substitutes the identity values into
+substitutes the version into
 [`src-tauri/msix/AppxManifest.xml`](../src-tauri/msix/AppxManifest.xml), and runs
 `makeappx pack`.
 
@@ -43,50 +43,55 @@ It is a normal Win32 program in an MSIX container, which the manifest declares
 with `EntryPoint="Windows.FullTrustApplication"` and the `runFullTrust`
 capability. Without both it builds fine and then fails certification.
 
-## One-time setup
+## Identity — already known
 
-You already have a Partner Center account, so most of this is done. What
-LoreHaven still needs:
+LoreHaven is reserved. These came from **Product management → Product identity**
+and are baked into
+[`AppxManifest.xml`](../src-tauri/msix/AppxManifest.xml) and the submission
+workflow. They are fixed for the life of the app and are not secret — every
+published package carries them and the listing URL is public — so there is
+nothing to configure:
 
-1. **Reserve the app name** in Partner Center. This produces the **Product ID**
-   and the package identity values.
-2. **Read the identity** from **Product management → Product identity**. Three
-   values, and the package is rejected if any differs by a character:
-   - **Package/Identity/Name** — like `12345Publisher.LoreHaven`
-   - **Package/Identity/Publisher** — the `CN=…` string
-   - **Publisher display name**
-3. **Register an application in Microsoft Entra ID**, then add it in Partner
+| | |
+|---|---|
+| Store ID / Product ID | `9N7FD5QBSMBB` |
+| `Package/Identity/Name` | `LoreHeaven.LoreHaven` |
+| `Package/Identity/Publisher` | `CN=CEEF9C0A-EDC7-4AE4-9AC3-FA2F4AC45FD8` |
+| `PublisherDisplayName` | `LoreHeaven` |
+| Package Family Name | `LoreHeaven.LoreHaven_hgh23a52snpg8` |
+| Listing URL | https://apps.microsoft.com/detail/9N7FD5QBSMBB |
+
+**The publisher is spelled `LoreHeaven`, the app `LoreHaven`.** That is what
+Partner Center holds, so that is what the manifest must say — a mismatch is a
+rejected package. It is also the name shown as the publisher on the listing. If
+the extra "e" is not deliberate, change it in Partner Center *before* the first
+submission and update the manifest to match. Be aware the `Package/Identity/Name`
+prefix is derived from the publisher name at reservation and may not follow a
+later rename.
+
+## What still needs doing
+
+1. **Register an application in Microsoft Entra ID**, then add it in Partner
    Center under **Account settings → User management → Microsoft Entra
    applications** with the **Manager** role.
-4. **Create the first submission by hand** in Partner Center — listing text,
+2. **Create the first submission by hand** in Partner Center — listing text,
    screenshots, age rating, and the first MSIX. The automation *updates* an app
    that already exists; it does not create the listing.
 
-## Repository configuration
+## Repository secrets
 
-**Settings → Secrets and variables → Actions.**
-
-Variables (not secret):
-
-| Variable | Where to find it |
-|---|---|
-| `MS_STORE_PRODUCT_ID` | Partner Center, from the name reservation |
-| `MS_STORE_IDENTITY_NAME` | Product identity → Package/Identity/Name |
-| `MS_STORE_PUBLISHER` | Product identity → Package/Identity/Publisher (`CN=…`) |
-| `MS_STORE_PUBLISHER_DISPLAY_NAME` | Product identity → Publisher display name |
-
-Secrets:
+Four, under **Settings → Secrets and variables → Actions → Secrets**. No
+variables, and no certificate.
 
 | Secret | Where to find it |
 |---|---|
 | `AZURE_AD_TENANT_ID` | Entra admin center → Identity → Overview |
 | `AZURE_AD_APPLICATION_CLIENT_ID` | Entra → App registrations → your app → Application (client) ID |
 | `AZURE_AD_APPLICATION_SECRET` | Entra → your app → Certificates & secrets. **Shown once — copy it immediately.** |
-| `SELLER_ID` | Partner Center → Account settings → Identifiers |
+| `SELLER_ID` | Partner Center → Account settings → Identifiers. This page returned "Access restricted" when I looked, so it may need the account-admin role or a different entry point for this account type. |
 
-Until `MS_STORE_IDENTITY_NAME` exists the release workflow skips the MSIX step
-with a warning rather than failing, so releases keep working before the Store is
-wired up.
+The release workflow packs and attaches the MSIX regardless; only the submission
+step needs these.
 
 ## What happens on a release
 

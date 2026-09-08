@@ -30,13 +30,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check the Store is configured
+      - name: Check the Store credentials are present
         shell: pwsh
         env:
-          PRODUCT_ID: ${{ vars.MS_STORE_PRODUCT_ID }}
+          TENANT: ${{ secrets.AZURE_AD_TENANT_ID }}
         run: |
-          if ([string]::IsNullOrWhiteSpace($env:PRODUCT_ID)) {
-            Write-Error "MS_STORE_PRODUCT_ID is not set. See docs/MICROSOFT-STORE.md."
+          if ([string]::IsNullOrWhiteSpace($env:TENANT)) {
+            Write-Error "Store credentials are not set. See docs/MICROSOFT-STORE.md."
             exit 1
           }
 
@@ -54,7 +54,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path release | Out-Null
           gh release download $tag --pattern $asset --dir release --repo ${{ github.repository }}
           if ($LASTEXITCODE -ne 0) {
-            Write-Error "No $asset on release $tag. Did the Windows job pack an MSIX? It is skipped when MS_STORE_IDENTITY_NAME is unset."
+            Write-Error "No $asset on release $tag. Did the Windows leg of the Release workflow succeed?"
             exit 1
           }
 
@@ -75,4 +75,7 @@ jobs:
 
       - name: Publish the package
         shell: pwsh
-        run: msstore publish "${{ steps.fetch.outputs.msix }}" -id ${{ vars.MS_STORE_PRODUCT_ID }}
+        # 9N7FD5QBSMBB is the Store ID for LoreHaven. It is public — it is the
+        # listing URL, https://apps.microsoft.com/detail/9N7FD5QBSMBB — so it
+        # lives here rather than in a variable.
+        run: msstore publish "${{ steps.fetch.outputs.msix }}" -id 9N7FD5QBSMBB

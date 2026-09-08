@@ -35,11 +35,13 @@ correct — it has none yet — so the release is still a draft.
   `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`.
   `docs/RELEASING.md` has the base64 command. The keystore is on disk and
   gitignored; losing it means no more updates to the same Play listing.
-- **Microsoft Store** needs the app name reserved in Partner Center (which
-  yields the Product ID and the three package-identity values), plus an Entra
-  app with the Manager role, and the first submission created by hand. **No code
-  signing certificate** — the listing is an MSIX and Microsoft re-signs it. See
-  [docs/MICROSOFT-STORE.md](docs/MICROSOFT-STORE.md).
+- **Microsoft Store**: LoreHaven is already reserved (Store ID `9N7FD5QBSMBB`)
+  and its package identity is baked into the manifest. **No code signing
+  certificate** — the listing is an MSIX and Microsoft re-signs it. What is left
+  is an Entra app with the Manager role, four repository secrets, and the first
+  submission created by hand. See
+  [docs/MICROSOFT-STORE.md](docs/MICROSOFT-STORE.md), which also flags that the
+  publisher name in Partner Center reads "LoreHeaven".
 - **The Clone pair in `phase4-deep`** is the only real test failure left, and it
   predates the recent refactoring. See the table below.
 

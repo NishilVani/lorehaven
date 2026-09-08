@@ -1,20 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  MSIX manifest for the Microsoft Store listing.
+  MSIX manifest for the Microsoft Store listing (Store ID 9N7FD5QBSMBB).
 
-  Three values in here are not ours to choose. Partner Center assigns them when
-  the app name is reserved, and the package is rejected if they disagree by so
-  much as a character:
+  The three Identity values are assigned by Partner Center, not chosen by us, and
+  the package is rejected if any differs by a character. They are hardcoded here
+  rather than injected from CI because they are fixed for the life of the app and
+  are not secret — every published package carries them, and the listing URL
+  (https://apps.microsoft.com/detail/9N7FD5QBSMBB) is public. They came from
+  Product management -> Product identity.
 
-    {{IDENTITY_NAME}}            Package/Identity/@Name
-    {{PUBLISHER}}                Package/Identity/@Publisher, the CN=... string
-    {{PUBLISHER_DISPLAY_NAME}}   Properties/PublisherDisplayName
+  Note the spelling: the publisher is "LoreHeaven", the app is "LoreHaven". That
+  is what Partner Center has, so that is what has to be here.
 
-  Find all three under Product management -> Product identity in Partner Center,
-  and set them as repository variables. scripts/pack_msix.ps1 substitutes them.
-
-  {{VERSION}} is four-part. The Store reserves the fourth field and requires it
-  to be 0 in what you upload, so 1.2.3 becomes 1.2.3.0.
+  {{VERSION}} is the only substitution, done by scripts/pack_msix.ps1. It is
+  four-part: the Store reserves the fourth field and requires 0 in what you
+  upload, so 1.2.3 is packed as 1.2.3.0.
 
   The app is a normal Win32 executable, not a UWP app, which is what
   EntryPoint="Windows.FullTrustApplication" plus the runFullTrust capability
@@ -27,14 +27,14 @@
   IgnorableNamespaces="uap rescap">
 
   <Identity
-    Name="{{IDENTITY_NAME}}"
-    Publisher="{{PUBLISHER}}"
+    Name="LoreHeaven.LoreHaven"
+    Publisher="CN=CEEF9C0A-EDC7-4AE4-9AC3-FA2F4AC45FD8"
     Version="{{VERSION}}"
     ProcessorArchitecture="x64" />
 
   <Properties>
     <DisplayName>LoreHaven</DisplayName>
-    <PublisherDisplayName>{{PUBLISHER_DISPLAY_NAME}}</PublisherDisplayName>
+    <PublisherDisplayName>LoreHeaven</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
 

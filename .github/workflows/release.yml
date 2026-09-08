@@ -157,29 +157,15 @@ jobs:
       # The Microsoft Store listing is MSIX, which the Store re-signs itself —
       # that is why it needs no code-signing certificate. Tauri has no MSIX
       # bundle target, so the executable tauri-action just built is packed here
-      # with makeappx. Skipped, with a note, until the Partner Center identity
-      # variables exist: the three values have to match the reservation exactly
-      # and there is nothing sensible to guess.
+      # with makeappx. The Partner Center identity is in the manifest; nothing
+      # about this step needs configuring.
       - name: Pack MSIX for the Microsoft Store
         if: matrix.platform == 'windows-latest'
         shell: pwsh
-        env:
-          IDENTITY_NAME: ${{ vars.MS_STORE_IDENTITY_NAME }}
-          PUBLISHER: ${{ vars.MS_STORE_PUBLISHER }}
-          PUBLISHER_DISPLAY_NAME: ${{ vars.MS_STORE_PUBLISHER_DISPLAY_NAME }}
-        run: |
-          if ([string]::IsNullOrWhiteSpace($env:IDENTITY_NAME)) {
-            Write-Host "::warning::MS_STORE_IDENTITY_NAME is not set - skipping the MSIX. See docs/MICROSOFT-STORE.md."
-            exit 0
-          }
-          ./scripts/pack_msix.ps1 `
-            -Version '${{ needs.create-release.outputs.version }}' `
-            -IdentityName $env:IDENTITY_NAME `
-            -Publisher $env:PUBLISHER `
-            -PublisherDisplayName $env:PUBLISHER_DISPLAY_NAME
+        run: ./scripts/pack_msix.ps1 -Version '${{ needs.create-release.outputs.version }}'
 
       - name: Attach the MSIX to the draft release
-        if: matrix.platform == 'windows-latest' && vars.MS_STORE_IDENTITY_NAME != ''
+        if: matrix.platform == 'windows-latest'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.tag || github.ref_name }}
