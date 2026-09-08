@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MSIX manifest for the Microsoft Store listing.
+
+  Three values in here are not ours to choose. Partner Center assigns them when
+  the app name is reserved, and the package is rejected if they disagree by so
+  much as a character:
+
+    {{IDENTITY_NAME}}            Package/Identity/@Name
+    {{PUBLISHER}}                Package/Identity/@Publisher, the CN=... string
+    {{PUBLISHER_DISPLAY_NAME}}   Properties/PublisherDisplayName
+
+  Find all three under Product management -> Product identity in Partner Center,
+  and set them as repository variables. scripts/pack_msix.ps1 substitutes them.
+
+  {{VERSION}} is four-part. The Store reserves the fourth field and requires it
+  to be 0 in what you upload, so 1.2.3 becomes 1.2.3.0.
+
+  The app is a normal Win32 executable, not a UWP app, which is what
+  EntryPoint="Windows.FullTrustApplication" plus the runFullTrust capability
+  declare. Without both, the package builds and then fails certification.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap rescap">
+
+  <Identity
+    Name="{{IDENTITY_NAME}}"
+    Publisher="{{PUBLISHER}}"
+    Version="{{VERSION}}"
+    ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>LoreHaven</DisplayName>
+    <PublisherDisplayName>{{PUBLISHER_DISPLAY_NAME}}</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <!-- 10.0.17763.0 is the first build with full MSIX desktop support. -->
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.22621.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Applications>
+    <Application Id="LoreHaven" Executable="LoreHaven.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="LoreHaven"
+        Description="A personal game library: track what you own across every platform."
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <!-- Only the logos Tauri actually generates are referenced. A manifest
+             that names an asset the package does not contain fails to build, and
+             the wide tile and splash screen are both optional for a full-trust
+             desktop app: the splash is never shown for one at all. -->
+        <uap:DefaultTile
+          Square310x310Logo="Assets\Square310x310Logo.png"
+          Square71x71Logo="Assets\Square71x71Logo.png"
+          ShortName="LoreHaven" />
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <!-- A packaged Win32 app is a restricted capability. The Store grants it. -->
+    <rescap:Capability Name="runFullTrust" />
+    <Capability Name="internetClient" />
+  </Capabilities>
+</Package>

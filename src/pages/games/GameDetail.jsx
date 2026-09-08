@@ -196,8 +196,25 @@ export default function GameDetail() {
 
   useEffect(() => {
     let cancelled = false;
-    /* No reset here: the route is keyed by pathname, so a different game is a
-       different component instance and these already hold true / null / null. */
+    /* Kept, unlike the equivalent resets on the other keyed routes. On paper it
+       is redundant — the route is keyed by pathname, so a different game is a
+       different instance and these already hold true / null / null — but taking
+       it out made phase3-deep:305 flaky. That is the guard refusing to clear a
+       completion date the field could never display; without these lines it
+       passed two full runs and failed the third, and failed when run alone.
+       With them it passes four times out of four, and on the pre-refactor tree.
+
+       It is not the values. Restoring ANY ONE of the three fixes it,
+       setLoadError(null) included, and that one writes null over null — a
+       no-op except that React still schedules one render before bailing out.
+       So what the page relies on is that extra render pass, not the state. That
+       is a real render-timing dependency somewhere below here and it deserves
+       its own investigation; deleting the line that happens to satisfy it is
+       not that investigation. */
+    /* eslint-disable-next-line react-hooks/set-state-in-effect -- see above */
+    setLoading(true);
+    setGame(null);
+    setLoadError(null);
     (async () => {
       let data;
       try {

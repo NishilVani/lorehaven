@@ -22,9 +22,8 @@ infinite-scroll audit, with the measurement behind every claim.
 |---|---|---|
 | `ci.yml` | push / PR to main | lint, unit tests, build; Playwright chromium (advisory) |
 | `firebase-hosting.yml` | push / PR to main | deploys live, or a 7-day PR preview channel |
-| `release.yml` | tag `v*` | macOS (arm64 + Intel), Linux, Windows, Android into one draft release, published only when every platform succeeds |
-| `store-submission.yml` | release published | repoints the Microsoft Store submission at that release's installer |
-| `store-get-base.yml` | manual | prints the live Partner Center submission JSON to commit into `store/` |
+| `release.yml` | tag `v*` | macOS (arm64 + Intel), Linux, Windows (incl. MSIX), Android APKs into one draft release, published only when every platform succeeds |
+| `store-submission.yml` | release published | downloads that release's MSIX and publishes it to the Microsoft Store |
 
 `v0.1.0` proved the desktop matrix: all four platforms built first time and
 uploaded nine bundles. The Android job failed on missing secrets, which is
@@ -36,9 +35,11 @@ correct — it has none yet — so the release is still a draft.
   `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`.
   `docs/RELEASING.md` has the base64 command. The keystore is on disk and
   gitignored; losing it means no more updates to the same Play listing.
-- **Microsoft Store** needs a Partner Center registration, a reserved app name,
-  an Entra app with the Manager role, and a CA-issued code signing certificate.
-  Self-signed is rejected. See [docs/MICROSOFT-STORE.md](docs/MICROSOFT-STORE.md).
+- **Microsoft Store** needs the app name reserved in Partner Center (which
+  yields the Product ID and the three package-identity values), plus an Entra
+  app with the Manager role, and the first submission created by hand. **No code
+  signing certificate** — the listing is an MSIX and Microsoft re-signs it. See
+  [docs/MICROSOFT-STORE.md](docs/MICROSOFT-STORE.md).
 - **The Clone pair in `phase4-deep`** is the only real test failure left, and it
   predates the recent refactoring. See the table below.
 

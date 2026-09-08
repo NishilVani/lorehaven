@@ -110,11 +110,11 @@ jobs:
 
       - run: npm ci
 
-      # Authenticode signing. The Microsoft Store rejects an unsigned installer,
-      # and Windows SmartScreen warns on one, so this runs whenever the
-      # certificate secrets are present. Without them the build still succeeds —
-      # it just produces an unsigned installer, which is fine for direct download
-      # but not for a Store submission. See docs/MICROSOFT-STORE.md.
+      # Authenticode signing, for the MSI and NSIS installers people download
+      # straight from GitHub — unsigned, those raise a SmartScreen warning. It is
+      # NOT needed for the Store: that listing is an MSIX, which Microsoft
+      # re-signs itself. Without the secrets the build still succeeds and simply
+      # produces unsigned installers. See docs/MICROSOFT-STORE.md.
       - name: Configure Windows code signing
         if: matrix.platform == 'windows-latest'
         shell: pwsh
@@ -125,7 +125,7 @@ jobs:
           # The secrets context is not available in a step-level `if`, so the
           # presence check happens here rather than in a condition.
           if ([string]::IsNullOrWhiteSpace($env:CERT_BASE64)) {
-            Write-Host "::warning::WINDOWS_CERTIFICATE_BASE64 is not set - the installer will be unsigned and cannot be submitted to the Microsoft Store."
+            Write-Host "::warning::WINDOWS_CERTIFICATE_BASE64 is not set - the MSI and NSIS installers will be unsigned and will raise a SmartScreen warning on download. The Store listing is unaffected; it is an MSIX and Microsoft signs it."
             exit 0
           }
           $pfx = Join-Path $env:RUNNER_TEMP "signing.pfx"
@@ -153,6 +153,38 @@ jobs:
         with:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           args: ${{ matrix.args }}
+
+      # The Microsoft Store listing is MSIX, which the Store re-signs itself —
+      # that is why it needs no code-signing certificate. Tauri has no MSIX
+      # bundle target, so the executable tauri-action just built is packed here
+      # with makeappx. Skipped, with a note, until the Partner Center identity
+      # variables exist: the three values have to match the reservation exactly
+      # and there is nothing sensible to guess.
+      - name: Pack MSIX for the Microsoft Store
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        env:
+          IDENTITY_NAME: ${{ vars.MS_STORE_IDENTITY_NAME }}
+          PUBLISHER: ${{ vars.MS_STORE_PUBLISHER }}
+          PUBLISHER_DISPLAY_NAME: ${{ vars.MS_STORE_PUBLISHER_DISPLAY_NAME }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:IDENTITY_NAME)) {
+            Write-Host "::warning::MS_STORE_IDENTITY_NAME is not set - skipping the MSIX. See docs/MICROSOFT-STORE.md."
+            exit 0
+          }
+          ./scripts/pack_msix.ps1 `
+            -Version '${{ needs.create-release.outputs.version }}' `
+            -IdentityName $env:IDENTITY_NAME `
+            -Publisher $env:PUBLISHER `
+            -PublisherDisplayName $env:PUBLISHER_DISPLAY_NAME
+
+      - name: Attach the MSIX to the draft release
+        if: matrix.platform == 'windows-latest' && vars.MS_STORE_IDENTITY_NAME != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          draft: true
+          files: msix-out/*.msix
 
   android:
     name: Android

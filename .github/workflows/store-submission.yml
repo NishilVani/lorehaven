@@ -1,16 +1,15 @@
 name: Store — submit release
 
-# Pushes a released Windows installer to the Microsoft Store.
+# Publishes the MSIX from a GitHub Release to the Microsoft Store.
 #
-# The Store requires a *versioned, immutable* download URL: the binary behind a
-# submitted URL must never change, and every update needs a new URL. A GitHub
-# Release asset is exactly that — /releases/download/v1.2.3/... is frozen once
-# the release is published. (This is why the workflow does NOT use
-# /releases/latest/download/..., which is a moving target and would break the
-# requirement.)
+# MSIX rather than MSI/EXE, and that choice is what makes this free: the Store
+# re-signs MSIX packages with a Microsoft certificate after certification and
+# hosts the download itself, so there is no code-signing certificate to buy and
+# no installer URL to keep alive. An MSI/EXE listing gets neither — the Store
+# does not re-sign those, and you must Authenticode-sign them yourself.
 #
-# Runs automatically when the Release workflow publishes a release, so a Store
-# submission can never point at a draft or a half-uploaded asset.
+# Runs when the Release workflow publishes a release, so a submission can never
+# point at a draft or a half-uploaded package.
 
 on:
   release:
@@ -26,59 +25,42 @@ permissions:
 
 jobs:
   submit:
-    name: Update and publish submission
+    name: Publish to the Store
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Resolve the installer URL
-        id: installer
+      - name: Check the Store is configured
         shell: pwsh
+        env:
+          PRODUCT_ID: ${{ vars.MS_STORE_PRODUCT_ID }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:PRODUCT_ID)) {
+            Write-Error "MS_STORE_PRODUCT_ID is not set. See docs/MICROSOFT-STORE.md."
+            exit 1
+          }
+
+      - name: Download the MSIX from the release
+        id: fetch
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $tag = "${{ github.event.inputs.tag }}"
           if ([string]::IsNullOrWhiteSpace($tag)) { $tag = "${{ github.event.release.tag_name }}" }
           $version = $tag -replace '^v', ''
-          # Tauri's WiX bundle name: {productName}_{version}_{arch}_{language}.msi
-          $asset = "LoreHaven_${version}_x64_en-US.msi"
-          $url = "https://github.com/${{ github.repository }}/releases/download/$tag/$asset"
+          $asset = "LoreHaven-$version.msix"
 
-          # Fail loudly here rather than handing Partner Center a 404, which it
-          # would only reject days later during certification.
-          try {
-            $head = Invoke-WebRequest -Uri $url -Method Head -MaximumRedirection 5 -ErrorAction Stop
-            Write-Host "Installer reachable: $url ($($head.Headers.'Content-Length') bytes)"
-          } catch {
-            Write-Error "No installer at $url. Did the Windows job of the Release workflow succeed?"
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          gh release download $tag --pattern $asset --dir release --repo ${{ github.repository }}
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "No $asset on release $tag. Did the Windows job pack an MSIX? It is skipped when MS_STORE_IDENTITY_NAME is unset."
             exit 1
           }
 
-          "url=$url"         | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-
-      - name: Point the submission at this release
-        shell: pwsh
-        run: |
-          $path = "store/package.json"
-          if (-not (Test-Path $path)) {
-            Write-Error "store/package.json is missing. Run the 'Store - fetch base submission' workflow once and commit the result. See docs/MICROSOFT-STORE.md."
-            exit 1
-          }
-
-          $submission = Get-Content -Raw $path | ConvertFrom-Json
-          if (-not $submission.packages -or $submission.packages.Count -eq 0) {
-            Write-Error "store/package.json has no packages array to update."
-            exit 1
-          }
-
-          # Patch only the URL. Everything else — installer parameters, languages,
-          # architectures — is whatever Partner Center already accepted.
-          foreach ($package in $submission.packages) {
-            $package.packageUrl = "${{ steps.installer.outputs.url }}"
-          }
-
-          $json = $submission | ConvertTo-Json -Depth 20 -Compress
-          $json | Set-Content -Path $path -Encoding utf8
-          Write-Host "Submission now points at ${{ steps.installer.outputs.url }}"
+          $path = (Resolve-Path "release/$asset").Path
+          Write-Host "Got $path ($([math]::Round((Get-Item $path).Length / 1MB, 2)) MB)"
+          "msix=$path" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - uses: microsoft/microsoft-store-apppublisher@v1.1
 
@@ -91,12 +73,6 @@ jobs:
             --clientId ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }} `
             --clientSecret ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
 
-      - name: Update submission
+      - name: Publish the package
         shell: pwsh
-        run: |
-          $updatedPackage = Get-Content -Raw "${{ github.workspace }}/store/package.json"
-          msstore submission update ${{ vars.MS_STORE_PRODUCT_ID }} $updatedPackage
-
-      - name: Publish submission
-        shell: pwsh
-        run: msstore submission publish ${{ vars.MS_STORE_PRODUCT_ID }}
+        run: msstore publish "${{ steps.fetch.outputs.msix }}" -id ${{ vars.MS_STORE_PRODUCT_ID }}

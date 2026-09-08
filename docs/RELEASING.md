@@ -19,7 +19,7 @@ The `Release` workflow then:
 | Job | Produces |
 |---|---|
 | `create-release` | A **draft** GitHub Release, after checking the tag matches `tauri.conf.json` |
-| `desktop` | `.dmg` + `.app` (Apple Silicon and Intel), `.deb` + `.AppImage` + `.rpm` (Linux), `.msi` + `.exe` NSIS (Windows) |
+| `desktop` | `.dmg` + `.app` (Apple Silicon and Intel), `.deb` + `.AppImage` + `.rpm` (Linux), `.msi` + `.exe` NSIS + `.msix` (Windows) |
 | `android` | Signed APKs — one universal, plus one per ABI |
 | `publish` | Flips the release from draft to public |
 
@@ -41,8 +41,9 @@ job needs them; the desktop matrix uses the built-in `GITHUB_TOKEN`.
 | `ANDROID_KEYSTORE_PASSWORD` | Android | Store password |
 | `ANDROID_KEY_ALIAS` | Android | Key alias inside the store |
 | `ANDROID_KEY_PASSWORD` | Android | Key password |
-| `WINDOWS_CERTIFICATE_BASE64` | Windows | Authenticode `.pfx`, base64-encoded. Optional — without it the Windows build still succeeds, but the installer is unsigned and the Microsoft Store will reject it |
+| `WINDOWS_CERTIFICATE_BASE64` | Windows | Authenticode `.pfx`, base64-encoded. **Optional, and not needed for the Store** — the Store listing is an MSIX, which Microsoft signs. This only affects the MSI/NSIS people download straight from GitHub: unsigned, those raise a SmartScreen warning |
 | `WINDOWS_CERTIFICATE_PASSWORD` | Windows | The `.pfx` password |
+| `MS_STORE_*` | Store | See [MICROSOFT-STORE.md](MICROSOFT-STORE.md) |
 
 To produce the base64 blob from the keystore on this machine:
 
