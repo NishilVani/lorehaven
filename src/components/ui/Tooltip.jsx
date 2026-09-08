@@ -7,6 +7,15 @@ import { createPortal } from "react-dom";
 // A React Portal-based Tooltip component that anchors to the viewport location
 // of its child, preventing any overflow-hidden clipping from parent components.
 // ─────────────────────────────────────────────
+/* Standalone for the same reason setInert is, over in useFocusTrap.js: inside the
+   component the compiler reads `ref.current = node` as mutating a value reached
+   through props. Merging a forwarded ref with our own is the entire job of a ref
+   callback, and a DOM node is not React state. */
+const assignRef = (ref, node) => {
+  if (typeof ref === "function") ref(node);
+  else if (ref) ref.current = node;
+};
+
 export function Tooltip({ text, children }) {
   const [visible, setVisible] = useState(false);
   const [coords, setCoords] = useState({ top: 0, left: 0 });
@@ -51,17 +60,22 @@ export function Tooltip({ text, children }) {
     };
   }, [visible]);
 
+  const childRef = children.props?.ref;
+
   return (
     <>
+      {/* eslint-disable-next-line react-hooks/refs -- cloneElement with a ref key
+          is read as ref access during render, and the compiler has no way to see
+          that this is a ref *callback* being handed to the child rather than a
+          ref being read. The alternative is wrapping children in a span, which
+          would change the DOM under every tooltip in the app; every current
+          caller relies on the trigger keeping its own box. */}
       {cloneElement(children, {
+        /* children.props.ref, not children.ref: the latter is the legacy element
+           field, deprecated in React 19 and warned about on access. */
         ref: (node) => {
           triggerRef.current = node;
-          const { ref } = children;
-          if (typeof ref === "function") {
-            ref(node);
-          } else if (ref) {
-            ref.current = node;
-          }
+          assignRef(childRef, node);
         },
         // Appended, not assigned: a trigger that already describes itself (an error
         // message, a hint) would otherwise lose that association while hovered.

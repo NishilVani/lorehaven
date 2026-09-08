@@ -159,9 +159,17 @@ function SidebarMatchItem({ game, isSelected, onSelect, getYear }) {
 // ─── Sidebar panel ────────────────────────────────────────────────────────────
 function ReviewSidebar({ item, updateMatch, manualQueries, setManualQueries, handleManualSearch, isSearchingManual, getYear, onClose }) {
     const [filter, setFilter] = useState('all');
+    /* Reset the filter when the wizard moves to a different item, adjusted
+       during render rather than in an effect. An effect would paint the new
+       item's rows through the old item's filter for one frame first. This is
+       what react.dev calls "adjusting state when a prop changes". */
+    const [filterFor, setFilterFor] = useState(item?.id);
+    if (filterFor !== item?.id) {
+        setFilterFor(item?.id);
+        setFilter('all');
+    }
 
     // Reset filter when item changes
-    useEffect(() => { setFilter('all'); }, [item?.id]);
 
     const availableCategories = useMemo(() => {
         if (!item) return [];

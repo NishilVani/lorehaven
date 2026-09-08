@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { getLibrary, saveToLibrary } from '../../services/db';
 import { toast } from '../ui/toastBus';
 import { statusBadge as makeStatusBadge, statusColor } from '../../constants/stateColors';
@@ -13,13 +13,14 @@ import { PRIORITY_MENU } from '../../constants/stateColors';
  */
 
 export function useLibraryCards() {
-  const [libraryMap, setLibraryMap] = useState({});
-
-  useEffect(() => {
+  /* Seeded lazily rather than through a mount effect: getLibrary() is a
+     synchronous localStorage read, so going via an effect only bought a first
+     render with an empty map and a visible flash of unbadged cards. */
+  const [libraryMap, setLibraryMap] = useState(() => {
     const map = {};
     getLibrary().forEach(g => { map[String(g.id)] = g; });
-    setLibraryMap(map);
-  }, []);
+    return map;
+  });
 
   const statusBadge = useCallback((game) => {
     const status = libraryMap[String(game.id)]?.status;

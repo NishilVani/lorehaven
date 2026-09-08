@@ -16,6 +16,11 @@ import SearchOverlay from './SearchOverlay';
    element was reached through — it is a DOM node, not React state. */
 const setStyleTop = (el, v) => { el.style.top = v; };
 
+/* The user agent cannot change while the tab is open, so this is a module
+   constant, not state. It used to be seeded by a mount effect, which meant the
+   first render of every page always assumed desktop and then corrected itself. */
+const IS_MOBILE_DEVICE = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
 export default function Navbar() {
     const location = useLocation();
     const navigate = useNavigate();
@@ -38,7 +43,7 @@ export default function Navbar() {
     const [isMaximized, setIsMaximized] = useState(false);
     const [isVisible, setIsVisible] = useState(true);
     const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
-    const [isMobileDevice, setIsMobileDevice] = useState(false);
+    const isMobileDevice = IS_MOBILE_DEVICE;
     const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
     const [browseOpen, setBrowseOpen] = useState(false);
     const browseRef = useRef(null);
@@ -83,9 +88,6 @@ export default function Navbar() {
 
     // Track window resize and mobile device detection
     useEffect(() => {
-        const mobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        setIsMobileDevice(mobile);
-        
         const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);

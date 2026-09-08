@@ -63,6 +63,18 @@ const SkeletonGrid = ({ count }) => (
     {Array.from({ length: count }, (_, i) => <GameCardSkeleton key={i} />)}
   </div>
 );
+/* Module scope, not a useCallback inside Discover. A component defined during
+   render is a new component type on every render, so React unmounts and
+   remounts the whole grid instead of updating it. RecGrid closed over nothing,
+   so hoisting it costs nothing and stops the remount. */
+const RecGrid = ({ games, cardExtras }) => (
+  <div className="game-grid">
+    {games.map(g => (
+      <GameCard key={g.id} game={g} {...(cardExtras || {})} />
+    ))}
+  </div>
+);
+
 const REC_PAGE = 24;    // recommendation reveal step
 
 function SectionHead({ children, to, showSeeAll }) {
@@ -185,14 +197,6 @@ export default function Discover() {
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, [total]);
-
-  const RecGrid = useCallback(({ games, cardExtras }) => (
-    <div className="game-grid">
-      {games.map(g => (
-        <GameCard key={g.id} game={g} {...(cardExtras || {})} />
-      ))}
-    </div>
-  ), []);
 
   // ── Rec feedback + smooth removal (no page remount) ──
   const removeRec = useCallback((id) => {

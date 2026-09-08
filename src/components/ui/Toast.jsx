@@ -67,7 +67,10 @@ const ToastItem = ({ toast, onClose }) => {
   const [isClosing, setIsClosing] = useState(false);
   const [paused, setPaused] = useState(false);
   const closeRef = useRef(onClose);
-  closeRef.current = onClose;
+  /* Written in an effect, not during render: a render-phase ref write is not
+     safe under concurrent rendering, and the ref is already seeded with the
+     first onClose so nothing is missed before the effect runs. */
+  useEffect(() => { closeRef.current = onClose; }, [onClose]);
   const itemRef = useRef(null);
 
   const handleClose = useCallback(() => {

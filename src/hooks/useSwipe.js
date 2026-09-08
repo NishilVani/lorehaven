@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
 
 /**
  * useSwipe — one gesture implementation for the whole app.
@@ -119,7 +119,11 @@ export default function useSwipe({
      exactly this: a long press arms the shelf swipe and then lifts a card, which
      disables the swipe. Without this reset, one lift kills swiping for good —
      measured: control swipe reaches /wishlist, post-lift swipe stays put. */
-  if (!enabled) { st.current.id = null; return {}; }
+  useEffect(() => {
+    if (!enabled) st.current.id = null;
+  }, [enabled]);
+
+  if (!enabled) return {};
 
   return {
     onPointerDown,

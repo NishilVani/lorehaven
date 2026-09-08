@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { X, Layers, Gamepad2, Library, HeartPlus, Building2, CircleCheck, BookmarkPlus, BookmarkMinus } from 'lucide-react';
 import { searchGames, searchFranchises, searchIgdbCollections, searchCompanies } from '../../services/igdb';
@@ -43,6 +43,11 @@ const getCollectionCover = (collection) => {
 
 const TABS = ['Games', 'Franchises', 'Collections', 'Companies'];
 
+/* The user agent cannot change while the tab is open, so this is a module
+   constant, not state. It used to be seeded by a mount effect, which meant the
+   first render of every page always assumed desktop and then corrected itself. */
+const IS_MOBILE_DEVICE = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
 export default function SearchOverlay() {
     const [searchParams, setSearchParams] = useSearchParams();
     const navigate = useNavigate();
@@ -86,14 +91,11 @@ export default function SearchOverlay() {
     const inputRef = useRef(null);
 
     const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
-    const [isMobileDevice, setIsMobileDevice] = useState(false);
+    const isMobileDevice = IS_MOBILE_DEVICE;
     const isTauri = !!window.__TAURI_INTERNALS__;
 
     // Track window resize and mobile device detection
     useEffect(() => {
-        const mobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        setIsMobileDevice(mobile);
-
         const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
@@ -104,6 +106,29 @@ export default function SearchOverlay() {
     const mobileNavHeight = isDesktop ? 0 : (isTauriDesktop ? 0 : 56);
     const topOffset = mobileNavHeight + titlebarHeight;
 
+    /* Both of these are declared here rather than further down the component
+       because the effects below call them. A `const` arrow used above its own
+       declaration only works by accident of effects running after render; move
+       one call into render and it is a TDZ crash. useCallback so each can be an
+       honest dependency instead of re-subscribing the listener every keystroke. */
+    const handleClose = useCallback(() => {
+        const params = new URLSearchParams(location.search);
+        params.delete('search');
+        params.delete('q');
+        const paramsStr = params.toString();
+        navigate(`${location.pathname}${paramsStr ? '?' + paramsStr : ''}`);
+    }, [location.search, location.pathname, navigate]);
+
+    /* The localStorage write stays outside the updater. A setState updater has to
+       be pure — React is free to call it twice — so persisting from inside it
+       would write the same entry twice under StrictMode. */
+    const saveRecentSearch = useCallback((q) => {
+        if (!q.trim()) return;
+        const updated = [q, ...recentSearches.filter(s => s !== q)].slice(0, 5);
+        setRecentSearches(updated);
+        localStorage.setItem('recentSearches', JSON.stringify(updated));
+    }, [recentSearches]);
+
     // Escape key to close
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -113,7 +138,7 @@ export default function SearchOverlay() {
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen]);
+    }, [isOpen, handleClose]);
 
     // Handle scroll lock and body offsets when overlay is open
     useEffect(() => {
@@ -208,7 +233,7 @@ export default function SearchOverlay() {
             }
         }, 500);
         return () => clearTimeout(timeoutId);
-    }, [inputValue, query, setSearchParams, location.search]);
+    }, [inputValue, query, setSearchParams, location.search, saveRecentSearch]);
 
     const handleSearchClick = (q) => { 
         setInputValue(q); 
@@ -216,13 +241,6 @@ export default function SearchOverlay() {
         params.set('q', q);
         setSearchParams(params, { replace: true }); 
         saveRecentSearch(q); 
-    };
-
-    const saveRecentSearch = (q) => {
-        if (!q.trim()) return;
-        const updated = [q, ...recentSearches.filter(s => s !== q)].slice(0, 5);
-        setRecentSearches(updated);
-        localStorage.setItem('recentSearches', JSON.stringify(updated));
     };
 
     const removeRecentSearch = (e, q) => {
@@ -342,14 +360,6 @@ export default function SearchOverlay() {
         lockScroll: false,
         modal: false,
     });
-
-    const handleClose = () => {
-        const params = new URLSearchParams(location.search);
-        params.delete('search');
-        params.delete('q');
-        const paramsStr = params.toString();
-        navigate(`${location.pathname}${paramsStr ? '?' + paramsStr : ''}`);
-    };
 
     if (!isOpen) return null;
 
