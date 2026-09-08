@@ -44,14 +44,17 @@ function RouteFallback() {
   );
 }
 
-/* Keyed on the category so React discards the whole page when you move from one
-   category to another. CategoryPage used to do this by hand, in an effect that
-   pushed ten pieces of state back to the exact values they start with — which
-   is the definition of a remount, only a render later and with a frame of the
-   previous category's filters still on screen. */
-function KeyedCategoryPage() {
-  const { type, id } = useParams();
-  return <CategoryPage key={`${type}/${id}`} />;
+/* Route params are identity, not merely data. When the id in the URL changes,
+   the page is showing a different thing and every piece of state describing the
+   old one is wrong. Keying by the params makes React throw that state away.
+
+   These pages each used to do it by hand, in an effect whose body pushed state
+   back to the values its useState calls already start with — a remount written
+   out longhand, arriving a render late, with a frame of the previous thing's
+   filters or rows still on screen in between. */
+function KeyedRoute({ component: Component }) {
+  const params = useParams();
+  return <Component key={Object.values(params).join('/')} />;
 }
 
 
@@ -136,21 +139,21 @@ function App() {
             <Route path="/library" element={<Navigate to="/library/backlog" replace />} />
             <Route path="/library/:status" element={<Library />} />
             <Route path="/import" element={<ImportWizardV2 />} />
-            <Route path="/franchise/:franchiseId" element={<FranchisePage />} />
+            <Route path="/franchise/:franchiseId" element={<KeyedRoute component={FranchisePage} />} />
             <Route path="/collections" element={<Collections />} />
             {/* The hub page is gone: the sidebar submenu is the way in now, and
                 each taxonomy has its own index. The bare path stays so old links
                 and bookmarks land somewhere real. */}
             <Route path="/browse" element={<Navigate to="/browse/genres" replace />} />
-            <Route path="/browse/:taxonomy" element={<TaxonomyIndex />} />
+            <Route path="/browse/:taxonomy" element={<KeyedRoute component={TaxonomyIndex} />} />
             <Route path="/collection/:id" element={<CollectionDetail />} />
             <Route path="/collection/igdb/:id" element={<CollectionDetail />} />
             <Route path="/game/:id/collections" element={<GameCollections />} />
             <Route path="/platforms" element={<ManagePlatforms />} />
             <Route path="/events" element={<AllEvents />} />
-            <Route path="/event/:id" element={<EventDetail />} />
+            <Route path="/event/:id" element={<KeyedRoute component={EventDetail} />} />
             <Route path="/wallpapers" element={<Wallpapers />} />
-            <Route path="/games/:type/:id" element={<KeyedCategoryPage />} />
+            <Route path="/games/:type/:id" element={<KeyedRoute component={CategoryPage} />} />
             <Route path="/awards" element={<AwardsIndex />} />
             <Route path="/awards/:awardQid" element={<AwardCeremony />} />
             {/* Last, and it must stay last: a catch-all above any of these would swallow them. */}

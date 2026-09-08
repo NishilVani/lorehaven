@@ -33,20 +33,20 @@ export default function FranchisePage() {
   const [related, setRelated] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
-  const [saved, setSaved] = useState(false);
-  const [libraryMap, setLibraryMap] = useState({});
+  const [saved, setSaved] = useState(() => isFranchiseSaved(franchiseId));
+  /* Both of these read localStorage synchronously, so they are seeded here
+     rather than through the load effect. */
+  const [libraryMap] = useState(() => {
+    const map = {};
+    getLibrary().forEach(g => { map[String(g.id)] = g.status; });
+    return map;
+  });
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setGames([]);
-    setRelated([]);
-    setSaved(isFranchiseSaved(franchiseId));
-
-    const lib = getLibrary();
-    const map = {};
-    lib.forEach(g => { map[String(g.id)] = g.status; });
-    setLibraryMap(map);
+    /* No reset here: the route is keyed by franchiseId, so loading, games and
+       related already hold their initial true / [] / [], and saved and
+       libraryMap are seeded by their useState initialisers above. */
 
     (async () => {
       try {

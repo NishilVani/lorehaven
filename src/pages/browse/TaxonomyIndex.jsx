@@ -49,7 +49,8 @@ export default function TaxonomyIndex() {
   useEffect(() => {
     if (!spec) return;
     let alive = true;
-    setTerms(null); setCounts({}); setCountsIn(false); setFailed(false);
+    /* No reset here: the route is keyed by taxonomy, so all four already hold
+       their initial null / {} / false / false. */
     spec.load()
       .then(list => { if (alive) setTerms(Array.isArray(list) ? list : []); })
       .catch(err => { console.error('Error loading taxonomy:', err); if (alive) { setTerms([]); setFailed(true); } });

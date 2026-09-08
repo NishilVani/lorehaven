@@ -121,9 +121,9 @@ export default function EventDetail() {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setLoadError(null);
-    setEvent(null);
+    /* No reset here: the route is keyed by id, so a different event is a
+       different component instance and these already hold their initial
+       null / true / null. */
     getEventById(id)
       .then(data => { if (!cancelled) setEvent(data); })
       .catch(err => { console.error('Error fetching event:', err); if (!cancelled) setLoadError(err); })
