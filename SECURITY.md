@@ -32,6 +32,31 @@ The parts of this project where a mistake actually costs something:
   clients may write. A way to satisfy it while writing data an older client
   would write is worth reporting.
 
+## How publishing is gated
+
+Two mechanisms, because they cover different routes:
+
+- **A branch ruleset on `main`** requires a pull request, an approving review
+  from a code owner, and a green `Lint, test, build` before anything merges.
+- **A tag ruleset on `v*`** stops anyone creating, moving or deleting a release
+  tag. Without it the release path went around the branch ruleset entirely: a
+  tag is not a branch, so pushing `v9.9.9` would have built and signed a release
+  with no review at all.
+- **A `production` environment with a required reviewer** gates every job that
+  holds a secret -- the desktop and Android builds that use the signing keys,
+  the job that makes a release public, the Firestore write, the Store
+  submission, and the workflow that arms the compatibility gate. Those jobs
+  pause until a human approves the run, so neither a pushed tag nor a
+  `workflow_dispatch` can publish anything on its own.
+
+Repository admins are on the bypass list for both rulesets, so the maintainer is
+not blocked; the environment approval applies to everyone including admins.
+
+Deliberately **not** gated: the Firebase Hosting deploy. It runs on pushes to
+`main`, and code only reaches `main` through the branch ruleset, so an approval
+there would be a second approval for something already reviewed -- on every
+commit. Its pull-request preview deploy is skipped for forks.
+
 ## Known and accepted
 
 Stated openly so nobody spends time rediscovering them:

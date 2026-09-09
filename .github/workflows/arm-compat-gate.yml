@@ -28,10 +28,19 @@ on:
 permissions:
   contents: read
 
+# Every job below that holds a secret declares `environment: production`, which
+# has a required reviewer. GitHub pauses those jobs until a human approves the
+# run, so signing keys, publishing and Firestore writes cannot happen because
+# somebody pushed a tag or clicked "Run workflow".
+#
+# The branch ruleset only governs merges into main. A tag is not a branch and a
+# workflow_dispatch is not a merge, so before this the release path went around
+# it entirely.
 jobs:
   arm:
     name: Raise minCompatLevel
     runs-on: ubuntu-latest
+    environment: production
     steps:
       # A second pair of eyes on an action that can stop every client syncing.
       # The dispatch form is easy to fire by muscle memory from the Actions tab;
