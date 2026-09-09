@@ -32,10 +32,19 @@ on:
 permissions:
   contents: read
 
+# Every job below that holds a secret declares `environment: production`, which
+# has a required reviewer. GitHub pauses those jobs until a human approves the
+# run, so signing keys, publishing and Firestore writes cannot happen because
+# somebody pushed a tag or clicked "Run workflow".
+#
+# The branch ruleset only governs merges into main. A tag is not a branch and a
+# workflow_dispatch is not a merge, so before this the release path went around
+# it entirely.
 jobs:
   submit:
     name: Publish to the Store
     runs-on: windows-latest
+    environment: production
     # A failed or cancelled Release must not reach the Store.
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     steps:

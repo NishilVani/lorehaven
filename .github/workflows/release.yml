@@ -20,6 +20,14 @@ on:
 permissions:
   contents: write
 
+# Every job below that holds a secret declares `environment: production`, which
+# has a required reviewer. GitHub pauses those jobs until a human approves the
+# run, so signing keys, publishing and Firestore writes cannot happen because
+# somebody pushed a tag or clicked "Run workflow".
+#
+# The branch ruleset only governs merges into main. A tag is not a branch and a
+# workflow_dispatch is not a merge, so before this the release path went around
+# it entirely.
 jobs:
   create-release:
     name: Create draft release
@@ -78,6 +86,7 @@ jobs:
             platform: windows-latest
             args: ""
     runs-on: ${{ matrix.platform }}
+    environment: production
     steps:
       - uses: actions/checkout@v4
 
@@ -176,6 +185,7 @@ jobs:
     name: Android
     needs: create-release
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - uses: actions/checkout@v4
 
@@ -281,6 +291,7 @@ jobs:
     name: Publish release
     needs: [create-release, desktop, android]
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - name: Undraft
         env:
@@ -313,6 +324,7 @@ jobs:
     name: Publish latestVersion
     needs: [create-release, publish]
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - uses: actions/checkout@v4
 
