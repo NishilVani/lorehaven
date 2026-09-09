@@ -183,8 +183,43 @@ install from syncing with no version to move to. The order is not optional:
 
 There is never a moment when a good client is refused.
 
-`config/app` is edited by hand in the Firebase console:
+Two of those steps are automated, and the split between them is deliberate.
+
+**`latestVersion` publishes itself.** The `app-config` job in `release.yml` runs
+after the release goes public and writes it into `config/app`. It cannot arm the
+gate: `scripts/app_config_payload.mjs` builds the release object from named
+locals rather than spreading its input, so `minCompatLevel` has no route into a
+release write, and `publish_app_config.mjs` re-reads the document afterwards and
+fails the job if that field moved. Without the secret the step warns and skips,
+which costs nothing, because the client's config read fails open.
+
+**Arming the gate is a button you press.** `.github/workflows/arm-compat-gate.yml`
+is `workflow_dispatch` only, takes the level as an input, and refuses to run
+unless you also type `ARM`. Doing this on a release instead would gate every
+device that had not yet installed that release -- which is the whole failure the
+three steps above exist to avoid.
+
+So step 3 is: run **Arm the compatibility gate** with the level, then deploy the
+rules with the matching minimum.
+
+### The secret it needs
+
+`FIREBASE_CONFIG_WRITER`: a Google Cloud service account key, the whole JSON, as
+one repository secret. It needs `roles/datastore.user` on the `moctalegames`
+project.
+
+Firestore IAM has no document-level scoping, so **anything holding this key can
+write any Firestore document, including every user's library**. Fork pull
+requests are not given secrets and only a collaborator can push a tag or press a
+dispatch, so the exposure is bounded -- but it is a real key and deserves its own
+service account rather than reusing the Hosting deployer.
+
+The Admin SDK authenticates through IAM and bypasses security rules, which is why
+this works at all: `config/app` is `allow write: if false` for every client, so a
+privileged identity is the only thing that can ever change it.
+
+The document ends up shaped like this, whoever wrote it:
 
 ```json
-{ "minCompatLevel": 2, "latestVersion": "0.2.0", "latestNotes": "..." }
+{ "minCompatLevel": 2, "latestVersion": "0.2.0", "latestNotes": "LoreHaven 0.2.0" }
 ```
