@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getSyncState } from '../../services/db';
 
 /**
  * ApiErrorBanner — tells the user when data failed to load.
@@ -26,10 +27,31 @@ const COPY = {
     what: 'Could not load game data',
     why: 'IGDB did not respond as expected.',
   },
+  /* Not an API failure, but it belongs in the same place: it is the one thing
+     a person must read before they trust what the app is showing them. */
+  outdated: {
+    what: 'Sync is off',
+    why: 'This version of LoreHaven cannot safely share data with your other devices. Your library is safe on this device and will sync once you update.',
+  },
 };
 
 export default function ApiErrorBanner() {
   const [error, setError] = useState(null);
+  const [outdated, setOutdated] = useState(() => getSyncState().outdated);
+
+  /* db.js owns the truth and announces changes; this only mirrors it. Read once
+     at subscribe time, because config/app may resolve before this mounts. */
+  useEffect(() => {
+    const read = () => setOutdated(getSyncState().outdated);
+    read();
+    window.addEventListener('moctale_sync_state', read);
+    return () => window.removeEventListener('moctale_sync_state', read);
+  }, []);
+
+  /* The gated state is not an error that can be cleared, so Dismiss needs
+     something of its own to set. Per session, deliberately: the Profile page
+     still says why, permanently, for anyone who goes looking. */
+  const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
     // Collapse a burst of failed calls into one banner — a single auth failure
@@ -45,8 +67,10 @@ export default function ApiErrorBanner() {
     };
   }, []);
 
-  if (!error) return null;
-  const copy = COPY[error] || COPY.request;
+  if (dismissed || (!error && !outdated)) return null;
+  /* Outranks a transient API error: one is a request that failed and can be
+     retried, the other is a state the app is in until it is updated. */
+  const copy = outdated ? COPY.outdated : (COPY[error] || COPY.request);
 
   const retry = () => {
     setError(null);
@@ -74,15 +98,17 @@ export default function ApiErrorBanner() {
       <span className="text-[11px] text-white/60 flex-1 min-w-[12rem]">{copy.why}</span>
 
       <div className="flex items-center gap-2 shrink-0">
+        {!outdated && (
+          <button
+            onClick={retry}
+            className="lh-label px-3 py-2 border border-white/20 text-white/60 hover:bg-white hover:text-black hover:border-white focus-visible:bg-white focus-visible:text-black focus-visible:outline-none transition-colors cursor-pointer"
+          >
+            Retry
+          </button>
+        )}
         <button
-          onClick={retry}
-          className="lh-label px-3 py-2 border border-white/20 text-white/60 hover:bg-white hover:text-black hover:border-white focus-visible:bg-white focus-visible:text-black focus-visible:outline-none transition-colors cursor-pointer"
-        >
-          Retry
-        </button>
-        <button
-          onClick={() => setError(null)}
-          aria-label="Dismiss error"
+          onClick={() => { setError(null); setDismissed(true); }}
+          aria-label={outdated ? 'Dismiss update notice' : 'Dismiss error'}
           className="lh-label px-3 py-2 text-white/60 hover:text-white focus-visible:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white transition-colors cursor-pointer"
         >
           Dismiss
