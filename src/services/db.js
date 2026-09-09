@@ -23,12 +23,12 @@
 import { db, auth } from './firebase.js';
 import {
     doc, setDoc, deleteDoc, onSnapshot, deleteField,
-    collection, getDocs, serverTimestamp,
+    collection, getDocs, serverTimestamp, getDoc,
 } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { toDateInputValue } from './libraryFields.js';
 import { mergeLists, stampItems, mergeTombstones, tombstonesFor, pruneTombstones } from './syncMerge.js';
-import { COMPAT_LEVEL } from './compat.js';
+import { COMPAT_LEVEL, APP_VERSION, evaluateCompat } from './compat.js';
 
 /* Re-exported so callers keep one import site for library concerns. */
 export { toDateInputValue };
@@ -212,7 +212,12 @@ export const mergeShards = (docs) => {
    last time a write or a pull succeeded this session; it is deliberately not
    persisted, because a timestamp restored from localStorage would claim a sync
    that this session never made. */
-let syncState = { signedIn: false, at: null, error: null };
+/* `outdated` is set from config/app and is independent of auth: a signed-out
+   user should still be told their build cannot sync. */
+let syncState = {
+    signedIn: false, at: null, error: null,
+    outdated: false, updateAvailable: false, latestVersion: null,
+};
 /* The live-sync listener's unsubscribe. It was discarded, so every sign-out
    left a listener that re-ran `list` with no credential (a rules denial that
    overwrote the sign-out's clean reset), and every sign-in leaked another. */
@@ -222,7 +227,8 @@ const setSyncState = (patch) => {
     window.dispatchEvent(new Event('moctale_sync_state'));
 };
 
-/** { signedIn, at, error } — `at` is null until something has synced this session. */
+/** { signedIn, at, error, outdated, updateAvailable, latestVersion } —
+ *  `at` is null until something has synced this session. */
 export const getSyncState = () => syncState;
 
 /* How many shards each domain was last written as, so shrinking back to fewer
@@ -340,9 +346,43 @@ const flushCloud = async () => {
 
 const syncToCloud = (key, value) => {
     if (!currentUser || !DOMAINS[key]) return;
+    /* A build the rules will refuse must not queue writes. Every one would come
+       back permission-denied, and the flood would bury the one message that
+       actually explains what is wrong. localStorage still has the edit, so
+       nothing is lost -- it syncs when the user updates. */
+    if (syncState.outdated) return;
     pendingWrites.set(key, value);
     if (!flushTimer && !flushing) flushTimer = setTimeout(flushCloud, FLUSH_MS);
 };
+
+/* Read once at module init rather than on sign-in, so a signed-out user still
+   learns their build is too old.
+ *
+ * Fail-open, deliberately. If this read fails or has not landed yet the client
+ * assumes it is current: failing closed would disable sync for everyone the
+ * moment Firestore hiccups, and it buys nothing, because the rules are the
+ * hard guarantee and a genuinely incompatible client still cannot write. This
+ * check exists to EXPLAIN, and an explanation that has not arrived is not a
+ * reason to break the app. */
+const readAppConfig = async () => {
+    try {
+        const snap = await getDoc(doc(db, 'config', 'app'));
+        const cfg = snap.exists() ? snap.data() : null;
+        const { outdated, updateAvailable } = evaluateCompat({
+            level: COMPAT_LEVEL,
+            minLevel: cfg?.minCompatLevel,
+            version: APP_VERSION,
+            latestVersion: cfg?.latestVersion,
+        });
+        setSyncState({ outdated, updateAvailable, latestVersion: cfg?.latestVersion ?? null });
+        if (outdated) {
+            console.warn(`[db] This build is compat level ${COMPAT_LEVEL}; the account requires ${cfg.minCompatLevel}. Cloud sync is off.`);
+        }
+    } catch (e) {
+        console.warn('[db] Could not read config/app — assuming this build is current.', e);
+    }
+};
+readAppConfig();
 
 /* A tab closed inside the coalescing window would otherwise drop the last edit
    from the cloud until something touched that domain again. localStorage still
