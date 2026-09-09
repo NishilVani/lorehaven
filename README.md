@@ -104,3 +104,34 @@ design-systems/ Design-system reference
 Design rules that contributors and agents must follow are in
 [AGENTS.md](AGENTS.md) and [CLAUDE.md](CLAUDE.md). Product intent is in
 [PRODUCT.md](PRODUCT.md); the visual system is in [DESIGN.md](DESIGN.md).
+
+## Contributing
+
+Contributions are welcome. **A fresh clone needs no credentials** — the IGDB
+credential lives server-side in a Cloudflare Worker, so `npm ci && npm run dev`
+gives you real game data on a machine holding no secrets.
+
+```bash
+npm ci
+npm run dev
+```
+
+Three gates run on every pull request and all must be green: `npm run lint`
+(zero errors, not "no new errors"), `npm test`, and `npm run build`. Playwright
+end-to-end tests also run but are advisory.
+
+Two conventions that catch people:
+
+- **No emoji anywhere** — code, comments, commit messages, UI copy or docs. Use
+  a lucide icon or plain words.
+- **Comments explain why, not what.** The code already says what it does.
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. It covers
+how tests are written here (plain `node:assert` scripts, no framework), which
+files ask for a review and why, and the one constant you should not touch.
+
+Found a security problem? Do not open an issue — see [SECURITY.md](SECURITY.md).
+
+## Licence
+
+[MIT](LICENSE).

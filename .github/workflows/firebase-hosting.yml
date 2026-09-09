@@ -29,6 +29,17 @@ jobs:
   deploy:
     name: Build and deploy
     runs-on: ubuntu-latest
+    # A pull request from a fork gets no secrets -- GitHub withholds them
+    # deliberately, so a fork cannot exfiltrate them. The deploy credential
+    # would therefore be empty and this job would fail on every external
+    # contribution, on a step the contributor cannot fix, next to a comment
+    # step that also cannot run because the token is read-only on a fork.
+    #
+    # Skipping is honest: there is nothing here a fork PR can do. `CI` runs on
+    # forks, uses no secrets, and is the check that actually judges the change.
+    if: >-
+      github.event_name == 'push' ||
+      github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - uses: actions/checkout@v4
 
