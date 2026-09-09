@@ -129,6 +129,21 @@ check is `scripts/verify_proxy_live.mjs`.
 
 ## What is waiting on a human
 
+- **Delete the `config/igdb` document in Firestore.** The rule exposing it is
+  gone from `firestore.rules`, so a rules deploy stops it being world-readable,
+  but the document itself is still there holding a superseded IGDB credential
+  pair. Nothing reads it. Firebase console -> Firestore -> `config` -> `igdb` ->
+  delete. Listed in [SECURITY.md](SECURITY.md) as known-and-accepted until then.
+- **Turn on branch protection for `main`** now the repository invites
+  contributions. `.github/CODEOWNERS` requests a review on the sensitive paths
+  but cannot require one by itself -- that needs "Require a pull request before
+  merging" plus "Require review from Code Owners" under Settings -> Branches.
+  Make `CI` the required status check, **not** `Deploy web`: the latter is
+  skipped on fork pull requests by design, so requiring it would block every
+  external contribution permanently.
+- **Turn on private vulnerability reporting** under Settings -> Security, or the
+  reporting route [SECURITY.md](SECURITY.md) tells people to use does not exist.
+
 - **Known, parked:** when the compatibility notice has been dismissed and an
   IGDB error then occurs, the banner shows the outdated headline (with a Retry
   button) rather than the error copy. Real but narrow, and the whole path is
