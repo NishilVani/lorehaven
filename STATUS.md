@@ -61,9 +61,9 @@ in a new `moctale_library_deleted` domain, and a device whose merge holds
 more than the cloud writes the superset back. Every library write goes
 through one `commitLibrary` in db.js that stamps and tombstones. Verified
 against the real module by replaying the two-session scenario
-(`qa/2026-09-09-sync/two-sessions.mjs`): both games survive on both devices.
+(`tests/two-sessions.test.mjs`): both games survive on both devices.
 
-**Recovery.** `qa/2026-09-09-sync/ldb-history.mjs` reads superseded values
+**Recovery.** `scripts/ldb_history.mjs` reads superseded values
 out of Chromium LevelDB files; the 261-game version it found is the source of
 the restoration. Four games (Majora's Mask, Sleeping Dogs DE, Khazan, Monster
 Hunter Wilds) survive only as names in the feed snapshot — restored as
@@ -74,8 +74,10 @@ recovered entries were placed in the signed-in browser's localStorage with
 fresh `_u` stamps, the page was reloaded, and the new merge kept them over the
 older cloud copy and wrote the superset back. Cloud and local now both read
 270 games, 187 with a priority, all seven games present. A copy of the
-pre-restore library is at `qa/2026-09-09-sync/current-263.json` and in that
-browser's localStorage under `moctale_library_backup_2026-09-09`.
+pre-restore library is in that browser's localStorage under
+`moctale_library_backup_2026-09-09`, and as a JSON file under the ignored `qa/`
+directory on the machine that ran the restore. It is deliberately **not**
+committed: this repository is public and that file is a personal library.
 
 **Recommendation feedback** takes the same per-verdict merge, with clears as
 tombstones in `moctale_rec_feedback_deleted`. Fixing that exposed a second
@@ -123,7 +125,7 @@ expiry which is re-checked on read, and is dropped from the edge as well as
 memory on a 401 — without that last part a revoked token would be served back to
 every cold isolate until the entry expired. Nine checks in
 `functions/token-cache.test.mjs`, in `npm test`, with Twitch stubbed; the live
-check is `qa/2026-09-09-sync/proxy-verify.mjs`.
+check is `scripts/verify_proxy_live.mjs`.
 
 ## What is waiting on a human
 

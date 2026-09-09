@@ -210,7 +210,7 @@ There is never a moment when a good client is refused.
   segment counts, equality, a `v` prefix.
 - `evaluateCompat`: outdated, update-available, both, neither, and an absent or
   malformed `minCompatLevel` resolving to compatible.
-- Write path, in the `qa/2026-09-09-sync/db-write-path.mjs` harness: every domain
+- Write path, in the `tests/db-write-path.test.mjs` harness: every domain
   write carries `compatLevel`, **including every shard** of a sharded domain and
   including the null/clear path; and `syncToCloud` queues nothing once outdated.
 

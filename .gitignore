@@ -90,3 +90,7 @@ MoctaleSS/
 
 # Locally packed MSIX
 msix-out/
+
+# Scratch copy of db.js that tests/two-sessions.test.mjs writes to lift a
+# module-private function; deleted on success, so this only catches a crash.
+tests/_db.tmp.mjs
