@@ -40,16 +40,85 @@ const ALLOWED = new Set([
 ]);
 
 /* ── The token, held here and only here ──────────────────────────────────────
- * A Twitch app-access token lasts about 60 days. One in-memory copy per
- * instance is refreshed a minute before it expires, and concurrent callers
- * share the one in-flight request rather than each starting their own. */
+ *
+ * A Twitch app-access token lasts about 60 days, so almost every exchange this
+ * proxy made was waste. Measured on 2026-09-09: 174 exchanges against 5.67k
+ * requests in 24 hours. That is not refreshing -- it is one mint per cold
+ * isolate, each discarding a token good for two months. An isolate lives
+ * minutes; the edge cache outlives it, so it is the tier the token belongs in.
+ *
+ * Three tiers, cheapest first:
+ *   1. this isolate's own copy -- no I/O at all, serves nearly every request;
+ *   2. the edge cache, read once when an isolate starts cold;
+ *   3. Twitch, which now runs about once per colo per token lifetime.
+ *
+ * Storing a bearer token in the edge cache is a deliberate trade and worth
+ * stating plainly. What is stored is the short-lived ACCESS token, never the
+ * client secret -- that stays in Cloudflare's encrypted secret store and is
+ * read only to mint. The key is a synthetic `.invalid` URL, a reserved TLD that
+ * never resolves, and the Worker fronts no zone, so no inbound request can
+ * produce that key; only this file's code ever reads it. The stored copy also
+ * carries its own absolute expiry and is re-checked on read, so cache TTL is a
+ * performance detail and never the thing that decides whether a token is
+ * usable. The key is keyed on the client id, so rotating the credential cannot
+ * serve a token minted for the old one.
+ *
+ * A global store (Workers KV) would collapse the remaining per-colo mints to
+ * one, but it needs a namespace and a binding this deployment does not have,
+ * and roughly one exchange per colo per 60 days is already nothing. */
 let token = null;        // { value, expiresAt }
 let inFlight = null;
 
+/* Refreshed this long before it actually expires, so a token is never handed to
+   IGDB with seconds left on it. */
+const TOKEN_MARGIN_MS = 60_000;
+/* The stored copy expires with the token, capped well inside any plan's edge
+   TTL ceiling. Correctness does not rest on this: `expiresAt` is re-checked. */
+const TOKEN_CACHE_MAX_S = 30 * 24 * 3600;
+
+/* `kind` is 'token' here, which handle() can never derive from a pathname -- it
+   only ever produces 'api' or 'wdqs' -- so a response can never collide with
+   the token entry. */
+const tokenKey = (env) => cacheKeyFor('token', 'twitch', String(env?.IGDB_CLIENT_ID ?? ''));
+
+/** The edge's copy, or null when there is none, it is unreadable, or it is too
+ *  close to expiry to be worth adopting. */
+async function readSharedToken(env, now) {
+  const cache = edgeCache();
+  if (!cache) return null;
+  try {
+    const hit = await cache.match(await tokenKey(env));
+    if (!hit) return null;
+    const entry = await hit.json();
+    if (!entry?.value || !(entry.expiresAt > now + TOKEN_MARGIN_MS)) return null;
+    return entry;
+  } catch { return null; }   /* an unreadable entry is a cache miss, not an error */
+}
+
+/* Awaited rather than handed to waitUntil: this runs before the IGDB request
+   that needs the token, not after a response has gone out, so there is no
+   context to attach it to. It costs one round trip on the rare mint path. */
+async function writeSharedToken(env, entry, now) {
+  const cache = edgeCache();
+  if (!cache) return;
+  const ttl = Math.min(TOKEN_CACHE_MAX_S, Math.floor((entry.expiresAt - now - TOKEN_MARGIN_MS) / 1000));
+  if (ttl <= 0) return;
+  try {
+    await cache.put(await tokenKey(env), new Response(JSON.stringify(entry), {
+      /* `public` is what makes cache.put store it at all; the entry is not
+         reachable from outside regardless -- see the note above. */
+      headers: { 'content-type': 'application/json', 'cache-control': `public, max-age=${ttl}` },
+    }));
+  } catch { /* a cache that refuses a write just means the next isolate mints */ }
+}
+
 async function getToken(env, now = Date.now()) {
-  if (token && token.expiresAt > now + 60_000) return token.value;
+  if (token && token.expiresAt > now + TOKEN_MARGIN_MS) return token.value;
   if (inFlight) return inFlight;
   inFlight = (async () => {
+    const shared = await readSharedToken(env, now);
+    if (shared) { token = shared; return shared.value; }
+
     const url = `${TWITCH}?client_id=${encodeURIComponent(env.IGDB_CLIENT_ID)}`
       + `&client_secret=${encodeURIComponent(env.IGDB_CLIENT_SECRET)}`
       + '&grant_type=client_credentials';
@@ -61,13 +130,22 @@ async function getToken(env, now = Date.now()) {
       throw Object.assign(new Error('token exchange failed'), { status: 502 });
     }
     token = { value: body.access_token, expiresAt: now + (body.expires_in ?? 0) * 1000 };
+    await writeSharedToken(env, token, now);
     return token.value;
   })().finally(() => { inFlight = null; });
   return inFlight;
 }
 
-/** Drop the cached token so the next call re-authenticates. */
-const dropToken = () => { token = null; };
+/** Drop the token so the next call re-authenticates -- the edge's copy too.
+ *  Dropping only this isolate's would be pointless on a 401: the next cold
+ *  isolate would read the same dead token straight back out of the edge and
+ *  fail identically, in every colo, until the entry expired. */
+const dropToken = async (env) => {
+  token = null;
+  const cache = edgeCache();
+  if (!cache || !env?.IGDB_CLIENT_ID) return;
+  try { await cache.delete(await tokenKey(env)); } catch { /* already gone is the state we wanted */ }
+};
 
 const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: cors({ 'content-type': 'application/json' }) });
@@ -158,7 +236,7 @@ async function igdb(path, req, env, ctx) {
        replay once. The client used to carry this logic because it held the token;
        it belongs on whoever owns the token, which is now this. */
     if (res.status === 401) {
-      dropToken();
+      await dropToken(env);
       res = await send(await getToken(env));
     }
     const text = await res.text();

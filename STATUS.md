@@ -92,9 +92,18 @@ Cloudflare's metrics for the last 24h show 0 errors, 0 limit hits, 0 stream
 disconnects. It is Chrome sending a POST on a kept-alive connection the edge
 had idled out; Chrome replays that for GET, never for POST. `netRetry.js`
 replays a request that never left the client exactly once, and never a
-response the server sent. Worth a look later: 174 Twitch token exchanges in
-24h — every cold isolate mints its own; caching the token at the edge would
-remove nearly all of them.
+response the server sent.
+
+**The Twitch token is cached at the edge** as of 2026-09-09, which is what those
+174 exchanges in 24h were: not refreshes — a token lasts ~60 days — but one mint
+per cold isolate. A cold isolate now adopts the token the last one left in the
+edge cache, so Twitch is reached about once per colo per token lifetime. The
+stored value is the access token, never the client secret; it is keyed under an
+unroutable `.invalid` URL that no inbound request can produce, carries its own
+expiry which is re-checked on read, and is dropped from the edge as well as
+memory on a 401 — without that last part a revoked token would be served back to
+every cold isolate until the entry expired. Nine checks in
+`functions/token-cache.test.mjs`, in `npm test`, with Twitch stubbed.
 
 ## What is waiting on a human
 

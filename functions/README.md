@@ -98,6 +98,47 @@ treated as public. Regenerate it in the Twitch developer console for the IGDB
 application, then `wrangler secret put` the new values. Nothing else needs to
 change, because nothing else holds them any more.
 
+## The Twitch token
+
+The token is not a per-request cost and never was: a Twitch app-access token
+lasts about 60 days. It was a per-*isolate* cost. Each cold isolate minted its
+own and threw away one still good for two months -- 174 exchanges against 5.67k
+requests in the 24 hours to 2026-09-09.
+
+It is now read from the same edge cache the responses use, so an isolate that
+starts cold adopts the token the last one minted:
+
+| Tier | Cost | Serves |
+|---|---|---|
+| This isolate's own copy | no I/O | nearly every request |
+| The edge cache | one local read | the first request of a cold isolate |
+| Twitch | a round trip | about once per colo per token lifetime |
+
+**Storing a bearer token in a shared cache is a deliberate trade.** What is
+stored is the short-lived access token, never the client secret -- that stays in
+Cloudflare's encrypted secret store and is read only to mint. The entry is keyed
+by a synthetic `https://lorehaven.invalid/token/...` URL: `.invalid` is a
+reserved TLD that never resolves, the Worker fronts no zone, and `handle()` only
+ever derives `api` or `wdqs` from a pathname, so no inbound request can produce
+that key. The stored copy carries its own absolute expiry and is re-checked on
+read, so the cache TTL is a performance detail and never what decides whether a
+token is usable. The key includes the client id, so rotating the credential
+cannot serve a token minted for the old one.
+
+The 401 path drops the edge copy as well as the in-memory one. That is the part
+worth not breaking: dropping only this isolate's would leave the next cold
+isolate reading the same dead token straight back out of the edge, in every
+colo, until the entry expired.
+
+Workers KV would make this global rather than per-colo and collapse the
+remaining mints to one, but it needs a namespace and a binding this deployment
+does not have, and one exchange per colo per 60 days is already nothing.
+
+`functions/token-cache.test.mjs` covers all of it with Twitch stubbed and the
+Cache API as a Map -- no credentials, no network, so it runs in `npm test`. A
+fresh `import` with a distinct query string is a cold isolate: new module state,
+same cache underneath.
+
 ## The shared edge cache
 
 Nothing this proxy returns is user-specific, so identical queries are cached at
