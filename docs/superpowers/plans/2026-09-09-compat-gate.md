@@ -288,7 +288,11 @@ Run:
 npm run build && node -e "
 const fs=require('node:fs');
 const v=JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json','utf8')).version;
-const hit=fs.readdirSync('dist/assets').some(f=>f.endsWith('.js')&&fs.readFileSync('dist/assets/'+f,'utf8').includes(JSON.stringify(v)));
+/* Quote-agnostic on purpose: the minifier is free to emit the injected string
+   with single, double or backtick quotes, and an earlier version of this check
+   looked only for double quotes and reported a false failure. */
+const re=new RegExp('['"\`]'+v.replace(/\./g,'\.')+'['"\`]');
+const hit=fs.readdirSync('dist/assets').some(f=>f.endsWith('.js')&&re.test(fs.readFileSync('dist/assets/'+f,'utf8')));
 console.log(hit?'ok    version '+v+' is in the bundle':'FAIL  version '+v+' not found');
 process.exit(hit?0:1);"
 ```
