@@ -7,6 +7,12 @@ import ScrollToTop from './components/layout/ScrollToTop';
 import { ToastContainer } from './components/ui/Toast';
 import ApiErrorBanner from './components/ui/ApiErrorBanner';
 
+// Compatibility level and version from vite.config.js define
+import { COMPAT_LEVEL, APP_VERSION } from './services/compat.js';
+// Make them available for debugging and future compatibility checks
+globalThis.__MOCTALE_COMPAT_LEVEL__ = COMPAT_LEVEL;
+globalThis.__MOCTALE_APP_VERSION__ = APP_VERSION;
+
 // Routes are code-split: each becomes its own chunk fetched on first navigation,
 // so visiting the home page no longer downloads the Import Wizard, the Award
 // ceremony, Wallpapers and every other screen up front.
