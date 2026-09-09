@@ -136,6 +136,12 @@ check is `scripts/verify_proxy_live.mjs`.
   `src/components/ui/ApiErrorBanner.jsx`: gate the copy and the ARIA role on
   `outdated && !dismissedOutdated` rather than on `outdated` alone. Surfaced by
   the final branch review and deliberately deferred rather than dropped.
+- **`FIREBASE_CONFIG_WRITER` is not set**, so `latestVersion` will not publish
+  on a release. The `app-config` job warns and skips rather than failing, and
+  nothing breaks: the client's `config/app` read fails open, so every client
+  still treats itself as current. It needs a Google Cloud service account key
+  with `roles/datastore.user`, as its own account rather than the Hosting
+  deployer -- see [docs/RELEASING.md](docs/RELEASING.md) for why that matters.
 - **The compatibility gate is built but not armed.** `firestore.rules` carries
   the `compatLevel >= 2` requirement and the client stamps it, but the rule is
   **not deployed** and `config/app` does not exist yet. Arming it before the

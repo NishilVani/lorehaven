@@ -291,3 +291,44 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             "/repos/${{ github.repository }}/releases/${{ needs.create-release.outputs.release_id }}" \
             -f draft=false
+
+  # Tell the running clients a newer version exists, by writing latestVersion
+  # into the Firestore document config/app.
+  #
+  # It CANNOT arm the compatibility gate. scripts/app_config_payload.mjs builds
+  # the release object from named locals rather than spreading its input, so
+  # minCompatLevel has no route into a release write, and the script re-reads
+  # the document afterwards and fails the job if that field moved. Raising it is
+  # arm-compat-gate.yml, which only a human can trigger -- doing it here would
+  # gate every device that had not yet installed this release.
+  #
+  # `needs: publish` so nothing is advertised until the release is actually
+  # public. A failed desktop or Android leg leaves the release a draft, and
+  # pointing users at a draft would be pointing them at nothing.
+  #
+  # Without the secret the step is skipped rather than failed: an unpublished
+  # latestVersion costs nothing today, because the client's config read fails
+  # open and every client still treats itself as current.
+  app-config:
+    name: Publish latestVersion
+    needs: [create-release, publish]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm install --no-save firebase-admin@13
+
+      - name: Write latestVersion to config/app
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.FIREBASE_CONFIG_WRITER }}
+          VERSION: ${{ needs.create-release.outputs.version }}
+        run: |
+          if [ -z "$GOOGLE_APPLICATION_CREDENTIALS_JSON" ]; then
+            echo "::warning::FIREBASE_CONFIG_WRITER is not set - latestVersion was not published. Clients still treat themselves as current, because the config read fails open. See docs/RELEASING.md."
+            exit 0
+          fi
+          node scripts/publish_app_config.mjs release             --version "$VERSION"             --notes "LoreHaven $VERSION"

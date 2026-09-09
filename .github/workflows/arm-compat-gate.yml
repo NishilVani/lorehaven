@@ -1,0 +1,58 @@
+name: Arm the compatibility gate
+
+# Raises `minCompatLevel` in the Firestore document config/app, which is what
+# stops older clients writing to the cloud.
+#
+# This is its own workflow, triggered ONLY by hand, and that separation is the
+# safety property rather than a filing preference. The release workflow writes
+# latestVersion on every release and physically cannot write this field --
+# scripts/app_config_payload.mjs builds the release object from named locals so
+# minCompatLevel has no route in. Arming has to be a thing a person decided to
+# do, because doing it at release time would gate every device that had not yet
+# installed that release.
+#
+# Before running this, the rollout in docs/RELEASING.md requires that you have
+# already confirmed the new level is genuinely present on the domain documents
+# in Firestore. "I shipped a build that stamps it" is not the same fact.
+
+on:
+  workflow_dispatch:
+    inputs:
+      level:
+        description: "minCompatLevel to publish (a positive integer, e.g. 2)"
+        required: true
+      confirm:
+        description: 'Type ARM to confirm you have verified the field is live in Firestore'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  arm:
+    name: Raise minCompatLevel
+    runs-on: ubuntu-latest
+    steps:
+      # A second pair of eyes on an action that can stop every client syncing.
+      # The dispatch form is easy to fire by muscle memory from the Actions tab;
+      # a word you have to type is not.
+      - name: Check the confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "ARM" ]; then
+            echo "Confirmation was \"${{ github.event.inputs.confirm }}\", expected ARM. Nothing was written." >&2
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Only the Admin SDK, not the whole project: this job runs no app code.
+      - run: npm install --no-save firebase-admin@13
+
+      - name: Publish minCompatLevel
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.FIREBASE_CONFIG_WRITER }}
+        run: node scripts/publish_app_config.mjs arm --level '${{ github.event.inputs.level }}'
