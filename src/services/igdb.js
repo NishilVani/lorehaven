@@ -1,5 +1,6 @@
 // src/igdb.js
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
+import { withNetworkRetry } from './netRetry.js';
 import {
     GAMES_CACHE_TTL, readGamesCache, writeGamesCache, partitionByCache, mergeIntoCache,
     markAbsent, absentFrom,
@@ -77,13 +78,16 @@ const fetch = async (url, options) => {
         const finalUrl = url.startsWith('/igdb-img')
             ? 'https://images.igdb.com' + url.substring(9)
             : PROXY_ORIGIN + url;
-        return replayOrThrow(url, options, await tauriFetch(finalUrl, options), (o) => tauriFetch(finalUrl, o));
+        return replayOrThrow(url, options, await withNetworkRetry(() => tauriFetch(finalUrl, options)), (o) => tauriFetch(finalUrl, o));
     }
     /* The browser needs the origin too, and for the same reason the comment on
        PROXY_ORIGIN gives: a static host cannot proxy. Empty in development, so
        the relative path still lands on the Vite middleware. */
     const finalUrl = PROXY_ORIGIN + url;
-    return replayOrThrow(url, options, await nativeFetch(finalUrl, options), (o) => nativeFetch(finalUrl, o));
+    /* withNetworkRetry: a POST on a kept-alive connection the edge has already
+       closed fails before it starts, and Chrome will not replay a POST itself.
+       See netRetry.js. */
+    return replayOrThrow(url, options, await withNetworkRetry(() => nativeFetch(finalUrl, options)), (o) => nativeFetch(finalUrl, o));
 };
 
 /* A 4xx/5xx from IGDB or Twitch used to be parsed and, when the body was not

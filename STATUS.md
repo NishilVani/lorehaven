@@ -77,9 +77,24 @@ older cloud copy and wrote the superset back. Cloud and local now both read
 pre-restore library is at `qa/2026-09-09-sync/current-263.json` and in that
 browser's localStorage under `moctale_library_backup_2026-09-09`.
 
-**Still whole-document:** recommendation feedback (`listPolicy: 'replace'`)
-and the object domains (profile, prefs, snapshot). Two devices editing
-feedback at once can still lose a verdict. Same fix would apply; not done.
+**Recommendation feedback** takes the same per-verdict merge, with clears as
+tombstones in `moctale_rec_feedback_deleted`. Fixing that exposed a second
+bug: `KEY_FOR_DOC` copied only `key` and `field` out of each domain, so the
+old `listPolicy: 'replace'` on feedback had never been in effect — and neither
+was the new tombstone policy until the map carried the whole config.
+
+**Still whole-document:** the object domains (profile, prefs, snapshot,
+clear-watermark). They are single settings, not lists, and newest-wins is
+the right rule for them.
+
+**Explore's `ERR_CONNECTION_CLOSED` to the proxy** is not the worker:
+Cloudflare's metrics for the last 24h show 0 errors, 0 limit hits, 0 stream
+disconnects. It is Chrome sending a POST on a kept-alive connection the edge
+had idled out; Chrome replays that for GET, never for POST. `netRetry.js`
+replays a request that never left the client exactly once, and never a
+response the server sent. Worth a look later: 174 Twitch token exchanges in
+24h — every cold isolate mints its own; caching the token at the edge would
+remove nearly all of them.
 
 ## What is waiting on a human
 
