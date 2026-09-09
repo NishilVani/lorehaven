@@ -288,10 +288,24 @@ export async function getRecommendations() {
    * empty, which is what the note above eraBonus protects. */
   const eraWindow = eraDateWindow(prefs.releaseEra);
   if (eraWindow) {
-    take(await getGamesForDiscovery({
-      themeIds: topThemes, companyIds: topCompanies, franchiseIds: topFranchises,
-      limit: POOL_PAGE, offset: 0, sortBy: 'popularity', ...eraWindow,
-    }));
+    /* Paged, like the general pool below, and for the same reason. One page
+       was measured on a 12-game library and looked generous -- 198 recent
+       survivors. On a 263-game library with 284 feedback verdicts the same
+       page left ONE: everything owned or already judged is filtered out of
+       it, and a heavy user has owned or judged most of the popular recent
+       games the first 200 rows hold. The era bonus then had one card to lift,
+       and from the second card on Explore showed the 2000s again -- the dial
+       "worked for a few games and forgot". Paging until the era alone can
+       fill a reveal page is what makes the setting hold past the fold. */
+    for (let page = 0; page < POOL_MAX_PAGES; page++) {
+      const rows = await getGamesForDiscovery({
+        themeIds: topThemes, companyIds: topCompanies, franchiseIds: topFranchises,
+        limit: POOL_PAGE, offset: page * POOL_PAGE, sortBy: 'popularity', ...eraWindow,
+      });
+      take(rows);
+      if (rows.length < POOL_PAGE) break;
+      if (byFamily.size >= POOL_ENOUGH) break;
+    }
   }
 
   for (let page = 0; page < POOL_MAX_PAGES; page++) {
