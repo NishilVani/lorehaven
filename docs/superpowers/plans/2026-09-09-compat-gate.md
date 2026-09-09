@@ -412,7 +412,13 @@ and the sharded branch's loop body becomes:
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `node tests/db-write-path.test.mjs`
-Expected: `db write path: all assertions passed` followed by `compat stamp: all assertions passed`
+Expected both lines, in this order — the new block sits above the file's
+existing final line, so it prints first:
+
+```
+compat stamp: all assertions passed
+db write path: all assertions passed
+```
 
 - [ ] **Step 5: Verify the suite and lint**
 
