@@ -45,5 +45,30 @@ store.set('moctale_library', JSON.stringify([{ id: 9, name: 'Legacy', priority: 
 assert.strictEqual(db.getLibrary()[0].priority, 'Next Up', 'migrated on read');
 assert.strictEqual(lib()[0]._u, 42, 'heal keeps the stamp it had');
 
+/* Every domain document must carry compatLevel, or the Firestore rule refuses
+   it. The payload builder is exported and pure precisely so this can be
+   asserted without a Firestore client and without a signed-in user. */
+{
+  const { domainPayload } = db;
+  const { COMPAT_LEVEL } = await import('../src/services/compat.js');
+
+  const head = domainPayload('games', [{ id: 1 }], { parts: 3, index: 0 });
+  assert.strictEqual(head.compatLevel, COMPAT_LEVEL, 'the first shard is stamped');
+  assert.strictEqual(head.parts, 3, 'the first shard declares how many there are');
+  assert.ok('updatedAt' in head, 'the first shard carries updatedAt');
+
+  const tail = domainPayload('games', [{ id: 2 }], { parts: 3, index: 2 });
+  assert.strictEqual(tail.compatLevel, COMPAT_LEVEL, 'every later shard is stamped too');
+  assert.ok(!('parts' in tail), 'only the first shard declares the count');
+
+  /* The clear path. removeLocalItem reaches writeDomain with a null value and
+     still issues a setDoc, so without this, clearing a domain would be the one
+     operation an otherwise-current client could not perform. */
+  const cleared = domainPayload('games', null, { parts: 1, index: 0 });
+  assert.strictEqual(cleared.compatLevel, COMPAT_LEVEL, 'the clear path is stamped');
+
+  console.log('compat stamp: all assertions passed');
+}
+
 console.log('db write path: all assertions passed');
 process.exit(0);

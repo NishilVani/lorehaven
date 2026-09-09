@@ -30,12 +30,43 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    /* What the client needs to explain itself: the minimum compatibility level
+     * an account will accept, and the newest version on offer.
+     *
+     * World-readable like config/igdb and for the same reason -- a signed-out
+     * visitor must be able to read it, and there is nothing here to leak. Never
+     * client-writable: it is edited from the Firebase console or the CLI, and a
+     * client that could raise minCompatLevel could lock out every other device.
+     *
+     * Shape: { minCompatLevel: int, latestVersion: string, latestNotes: string }
+     */
+    match /config/app {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // Schema v2 — note the data block is NESTED inside this one
     match /lorehaven_users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
 
+      /* Split by operation on purpose.
+       *
+       * A delete carries no request.resource, so folding it into the same
+       * clause as create/update would reject every shard cleanup that
+       * dropShardsFrom performs and strand orphaned shards behind a library
+       * that had shrunk.
+       *
+       * compatLevel is the compatibility gate. A build below the minimum
+       * resurrects deleted games, never stamps its edits, and overwrites the
+       * whole library document -- see docs/superpowers/specs for what that
+       * cost. The client refuses to write when it knows it is too old; this is
+       * the half that works on builds that can no longer be changed. */
       match /data/{docId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read:   if request.auth != null && request.auth.uid == userId;
+        allow delete: if request.auth != null && request.auth.uid == userId;
+        allow create, update: if request.auth != null && request.auth.uid == userId
+                              && request.resource.data.compatLevel is int
+                              && request.resource.data.compatLevel >= 2;
       }
     }
 

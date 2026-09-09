@@ -1,8 +1,16 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { readFileSync } from 'node:fs'
 
 const host = process.env.TAURI_DEV_HOST;
+
+/* One source of truth for the version, and it is the one CI already checks:
+   .github/workflows/release.yml fails the build when the git tag disagrees
+   with tauri.conf.json. package.json says 0.0.0 and means nothing. */
+const appVersion = JSON.parse(
+  readFileSync(new URL('./src-tauri/tauri.conf.json', import.meta.url), 'utf8')
+).version;
 
 // https://vite.dev/config/
 /* The IGDB and Wikidata proxy, mounted as dev-server middleware.
@@ -53,6 +61,9 @@ const igdbProxy = () => ({
 export default defineConfig({
   plugins: [tailwindcss(), react(), igdbProxy()],
   clearScreen: false,
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion),
+  },
   server: {
     host: host || true,
     port: 5173,

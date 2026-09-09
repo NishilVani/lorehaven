@@ -142,13 +142,15 @@ export default function Profile() {
   /* Signed out is a state, not a failure — say what is true rather than warning
      about it. An error outranks a success time: a stale "synced 2 min ago" beside
      a failing write is the reassuring half of a contradiction. */
-  const syncing = !user
-    ? { line: 'Not syncing — your library lives on this device', tone: 'text-white/60', dot: 'var(--status-solid-fallback)' }
-    : sync.error
-      ? { line: sync.error, tone: 'text-[var(--destructive)]', dot: 'var(--destructive)' }
-      : sync.at
-        ? { line: `Synced ${sinceText(sync.at)}`, tone: 'text-white/60', dot: 'var(--status-solid-playing)' }
-        : { line: 'Connecting…', tone: 'text-white/60', dot: 'var(--status-solid-fallback)' };
+  const syncing = sync.outdated
+    ? { line: 'Sync is off — this version is too old to share data safely', tone: 'text-[var(--destructive)]', dot: 'var(--destructive)' }
+    : !user
+      ? { line: 'Not syncing — your library lives on this device', tone: 'text-white/60', dot: 'var(--status-solid-fallback)' }
+      : sync.error
+        ? { line: sync.error, tone: 'text-[var(--destructive)]', dot: 'var(--destructive)' }
+        : sync.at
+          ? { line: `Synced ${sinceText(sync.at)}`, tone: 'text-white/60', dot: 'var(--status-solid-playing)' }
+          : { line: 'Connecting…', tone: 'text-white/60', dot: 'var(--status-solid-fallback)' };
 
   /* The avatar is the first letter of whatever the page is already showing as
      your name, so it can never disagree with the title beside it. */

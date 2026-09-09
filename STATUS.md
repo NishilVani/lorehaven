@@ -129,6 +129,18 @@ check is `scripts/verify_proxy_live.mjs`.
 
 ## What is waiting on a human
 
+- **Known, parked:** when the compatibility notice has been dismissed and an
+  IGDB error then occurs, the banner shows the outdated headline (with a Retry
+  button) rather than the error copy. Real but narrow, and the whole path is
+  dormant until the rule is armed. The fix is two lines in
+  `src/components/ui/ApiErrorBanner.jsx`: gate the copy and the ARIA role on
+  `outdated && !dismissedOutdated` rather than on `outdated` alone. Surfaced by
+  the final branch review and deliberately deferred rather than dropped.
+- **The compatibility gate is built but not armed.** `firestore.rules` carries
+  the `compatLevel >= 2` requirement and the client stamps it, but the rule is
+  **not deployed** and `config/app` does not exist yet. Arming it before the
+  0.1.0 Store build and 0.1.0 APK are replaced would stop them syncing with
+  nowhere to go. The order is in [docs/RELEASING.md](docs/RELEASING.md).
 - **Microsoft Store**: the first submission is done — `LoreHaven-0.1.0.msix`
   was submitted by hand through Partner Center with the full listing, and it is
   **in certification** (Store ID `9N7FD5QBSMBB`). **No code signing certificate

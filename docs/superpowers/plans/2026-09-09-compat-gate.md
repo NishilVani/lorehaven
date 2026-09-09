@@ -18,7 +18,11 @@
 - Never inherit the field from a `{ merge: true }` write — always send it explicitly.
 - Fail-open: an unreadable or absent `config/app` means the client treats itself as current.
 - **Do not deploy the Firestore rules until Task 8.** Deploying earlier stops the live 0.1.0 Store build and 0.1.0 APK from syncing.
-- Zero emoji in any code, comment, commit message or copy (CLAUDE.md, enforced by `npm run lint:emoji`).
+- Zero emoji in any code, comment, commit message or copy (CLAUDE.md). Note that
+  `npm run lint:emoji` runs `check_no_emoji.py --no-dash src` and therefore covers
+  `src/` ONLY — documentation and this plan are not scanned by it. For a docs
+  change, run the checker against the file directly:
+  `python scripts/check_no_emoji.py --no-dash docs/RELEASING.md`.
 - Every task ends green on `npm run lint` and `npm test`.
 
 ## File Structure
@@ -206,7 +210,11 @@ export const evaluateCompat = ({ level, minLevel, version, latestVersion }) => (
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `node tests/compat.test.mjs`
-Expected: `11/11 passed`
+Expected: `10/10 passed` (the file above defines ten `test()` cases)
+
+`compat.js` references `__APP_VERSION__` both inside a `typeof` guard and as a
+value. ESLint's `no-undef` exempts the guard but not the value reference, so
+`eslint.config.js` needs `__APP_VERSION__: 'readonly'` added to its globals.
 
 - [ ] **Step 5: Wire it into `npm test`**
 
@@ -276,20 +284,25 @@ Then add a `define` key to the object passed to `defineConfig`, directly after `
   },
 ```
 
-- [ ] **Step 2: Build and verify the version reached the bundle**
+- [ ] **Step 2: Verify the define is computed correctly, and the build still succeeds**
 
-Run:
+The version cannot be checked in the bundle yet. Nothing under `src/` imports
+`compat.js` until Task 4 wires it into `db.js`, so Rollup tree-shakes the module
+out and the define never lands in any asset. That is correct behaviour, not a
+failure — the bundle-presence check belongs in Task 4 and is there.
+
+What this task can prove is that the config reads the right value and does not
+break the build:
 
 ```bash
-npm run build && node -e "
-const fs=require('node:fs');
-const v=JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json','utf8')).version;
-const hit=fs.readdirSync('dist/assets').some(f=>f.endsWith('.js')&&fs.readFileSync('dist/assets/'+f,'utf8').includes(JSON.stringify(v)));
-console.log(hit?'ok    version '+v+' is in the bundle':'FAIL  version '+v+' not found');
-process.exit(hit?0:1);"
+node -e "
+const {readFileSync}=require('node:fs');
+const v=JSON.parse(readFileSync('src-tauri/tauri.conf.json','utf8')).version;
+console.log(/^\d+\.\d+\.\d+/.test(v) ? 'ok    vite will define __APP_VERSION__ as '+v : 'FAIL  unexpected version '+v);
+" && npm run build
 ```
 
-Expected: `ok    version 0.1.0 is in the bundle`
+Expected: `ok    vite will define __APP_VERSION__ as 0.1.0`, then a successful build.
 
 - [ ] **Step 3: Verify lint and tests still pass**
 
@@ -412,7 +425,13 @@ and the sharded branch's loop body becomes:
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `node tests/db-write-path.test.mjs`
-Expected: `db write path: all assertions passed` followed by `compat stamp: all assertions passed`
+Expected both lines, in this order — the new block sits above the file's
+existing final line, so it prints first:
+
+```
+compat stamp: all assertions passed
+db write path: all assertions passed
+```
 
 - [ ] **Step 5: Verify the suite and lint**
 
@@ -544,10 +563,26 @@ const readAppConfig = async () => {
 readAppConfig();
 ```
 
-- [ ] **Step 5: Verify nothing regressed**
+- [ ] **Step 5: Verify nothing regressed, and that the version now reaches the bundle**
 
 Run: `npm test && npm run lint && npm run build`
 Expected: all green. The node harnesses have no Firestore connection, so `readAppConfig` rejects and takes the fail-open path — which is exactly the behaviour being asserted.
+
+This task is the first point at which `__APP_VERSION__` can be verified in the
+build output: `db.js` importing `compat.js` is what stops Rollup tree-shaking the
+module away. Quote-agnostic, because the minifier may emit any quote style:
+
+```bash
+node -e "
+const fs=require('node:fs');
+const v=JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json','utf8')).version;
+const re=new RegExp('['"\`]'+v.replace(/\./g,'\.')+'['"\`]');
+const hit=fs.readdirSync('dist/assets').some(f=>f.endsWith('.js')&&re.test(fs.readFileSync('dist/assets/'+f,'utf8')));
+console.log(hit?'ok    version '+v+' is in the bundle':'FAIL  version '+v+' not found');
+process.exit(hit?0:1);"
+```
+
+Expected: `ok    version 0.1.0 is in the bundle`
 
 - [ ] **Step 6: Commit**
 
@@ -851,8 +886,11 @@ Add under "What is waiting on a human":
 
 - [ ] **Step 3: Verify the emoji gate and lint**
 
-Run: `npm run lint:emoji && npm run lint`
-Expected: both clean. The emoji check scans the instruction surface as well as `src/`.
+`npm run lint:emoji` covers `src/` only, so it would pass without ever reading
+the files this task changed. Point the checker at them directly:
+
+Run: `python scripts/check_no_emoji.py --no-dash docs/RELEASING.md STATUS.md && npm run lint`
+Expected: both clean.
 
 - [ ] **Step 4: Commit**
 

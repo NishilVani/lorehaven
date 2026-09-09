@@ -155,3 +155,36 @@ losing it still means users must uninstall before they can update.
 ## Store submissions
 
 - **Microsoft Store** — see [MICROSOFT-STORE.md](MICROSOFT-STORE.md).
+
+## Raising the compatibility level
+
+`compatLevel` (`src/services/compat.js`) is bumped **only** when a change makes
+older builds behave incorrectly — in any layer, not just the database. Ordinary
+releases leave it alone and stay optional forever.
+
+Deploying the rule before clients stamp the new level stops every existing
+install from syncing with no version to move to. The order is not optional:
+
+1. **Ship a client that writes the new level.** Rules unchanged. This is a
+   no-op: an extra field nothing reads yet.
+2. **Rebuild and reinstall desktop and Android from that build, and verify the
+   field is really in Firestore** before going further. Check a domain document
+   in the Firebase console and confirm `compatLevel` is present with the new
+   value. A build that stamps the field is not the same fact as the field
+   being in Firestore: the install may not have actually replaced the old
+   build, the write may never have reached the cloud (offline, or a silently
+   failed write path), or a domain document simply hasn't been touched since
+   the upgrade and still carries no field at all. Skip this check and raising
+   the minimum starts refusing exactly those writes — the affected devices
+   stop syncing with no version to move to, and while rolling the rule back
+   is fast, the writes made in the meantime were never accepted.
+3. **Only then** set `minCompatLevel` in `config/app` and deploy
+   `firestore.rules` with the matching minimum.
+
+There is never a moment when a good client is refused.
+
+`config/app` is edited by hand in the Firebase console:
+
+```json
+{ "minCompatLevel": 2, "latestVersion": "0.2.0", "latestNotes": "..." }
+```

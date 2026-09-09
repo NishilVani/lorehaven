@@ -31,7 +31,9 @@ export default defineConfig([
       reactRefresh.configs.vite,
     ],
     languageOptions: {
-      globals: globals.browser,
+      // __APP_VERSION__ is a vite.config.js `define`, not a real global --
+      // ESLint has no way to know that without being told.
+      globals: { ...globals.browser, __APP_VERSION__: 'readonly' },
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
     rules: {

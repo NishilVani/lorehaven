@@ -23,11 +23,12 @@
 import { db, auth } from './firebase.js';
 import {
     doc, setDoc, deleteDoc, onSnapshot, deleteField,
-    collection, getDocs, serverTimestamp,
+    collection, getDocs, serverTimestamp, getDoc,
 } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { toDateInputValue } from './libraryFields.js';
 import { mergeLists, stampItems, mergeTombstones, tombstonesFor, pruneTombstones } from './syncMerge.js';
+import { COMPAT_LEVEL, APP_VERSION, evaluateCompat } from './compat.js';
 
 /* Re-exported so callers keep one import site for library concerns. */
 export { toDateInputValue };
@@ -211,7 +212,12 @@ export const mergeShards = (docs) => {
    last time a write or a pull succeeded this session; it is deliberately not
    persisted, because a timestamp restored from localStorage would claim a sync
    that this session never made. */
-let syncState = { signedIn: false, at: null, error: null };
+/* `outdated` is set from config/app and is independent of auth: a signed-out
+   user should still be told their build cannot sync. */
+let syncState = {
+    signedIn: false, at: null, error: null,
+    outdated: false, updateAvailable: false, latestVersion: null,
+};
 /* The live-sync listener's unsubscribe. It was discarded, so every sign-out
    left a listener that re-ran `list` with no credential (a rules denial that
    overwrote the sign-out's clean reset), and every sign-in leaked another. */
@@ -221,7 +227,8 @@ const setSyncState = (patch) => {
     window.dispatchEvent(new Event('moctale_sync_state'));
 };
 
-/** { signedIn, at, error } — `at` is null until something has synced this session. */
+/** { signedIn, at, error, outdated, updateAvailable, latestVersion } —
+ *  `at` is null until something has synced this session. */
 export const getSyncState = () => syncState;
 
 /* How many shards each domain was last written as, so shrinking back to fewer
@@ -231,6 +238,29 @@ export const getSyncState = () => syncState;
    from whatever this says. */
 const shardCounts = new Map();
 
+/**
+ * The body of one domain document. Exported and PURE for the same reason
+ * splitPayload and mergeShards are: it is the only way to assert what every
+ * write carries without a Firestore client and without a signed-in user.
+ *
+ * compatLevel goes on EVERY document -- every shard, and the clear path --
+ * because rules are evaluated per document. A sharded domain whose tail lacked
+ * it would have its head accepted and its tail refused, which is a torn write
+ * and worse than a refused one.
+ *
+ * It is also sent explicitly rather than inherited. Every write is
+ * { merge: true }, and under a merge `request.resource.data` is the MERGED
+ * result -- so a document that already carries the field would satisfy the rule
+ * even if the write omitted it. Relying on that would mean the field silently
+ * stops being sent and the gate holds only for documents that do not yet exist.
+ */
+export const domainPayload = (field, value, { parts, index }) => ({
+    [field]: value,
+    updatedAt: serverTimestamp(),
+    compatLevel: COMPAT_LEVEL,
+    ...(index === 0 ? { parts } : {}),
+});
+
 const writeDomain = async (key, value) => {
     const domain = DOMAINS[key];
     if (!currentUser || !domain) return;
@@ -238,7 +268,7 @@ const writeDomain = async (key, value) => {
         const uid = currentUser.uid;
         if (value === null) {
             await setDoc(domainRef(uid, domain.docId),
-                { [domain.field]: deleteField(), parts: 1, updatedAt: serverTimestamp() }, { merge: true });
+                domainPayload(domain.field, deleteField(), { parts: 1, index: 0 }), { merge: true });
             await dropShardsFrom(uid, domain.docId, 1);
             shardCounts.set(domain.docId, 1);
         } else {
@@ -249,11 +279,8 @@ const writeDomain = async (key, value) => {
                after means a reader either sees the old document or a complete
                new one. */
             for (let i = parts.length - 1; i >= 0; i--) {
-                await setDoc(domainRef(uid, shardIdFor(domain.docId, i)), {
-                    [domain.field]: parts[i],
-                    updatedAt: serverTimestamp(),
-                    ...(i === 0 ? { parts: parts.length } : {}),
-                }, { merge: true });
+                await setDoc(domainRef(uid, shardIdFor(domain.docId, i)),
+                    domainPayload(domain.field, parts[i], { parts: parts.length, index: i }), { merge: true });
             }
             await dropShardsFrom(uid, domain.docId, parts.length);
             shardCounts.set(domain.docId, parts.length);
@@ -301,6 +328,17 @@ let flushing = null;
 
 const flushCloud = async () => {
     flushTimer = null;
+    /* syncToCloud's guard only stops NEW writes from queuing. readAppConfig()
+       below is un-awaited at module init and races onAuthStateChanged's
+       bootstrap push, so something can land in pendingWrites before outdated
+       resolves true -- and this function is exactly what the 400ms timer and
+       the visibilitychange handler call to drain that queue later. Without a
+       guard here too, that queued write still goes out and still comes back
+       permission-denied, which is the flood this gate exists to prevent.
+       Clear rather than leave it queued: localStorage already has every
+       edit, so the queue is redundant, and leaving it would let a stale
+       burst fire if the flag ever cleared mid-session. */
+    if (syncState.outdated) { pendingWrites.clear(); return; }
     if (flushing) return flushing;                 // one in flight, never a queue
     flushing = (async () => {
         while (pendingWrites.size && currentUser) {
@@ -319,9 +357,43 @@ const flushCloud = async () => {
 
 const syncToCloud = (key, value) => {
     if (!currentUser || !DOMAINS[key]) return;
+    /* A build the rules will refuse must not queue writes. Every one would come
+       back permission-denied, and the flood would bury the one message that
+       actually explains what is wrong. localStorage still has the edit, so
+       nothing is lost -- it syncs when the user updates. */
+    if (syncState.outdated) return;
     pendingWrites.set(key, value);
     if (!flushTimer && !flushing) flushTimer = setTimeout(flushCloud, FLUSH_MS);
 };
+
+/* Read once at module init rather than on sign-in, so a signed-out user still
+   learns their build is too old.
+ *
+ * Fail-open, deliberately. If this read fails or has not landed yet the client
+ * assumes it is current: failing closed would disable sync for everyone the
+ * moment Firestore hiccups, and it buys nothing, because the rules are the
+ * hard guarantee and a genuinely incompatible client still cannot write. This
+ * check exists to EXPLAIN, and an explanation that has not arrived is not a
+ * reason to break the app. */
+const readAppConfig = async () => {
+    try {
+        const snap = await getDoc(doc(db, 'config', 'app'));
+        const cfg = snap.exists() ? snap.data() : null;
+        const { outdated, updateAvailable } = evaluateCompat({
+            level: COMPAT_LEVEL,
+            minLevel: cfg?.minCompatLevel,
+            version: APP_VERSION,
+            latestVersion: cfg?.latestVersion,
+        });
+        setSyncState({ outdated, updateAvailable, latestVersion: cfg?.latestVersion ?? null });
+        if (outdated) {
+            console.warn(`[db] This build is compat level ${COMPAT_LEVEL}; the account requires ${cfg.minCompatLevel}. Cloud sync is off.`);
+        }
+    } catch (e) {
+        console.warn('[db] Could not read config/app — assuming this build is current.', e);
+    }
+};
+readAppConfig();
 
 /* A tab closed inside the coalescing window would otherwise drop the last edit
    from the cloud until something touched that domain again. localStorage still
