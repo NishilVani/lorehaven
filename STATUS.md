@@ -69,6 +69,14 @@ the restoration. Four games (Majora's Mask, Sleeping Dogs DE, Khazan, Monster
 Hunter Wilds) survive only as names in the feed snapshot — restored as
 Wishlist with no priority, because nothing else about them is known.
 
+Restored 2026-09-09 04:34Z, and by the fix itself rather than by hand: the
+recovered entries were placed in the signed-in browser's localStorage with
+fresh `_u` stamps, the page was reloaded, and the new merge kept them over the
+older cloud copy and wrote the superset back. Cloud and local now both read
+270 games, 187 with a priority, all seven games present. A copy of the
+pre-restore library is at `qa/2026-09-09-sync/current-263.json` and in that
+browser's localStorage under `moctale_library_backup_2026-09-09`.
+
 **Still whole-document:** recommendation feedback (`listPolicy: 'replace'`)
 and the object domains (profile, prefs, snapshot). Two devices editing
 feedback at once can still lose a verdict. Same fix would apply; not done.
