@@ -206,7 +206,11 @@ export const evaluateCompat = ({ level, minLevel, version, latestVersion }) => (
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `node tests/compat.test.mjs`
-Expected: `11/11 passed`
+Expected: `10/10 passed` (the file above defines ten `test()` cases)
+
+`compat.js` references `__APP_VERSION__` both inside a `typeof` guard and as a
+value. ESLint's `no-undef` exempts the guard but not the value reference, so
+`eslint.config.js` needs `__APP_VERSION__: 'readonly'` added to its globals.
 
 - [ ] **Step 5: Wire it into `npm test`**
 
