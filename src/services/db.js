@@ -27,6 +27,7 @@ import {
 } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { toDateInputValue } from './libraryFields.js';
+import { mergeLists, stampItems, mergeTombstones, tombstonesFor, pruneTombstones } from './syncMerge.js';
 
 /* Re-exported so callers keep one import site for library concerns. */
 export { toDateInputValue };
@@ -36,6 +37,10 @@ let currentUser = null;
 /** localStorage key ←→ cloud domain doc mapping */
 const DOMAINS = {
     moctale_library: { docId: 'library', field: 'games' },
+    /* Deletions, so a game removed here is not put back by a device that still
+       holds it. { id: deletedAt }, merged per id with the newest deletion
+       winning -- see syncMerge.js. Its own docId: KEY_FOR_DOC is keyed by docId. */
+    moctale_library_deleted: { docId: 'libraryDeleted', field: 'ids', mergePolicy: 'maxByKey' },
     moctale_collections: { docId: 'collections', field: 'collections' },
     moctale_franchises: { docId: 'franchises', field: 'franchises' },
     moctale_saved_igdb_collections: { docId: 'savedIgdbCollections', field: 'ids' },
@@ -377,14 +382,15 @@ const removeLocalItem = (key) => {
 
 const keyOf = (x) => (x && typeof x === 'object') ? `id:${String(x.id)}` : `v:${String(x)}`;
 
-/** Union two lists — id-keyed for objects, value-keyed for primitives.
- *  First arg wins conflicts AND dictates order; second arg's extras append. */
-const mergeLists = (preferred, other) => {
-    const map = new Map();
-    preferred.forEach(x => map.set(keyOf(x), x));
-    other.forEach(x => { if (!map.has(keyOf(x))) map.set(keyOf(x), x); });
-    return [...map.values()];
+const DELETED_KEY = 'moctale_library_deleted';
+const readTombstones = () => {
+    try { return JSON.parse(window.localStorage.getItem(DELETED_KEY) || '{}') || {}; } catch { return {}; }
 };
+
+/* The tombstone document has to land before the library document it applies
+   to, whatever order Firestore hands them back in. */
+const tombstonesFirst = (docs) => [...docs].sort((a, b) =>
+    (a.id === 'libraryDeleted' ? -1 : 0) - (b.id === 'libraryDeleted' ? -1 : 0));
 
 // Key-order-insensitive stringify — Firestore alphabetizes map keys, so a
 // write's own echo differs from local ONLY in key order. Comparing raw JSON
@@ -418,14 +424,20 @@ const applyDomainDoc = (docId, data) => {
     if (Array.isArray(value)) {
         let localArr;
         try { localArr = JSON.parse(local || '[]'); } catch { localArr = []; }
-        // Feedback uses replacement semantics. Its list represents current
-        // preference state, so unioning would turn a missing id (a clear) into
-        // a resurrected "Not Interested" entry after cloud sync.
-        const merged = mapping.listPolicy === 'replace'
-            ? (cloudAt > localAt ? value : localArr)
-            : (cloudAt > localAt
-                ? value
-                : (localAt > cloudAt ? localArr : mergeLists(localArr, value)));
+        /* Per item, not per document -- the rules, and the loss that forced
+           them, are in syncMerge.js. Feedback keeps replacement semantics: its
+           list is current preference state, so an omitted id is a clear, not a
+           game the other device has not heard of yet. */
+        const { merged, cloudIsBehind } = mergeLists({
+            local: localArr, cloud: value, localAt, cloudAt,
+            policy: mapping.listPolicy === 'replace' ? 'replace' : 'union',
+            tombstones: mapping.key === LIBRARY_KEY ? readTombstones() : {},
+        });
+        /* The cloud lacks something this device has: a game it never received,
+           or a newer edit of one. Write the merged list back so the next device
+           gets it too. It is the superset of both sides, so two devices doing
+           this at once converge on one document instead of ping-ponging. */
+        if (cloudIsBehind) syncToCloud(mapping.key, JSON.stringify(merged));
         // Order-insensitive compare: merging may reorder identical content, and
         // an order-only diff must not fire moctale_sync_update (it remounts routes).
         const asSet = (arr) => stableStr([...arr].map(keyOf).sort()) + stableStr(Object.fromEntries(arr.map(x => [keyOf(x), x])));
@@ -441,6 +453,16 @@ const applyDomainDoc = (docId, data) => {
 
     let localObj = null;
     try { localObj = JSON.parse(local); } catch { /* treat as different */ }
+    if (mapping.mergePolicy === 'maxByKey') {
+        const merged = mergeTombstones(localObj || {}, value);
+        if (stableStr(merged) !== stableStr(value)) syncToCloud(mapping.key, JSON.stringify(merged));
+        if (stableStr(merged) === stableStr(localObj)) return false;
+        try {
+            window.localStorage.setItem(mapping.key, JSON.stringify(merged));
+            window.localStorage.setItem(`${mapping.key}_mt`, String(cloudAt || Date.now()));
+        } catch (e) { console.error('[db] localStorage write failed applying cloud sync', e); return false; }
+        return true;
+    }
     if (stableStr(value) !== stableStr(localObj)) {
         // Object domains have no merge — only overwrite local with a NEWER cloud copy
         if (localObj !== null && cloudAt <= localAt) return false;
@@ -470,7 +492,7 @@ onAuthStateChanged(auth, async (user) => {
         const dataSnap = await getDocs(collection(db, 'lorehaven_users', user.uid, 'data'));
         let changed = false;
         const cloudDocIds = new Set();
-        const pulled = mergeShards(dataSnap.docs.map(d => ({ id: d.id, data: d.data() })));
+        const pulled = tombstonesFirst(mergeShards(dataSnap.docs.map(d => ({ id: d.id, data: d.data() }))));
         for (const { id, data } of pulled) {
             cloudDocIds.add(id);
             /* Remember what the cloud is sharded as, so the first write of the
@@ -497,7 +519,7 @@ onAuthStateChanged(auth, async (user) => {
             (snap) => {
                 if (snap.metadata.hasPendingWrites) return;
                 let changed = false;
-                for (const { id, data } of mergeShards(snap.docs.map(d => ({ id: d.id, data: d.data() })))) {
+                for (const { id, data } of tombstonesFirst(mergeShards(snap.docs.map(d => ({ id: d.id, data: d.data() }))))) {
                     if (applyDomainDoc(id, data)) changed = true;
                 }
                 if (changed) window.dispatchEvent(new Event('moctale_sync_update'));
@@ -518,6 +540,30 @@ onAuthStateChanged(auth, async (user) => {
 // ─────────────────────────────────────────────────────────────────────────────
 const LIBRARY_KEY = 'moctale_library';
 const USER_PROFILE_KEY = 'moctale_user_profile';
+
+/* Every library write goes through here, so every write does the two things
+   the cross-device merge depends on: stamp the entries that changed (`_u`,
+   unix ms -- the per-item clock the merge compares) and record a tombstone for
+   every id that disappeared, so a device still holding that game removes it
+   instead of putting it back.
+
+   `heal` is for getLibrary's read-time migrations: they rewrite the stored
+   shape, not the user's data, and stamping them would let a migration on a
+   stale copy outrank a real edit made elsewhere. Returns the JSON written. */
+const commitLibrary = (next, { heal = false } = {}) => {
+  let prev = [];
+  try { prev = JSON.parse(localStorage.getItem(LIBRARY_KEY) || '[]'); } catch { /* unreadable: nothing to diff against */ }
+  if (!Array.isArray(prev)) prev = [];
+  const now = Date.now();
+  const stamped = heal ? next : stampItems(prev, next, now);
+  const gone = tombstonesFor(prev, stamped, now);
+  if (Object.keys(gone).length) {
+    setLocalItem(DELETED_KEY, JSON.stringify(pruneTombstones(mergeTombstones(readTombstones(), gone), now)));
+  }
+  const json = JSON.stringify(stamped);
+  setLocalItem(LIBRARY_KEY, json);
+  return json;
+};
 /** @deprecated use USER_PROFILE_KEY. Kept for one-time migration only. */
 const LEGACY_PLATFORMS_KEY = 'moctale_user_platforms';
 
@@ -782,7 +828,7 @@ export const removeUserCustomPlatform = (platform) => {
     });
 
     if (libraryDirty) {
-      setLocalItem(LIBRARY_KEY, JSON.stringify(migrated));
+      commitLibrary(migrated);
     }
   }
 
@@ -901,8 +947,7 @@ export const getLibrary = () => {
       /* The migrations rewrote the store, so `data` is no longer what is on
          disk. Memoising against the new string keeps the next call a hit
          instead of re-running a migration that now has nothing to do. */
-      const json = JSON.stringify(migrated);
-      setLocalItem(LIBRARY_KEY, json);
+      const json = commitLibrary(migrated, { heal: true });
       libraryMemo = { raw: json, games: migrated };
     } else {
       libraryMemo = { raw: data, games: migrated };
@@ -975,7 +1020,7 @@ export const saveManyToLibrary = (games) => {
     at.set(String(gameData.id), library.length);
     library.push({ addedAt: Date.now(), ...normalizedGameData });
   }
-  setLocalItem(LIBRARY_KEY, JSON.stringify(library));
+  commitLibrary(library);
 };
 
 /** Replaces the whole library. For bulk edits that touch many entries at once —
@@ -991,13 +1036,13 @@ export const saveManyToLibrary = (games) => {
  *  overwrites it wholesale. The edit was not merely device-local — it was
  *  reverted. */
 export const saveLibrary = (games) => {
-  setLocalItem(LIBRARY_KEY, JSON.stringify(Array.isArray(games) ? games : []));
+  commitLibrary(Array.isArray(games) ? games : []);
 };
 
 export const removeFromLibrary = (gameId) => {
   const library = getLibrary();
   const filtered = library.filter(g => g.id.toString() !== gameId.toString());
-  setLocalItem(LIBRARY_KEY, JSON.stringify(filtered));
+  commitLibrary(filtered);
 };
 
 /* Announces itself. Every other library mutation is dispatched by its caller,
@@ -1005,6 +1050,7 @@ export const removeFromLibrary = (gameId) => {
    Clearing now fires from the account menu, so any mounted view has to hear it
    without the menu knowing who is listening. */
 export const clearLibrary = () => {
+  commitLibrary([]);              // a tombstone per game, or another device restores them all
   removeLocalItem(LIBRARY_KEY);
   window.dispatchEvent(new Event('moctale_lib_update'));
 };

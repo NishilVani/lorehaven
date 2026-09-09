@@ -35,6 +35,44 @@ the signing secrets, and the release correctly stayed a draft rather than
 shipping a half-built version. The tag was later re-pointed at `772a0b3` and the
 stale draft deleted first, so the new run could not append to it.
 
+## Cross-device sync lost data — fixed 2026-09-09
+
+Reported as "games I wishlisted and prioritised are gone, and Top Pick is
+suggesting them again". It was real, and it was the sync design.
+
+**Mechanism.** Every cloud write sends the whole library document, and
+`applyDomainDoc` resolved a difference by taking whichever whole document was
+newer — despite a comment claiming "items only one side has always survive".
+A browser tab and the `tauri dev` window, both signed in, each held a full
+copy; whichever wrote last erased what the other had added. Evidence, all
+from storage rather than memory: the update-feed snapshot still held seven
+games the library did not; every copy carried the identical `_mt`, i.e. had
+been replaced wholesale by the same cloud write at 20:29Z on Sep 8; and
+Chrome's raw LevelDB still held a superseded version of the library from
+07:24Z that day with 261 games and 187 priorities against the 263/131 that
+survived. An earlier session had compared local with cloud, found them equal,
+and concluded nothing was lost — both were already the clobbered copy.
+
+**Fix.** [src/services/syncMerge.js](src/services/syncMerge.js), pure and
+tested by `tests/sync-merge.test.mjs` (12 checks, part of `npm test`). Merge
+is per item: entries carry a `_u` write stamp, the newer stamp wins a
+conflict, an item only one side has survives, deletions travel as tombstones
+in a new `moctale_library_deleted` domain, and a device whose merge holds
+more than the cloud writes the superset back. Every library write goes
+through one `commitLibrary` in db.js that stamps and tombstones. Verified
+against the real module by replaying the two-session scenario
+(`qa/2026-09-09-sync/two-sessions.mjs`): both games survive on both devices.
+
+**Recovery.** `qa/2026-09-09-sync/ldb-history.mjs` reads superseded values
+out of Chromium LevelDB files; the 261-game version it found is the source of
+the restoration. Four games (Majora's Mask, Sleeping Dogs DE, Khazan, Monster
+Hunter Wilds) survive only as names in the feed snapshot — restored as
+Wishlist with no priority, because nothing else about them is known.
+
+**Still whole-document:** recommendation feedback (`listPolicy: 'replace'`)
+and the object domains (profile, prefs, snapshot). Two devices editing
+feedback at once can still lose a verdict. Same fix would apply; not done.
+
 ## What is waiting on a human
 
 - **Microsoft Store**: the first submission is done — `LoreHaven-0.1.0.msix`
