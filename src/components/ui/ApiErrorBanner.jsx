@@ -50,8 +50,14 @@ export default function ApiErrorBanner() {
 
   /* The gated state is not an error that can be cleared, so Dismiss needs
      something of its own to set. Per session, deliberately: the Profile page
-     still says why, permanently, for anyone who goes looking. */
-  const [dismissed, setDismissed] = useState(false);
+     still says why, permanently, for anyone who goes looking.
+     Scoped to outdated ONLY -- a single shared flag here previously meant
+     dismissing one transient IGDB failure permanently suppressed every later
+     api-error banner (and the outdated notice) for the rest of the session,
+     including config/app resolving after the dismiss. The error case instead
+     goes back to clearing via setError(null), so a later moctale_api_error
+     re-shows it exactly like before this flag existed. */
+  const [dismissedOutdated, setDismissedOutdated] = useState(false);
 
   useEffect(() => {
     // Collapse a burst of failed calls into one banner — a single auth failure
@@ -67,9 +73,16 @@ export default function ApiErrorBanner() {
     };
   }, []);
 
-  if (dismissed || (!error && !outdated)) return null;
-  /* Outranks a transient API error: one is a request that failed and can be
-     retried, the other is a state the app is in until it is updated. */
+  if ((outdated && dismissedOutdated) || (!error && !outdated)) return null;
+  /* Outranks a transient API error for the COPY shown: one is a request that
+     failed and can be retried, the other is a state the app is in until it
+     is updated -- a user who cannot sync at all needs to read that before
+     anything else. But it must not outrank the error for what the user can
+     DO: if a real IGDB failure landed while the gate is armed, hiding Retry
+     would leave no way to recover that failed load just because the outdated
+     copy took the headline. So Retry's visibility below is keyed on `error`,
+     not `outdated` -- the two states are independent conditions that happen
+     to share one banner and one Dismiss button. */
   const copy = outdated ? COPY.outdated : (COPY[error] || COPY.request);
 
   const retry = () => {
@@ -82,12 +95,14 @@ export default function ApiErrorBanner() {
   return (
     /* Sticky, not static. In normal flow this sat at the top of the document, so a
        user who had scrolled never saw the only thing telling them their data failed
-       to load — measured off-viewport at y=-922 after a 950px scroll. It announces
-       via role=alert regardless; this is for everyone else.
+       to load — measured off-viewport at y=-922 after a 950px scroll. role=alert
+       announces a transient failure assertively; role=status is used for the
+       standing outdated notice so it does not interrupt a screen reader for a
+       condition that isn't going away. Either way this is for everyone else.
        Offset below the fixed mobile chrome rather than top-0, or it parks underneath
        the nav bar (WCAG 2.4.11), same as the Library status strip. */
     <div
-      role="alert"
+      role={outdated ? 'status' : 'alert'}
       className="sticky z-[120] border-b border-white/25 bg-black px-4 lg:px-6 py-3 flex flex-wrap items-center gap-x-4 gap-y-2 transition-[top] duration-300 ease-in-out motion-reduce:transition-none"
       /* --mobile-nav-offset, not --mobile-nav-h: the header translates away on
          scroll-down while the reserved height stays put, so pinning to the
@@ -98,7 +113,7 @@ export default function ApiErrorBanner() {
       <span className="text-[11px] text-white/60 flex-1 min-w-[12rem]">{copy.why}</span>
 
       <div className="flex items-center gap-2 shrink-0">
-        {!outdated && (
+        {error && (
           <button
             onClick={retry}
             className="lh-label px-3 py-2 border border-white/20 text-white/60 hover:bg-white hover:text-black hover:border-white focus-visible:bg-white focus-visible:text-black focus-visible:outline-none transition-colors cursor-pointer"
@@ -107,7 +122,7 @@ export default function ApiErrorBanner() {
           </button>
         )}
         <button
-          onClick={() => { setError(null); setDismissed(true); }}
+          onClick={() => { setError(null); if (outdated) setDismissedOutdated(true); }}
           aria-label={outdated ? 'Dismiss update notice' : 'Dismiss error'}
           className="lh-label px-3 py-2 text-white/60 hover:text-white focus-visible:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white transition-colors cursor-pointer"
         >

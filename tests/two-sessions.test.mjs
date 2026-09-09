@@ -14,7 +14,7 @@ const src = fs.readFileSync('src/services/db.js', 'utf8');
 const tmp = path.resolve('tests/_db.tmp.mjs');
 fs.writeFileSync(tmp, src
   .replace(/from '\.\/([^']+)'/g, (m, f) => `from '../src/services/${f}'`)
-  + '\nexport const __apply = applyDomainDoc; export const __pending = pendingWrites; export const __signIn = (u) => { currentUser = u; }; export const __setOutdated = (v) => { syncState = { ...syncState, outdated: v }; };\n');
+  + '\nexport const __apply = applyDomainDoc; export const __pending = pendingWrites; export const __signIn = (u) => { currentUser = u; }; export const __setOutdated = (v) => { syncState = { ...syncState, outdated: v }; }; export const __flush = flushCloud; export const __setSyncState = setSyncState;\n');
 
 const makeDevice = () => {
   const store = new Map();
@@ -112,6 +112,27 @@ db.saveToLibrary({ id: 556, name: 'Gated Case', status: 'Wishlist' });
 assert.strictEqual(db.__pending.size, 0, 'an outdated client must queue nothing, or a gated build floods the console with permission-denied errors');
 const gatedLibrary = JSON.parse(B.store.get('moctale_library'));
 assert.ok(gatedLibrary.some(g => g.name === 'Gated Case'), 'localStorage still has the edit -- outdated only suppresses the cloud write, nothing is lost');
+
+/* The enqueue-time guard above only proves syncToCloud won't queue while
+   outdated. readAppConfig() is un-awaited at module init and races the
+   bootstrap push, so something can land in pendingWrites BEFORE outdated
+   resolves true -- and it's flushCloud, not syncToCloud, that the 400ms
+   timer and visibilitychange call to drain it later. Reproduce that race
+   directly: populate pendingWrites while outdated is still false (bypassing
+   syncToCloud entirely), then flip outdated and call flushCloud itself.
+   pendingWrites.size alone can't tell guarded from unguarded -- the drain
+   loop empties the map either way, whether or not it wrote anything. So the
+   discriminator is syncState.error: writeDomain (the thing the guard must
+   prevent from running) always touches it, on both its success and its
+   catch path, so a sentinel that survives unchanged proves no write fired. */
+db.__setSyncState({ error: 'SENTINEL_BEFORE_FLUSH' });
+db.__pending.clear();
+db.__pending.set('moctale_library', JSON.stringify([{ id: 999, name: 'Race Case', status: 'Wishlist' }]));
+db.__setOutdated(true);
+await db.__flush();
+assert.strictEqual(db.__pending.size, 0, 'flushCloud must drop a queue that raced ahead of the outdated flag');
+assert.strictEqual(db.getSyncState().error, 'SENTINEL_BEFORE_FLUSH',
+  'flushCloud must not attempt a write when outdated -- the sentinel changing means writeDomain ran');
 
 fs.unlinkSync(tmp);
 console.log('two sessions: all assertions passed');

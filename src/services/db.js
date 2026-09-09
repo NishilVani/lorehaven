@@ -328,6 +328,17 @@ let flushing = null;
 
 const flushCloud = async () => {
     flushTimer = null;
+    /* syncToCloud's guard only stops NEW writes from queuing. readAppConfig()
+       below is un-awaited at module init and races onAuthStateChanged's
+       bootstrap push, so something can land in pendingWrites before outdated
+       resolves true -- and this function is exactly what the 400ms timer and
+       the visibilitychange handler call to drain that queue later. Without a
+       guard here too, that queued write still goes out and still comes back
+       permission-denied, which is the flood this gate exists to prevent.
+       Clear rather than leave it queued: localStorage already has every
+       edit, so the queue is redundant, and leaving it would let a stale
+       burst fire if the flag ever cleared mid-session. */
+    if (syncState.outdated) { pendingWrites.clear(); return; }
     if (flushing) return flushing;                 // one in flight, never a queue
     flushing = (async () => {
         while (pendingWrites.size && currentUser) {
