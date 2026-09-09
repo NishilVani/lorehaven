@@ -28,6 +28,7 @@ import {
 import { onAuthStateChanged } from 'firebase/auth';
 import { toDateInputValue } from './libraryFields.js';
 import { mergeLists, stampItems, mergeTombstones, tombstonesFor, pruneTombstones } from './syncMerge.js';
+import { COMPAT_LEVEL } from './compat.js';
 
 /* Re-exported so callers keep one import site for library concerns. */
 export { toDateInputValue };
@@ -231,6 +232,29 @@ export const getSyncState = () => syncState;
    from whatever this says. */
 const shardCounts = new Map();
 
+/**
+ * The body of one domain document. Exported and PURE for the same reason
+ * splitPayload and mergeShards are: it is the only way to assert what every
+ * write carries without a Firestore client and without a signed-in user.
+ *
+ * compatLevel goes on EVERY document -- every shard, and the clear path --
+ * because rules are evaluated per document. A sharded domain whose tail lacked
+ * it would have its head accepted and its tail refused, which is a torn write
+ * and worse than a refused one.
+ *
+ * It is also sent explicitly rather than inherited. Every write is
+ * { merge: true }, and under a merge `request.resource.data` is the MERGED
+ * result -- so a document that already carries the field would satisfy the rule
+ * even if the write omitted it. Relying on that would mean the field silently
+ * stops being sent and the gate holds only for documents that do not yet exist.
+ */
+export const domainPayload = (field, value, { parts, index }) => ({
+    [field]: value,
+    updatedAt: serverTimestamp(),
+    compatLevel: COMPAT_LEVEL,
+    ...(index === 0 ? { parts } : {}),
+});
+
 const writeDomain = async (key, value) => {
     const domain = DOMAINS[key];
     if (!currentUser || !domain) return;
@@ -238,7 +262,7 @@ const writeDomain = async (key, value) => {
         const uid = currentUser.uid;
         if (value === null) {
             await setDoc(domainRef(uid, domain.docId),
-                { [domain.field]: deleteField(), parts: 1, updatedAt: serverTimestamp() }, { merge: true });
+                domainPayload(domain.field, deleteField(), { parts: 1, index: 0 }), { merge: true });
             await dropShardsFrom(uid, domain.docId, 1);
             shardCounts.set(domain.docId, 1);
         } else {
@@ -249,11 +273,8 @@ const writeDomain = async (key, value) => {
                after means a reader either sees the old document or a complete
                new one. */
             for (let i = parts.length - 1; i >= 0; i--) {
-                await setDoc(domainRef(uid, shardIdFor(domain.docId, i)), {
-                    [domain.field]: parts[i],
-                    updatedAt: serverTimestamp(),
-                    ...(i === 0 ? { parts: parts.length } : {}),
-                }, { merge: true });
+                await setDoc(domainRef(uid, shardIdFor(domain.docId, i)),
+                    domainPayload(domain.field, parts[i], { parts: parts.length, index: i }), { merge: true });
             }
             await dropShardsFrom(uid, domain.docId, parts.length);
             shardCounts.set(domain.docId, parts.length);
