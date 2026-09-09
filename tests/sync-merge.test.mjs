@@ -63,11 +63,6 @@ test('primitive lists union', () => {
     assert.deepStrictEqual(merged, [1, 2, 3]);
 });
 
-test('the replace policy (recommendation feedback) still takes the newer document whole', () => {
-    const { merged } = mergeLists({ local: [g(1), g(2)], cloud: [g(1)], localAt: 1000, cloudAt: 2000, policy: 'replace' });
-    assert.deepStrictEqual(ids(merged), ['1']);
-});
-
 test('stampItems marks new and changed entries with the write time and leaves the rest alone', () => {
     const prev = [g(1, { _u: 100 }), g(2, { _u: 100 })];
     const next = [g(1, { _u: 100 }), g(2, { _u: 100, priority: 'Soon' }), g(3)];

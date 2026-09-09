@@ -44,9 +44,16 @@ const DOMAINS = {
     moctale_collections: { docId: 'collections', field: 'collections' },
     moctale_franchises: { docId: 'franchises', field: 'franchises' },
     moctale_saved_igdb_collections: { docId: 'savedIgdbCollections', field: 'ids' },
-    // Feedback removal must survive sync: unlike library-style lists, an
-    // omitted feedback id means "clear this signal", not "merge it back".
-    moctale_rec_feedback: { docId: 'recFeedback', field: 'items', listPolicy: 'replace' },
+    /* Merged per verdict, like the library: a verdict only one device has
+       survives, a changed verdict goes to the newer stamp, and a CLEARED
+       verdict travels as a tombstone in the domain below -- which is what lets
+       this be a union without an omitted id turning back into "Not
+       Interested" on the next sync. It used to declare `listPolicy: 'replace'`
+       for that reason, and the declaration never reached applyDomainDoc:
+       KEY_FOR_DOC copied only `key` and `field`, so feedback was unioned all
+       along and a clear on one device WAS undone by the other. */
+    moctale_rec_feedback: { docId: 'recFeedback', field: 'items' },
+    moctale_rec_feedback_deleted: { docId: 'recFeedbackDeleted', field: 'ids', mergePolicy: 'maxByKey' },
     moctale_user_profile: { docId: 'profile', field: 'profile' },
 
     /* Recommendation settings — taste bias and release era. setPrefs already
@@ -94,9 +101,17 @@ const DOMAINS = {
        a cloud doc arrives. */
     lh_lib_updates_clear: { docId: 'libUpdatesClear', field: 'clearedAt' },
 };
+/* The whole domain config, not just key and field: the policies are read off
+   this map, and a map that dropped them silently disabled every one. */
 const KEY_FOR_DOC = Object.fromEntries(
-    Object.entries(DOMAINS).map(([k, v]) => [v.docId, { key: k, field: v.field }])
+    Object.entries(DOMAINS).map(([k, v]) => [v.docId, { key: k, ...v }])
 );
+
+/* List domain -> the domain that carries its deletions. */
+const TOMBSTONES_FOR = {
+    moctale_library: 'moctale_library_deleted',
+    moctale_rec_feedback: 'moctale_rec_feedback_deleted',
+};
 
 const domainRef = (uid, docId) => doc(db, 'lorehaven_users', uid, 'data', docId);
 
@@ -382,15 +397,16 @@ const removeLocalItem = (key) => {
 
 const keyOf = (x) => (x && typeof x === 'object') ? `id:${String(x.id)}` : `v:${String(x)}`;
 
-const DELETED_KEY = 'moctale_library_deleted';
-const readTombstones = () => {
-    try { return JSON.parse(window.localStorage.getItem(DELETED_KEY) || '{}') || {}; } catch { return {}; }
+const readTombstones = (key) => {
+    if (!key) return {};
+    try { return JSON.parse(window.localStorage.getItem(key) || '{}') || {}; } catch { return {}; }
 };
 
-/* The tombstone document has to land before the library document it applies
-   to, whatever order Firestore hands them back in. */
+/* A tombstone document has to land before the list it applies to, whatever
+   order Firestore hands them back in. */
+const isTombstoneDoc = (id) => KEY_FOR_DOC[id]?.mergePolicy === 'maxByKey';
 const tombstonesFirst = (docs) => [...docs].sort((a, b) =>
-    (a.id === 'libraryDeleted' ? -1 : 0) - (b.id === 'libraryDeleted' ? -1 : 0));
+    (isTombstoneDoc(a.id) ? -1 : 0) - (isTombstoneDoc(b.id) ? -1 : 0));
 
 // Key-order-insensitive stringify — Firestore alphabetizes map keys, so a
 // write's own echo differs from local ONLY in key order. Comparing raw JSON
@@ -425,13 +441,10 @@ const applyDomainDoc = (docId, data) => {
         let localArr;
         try { localArr = JSON.parse(local || '[]'); } catch { localArr = []; }
         /* Per item, not per document -- the rules, and the loss that forced
-           them, are in syncMerge.js. Feedback keeps replacement semantics: its
-           list is current preference state, so an omitted id is a clear, not a
-           game the other device has not heard of yet. */
+           them, are in syncMerge.js. */
         const { merged, cloudIsBehind } = mergeLists({
             local: localArr, cloud: value, localAt, cloudAt,
-            policy: mapping.listPolicy === 'replace' ? 'replace' : 'union',
-            tombstones: mapping.key === LIBRARY_KEY ? readTombstones() : {},
+            tombstones: readTombstones(TOMBSTONES_FOR[mapping.key]),
         });
         /* The cloud lacks something this device has: a game it never received,
            or a newer edit of one. Write the merged list back so the next device
@@ -541,29 +554,39 @@ onAuthStateChanged(auth, async (user) => {
 const LIBRARY_KEY = 'moctale_library';
 const USER_PROFILE_KEY = 'moctale_user_profile';
 
-/* Every library write goes through here, so every write does the two things
-   the cross-device merge depends on: stamp the entries that changed (`_u`,
-   unix ms -- the per-item clock the merge compares) and record a tombstone for
-   every id that disappeared, so a device still holding that game removes it
+/* Every write to a merged list domain -- the library, recommendation
+   feedback -- goes through here, so every write does the two things the
+   cross-device merge depends on: stamp the entries that changed (`_u`, unix
+   ms -- the per-item clock the merge compares) and record a tombstone for
+   every id that disappeared, so a device still holding that entry removes it
    instead of putting it back.
 
    `heal` is for getLibrary's read-time migrations: they rewrite the stored
    shape, not the user's data, and stamping them would let a migration on a
    stale copy outrank a real edit made elsewhere. Returns the JSON written. */
-const commitLibrary = (next, { heal = false } = {}) => {
+/* Strictly increasing within a session. Two commits in one millisecond -- a
+   set and its clear from a test, or a burst of toggles -- would otherwise
+   stamp an entry and its tombstone with the same time, and the merge could not
+   say which came last. */
+let lastStamp = 0;
+const nextStamp = () => { lastStamp = Math.max(Date.now(), lastStamp + 1); return lastStamp; };
+
+const commitList = (key, next, { heal = false } = {}) => {
   let prev = [];
-  try { prev = JSON.parse(localStorage.getItem(LIBRARY_KEY) || '[]'); } catch { /* unreadable: nothing to diff against */ }
+  try { prev = JSON.parse(localStorage.getItem(key) || '[]'); } catch { /* unreadable: nothing to diff against */ }
   if (!Array.isArray(prev)) prev = [];
-  const now = Date.now();
+  const now = nextStamp();
   const stamped = heal ? next : stampItems(prev, next, now);
   const gone = tombstonesFor(prev, stamped, now);
-  if (Object.keys(gone).length) {
-    setLocalItem(DELETED_KEY, JSON.stringify(pruneTombstones(mergeTombstones(readTombstones(), gone), now)));
+  const deletedKey = TOMBSTONES_FOR[key];
+  if (deletedKey && Object.keys(gone).length) {
+    setLocalItem(deletedKey, JSON.stringify(pruneTombstones(mergeTombstones(readTombstones(deletedKey), gone), now)));
   }
   const json = JSON.stringify(stamped);
-  setLocalItem(LIBRARY_KEY, json);
+  setLocalItem(key, json);
   return json;
 };
+const commitLibrary = (next, opts) => commitList(LIBRARY_KEY, next, opts);
 /** @deprecated use USER_PROFILE_KEY. Kept for one-time migration only. */
 const LEGACY_PLATFORMS_KEY = 'moctale_user_platforms';
 
@@ -1326,7 +1349,7 @@ export const setRecFeedback = (game, verdict) => {
   if (verdict === 'interested' || verdict === 'not_interested') {
     list.push({ id, name: game?.name || null, cover_id: game?.cover_id || null, verdict });
   }
-  setLocalItem(REC_FEEDBACK_KEY, JSON.stringify(list));
+  commitList(REC_FEEDBACK_KEY, list);
   window.dispatchEvent(new Event('moctale_lib_update'));
   return list;
 };

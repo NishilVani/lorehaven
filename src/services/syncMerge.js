@@ -47,18 +47,11 @@ const union = (preferred, other, pick = (a) => a) => {
  * @param {any[]} args.cloud        what the cloud document holds
  * @param {number} args.localAt     this device's last local write, ms
  * @param {number} args.cloudAt     the cloud document's updatedAt, ms
- * @param {'union'|'replace'} [args.policy]  'replace' keeps whole-document
- *        newest-wins; it is what recommendation feedback needs, where an
- *        omitted id means "cleared", not "not yet synced".
  * @param {Record<string, number>} [args.tombstones]  id -> deletedAt ms,
  *        already merged from both sides.
  * @returns {{ merged: any[], cloudIsBehind: boolean }}
  */
-export const mergeLists = ({ local, cloud, localAt, cloudAt, policy = 'union', tombstones = {} }) => {
-    if (policy === 'replace') {
-        return { merged: cloudAt > localAt ? cloud : local, cloudIsBehind: false };
-    }
-
+export const mergeLists = ({ local, cloud, localAt, cloudAt, tombstones = {} }) => {
     /* Both stamped: newer stamp. Neither stamped: newer document. One stamped:
        the stamped one -- it was written by code that knows about stamps, so it
        is the more recent edit by construction. */
