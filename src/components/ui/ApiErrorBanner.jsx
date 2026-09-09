@@ -73,7 +73,12 @@ export default function ApiErrorBanner() {
     };
   }, []);
 
-  if ((outdated && dismissedOutdated) || (!error && !outdated)) return null;
+  /* The dismissedOutdated latch exists to stop a STANDING condition from nagging
+     once the user has read it. It must never be allowed to also swallow a FRESH
+     error the user has not seen -- that is exactly the failure this banner exists
+     to prevent. So `error` sits outside the latch entirely: it is checked first
+     and unconditionally, and only the pure-outdated case is gated on dismissal. */
+  if (!error && (!outdated || dismissedOutdated)) return null;
   /* Outranks a transient API error for the COPY shown: one is a request that
      failed and can be retried, the other is a state the app is in until it
      is updated -- a user who cannot sync at all needs to read that before
