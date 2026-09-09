@@ -42,8 +42,14 @@ that single file with:
 ```bash
 sed -e 's/^export async function handle/async function handle/' \
     -e '/^export const __test/d' functions/proxy.js > worker-bundle.js
-printf '\nexport default {\n  fetch: (request, env) => handle(request, env),\n};\n' >> worker-bundle.js
+printf '\nexport default {\n  fetch: (request, env, ctx) => handle(request, env, ctx),\n};\n' >> worker-bundle.js
 ```
+
+`ctx` matters and this line used to drop it. `throughCache` writes to the cache
+through `ctx.waitUntil` and does nothing at all without it, so a bundle pasted
+from the old version of this command would have quietly served every response
+from IGDB with `x-lh-cache: MISS`, with nothing in the code to say why. Check a
+paste with the sampling loop at the end of this file rather than assuming.
 
 For later changes, wrangler deploys `functions/worker.js` directly and needs no
 bundle, because it follows the import. It is installed as a devDependency now,
