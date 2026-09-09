@@ -18,7 +18,11 @@
 - Never inherit the field from a `{ merge: true }` write — always send it explicitly.
 - Fail-open: an unreadable or absent `config/app` means the client treats itself as current.
 - **Do not deploy the Firestore rules until Task 8.** Deploying earlier stops the live 0.1.0 Store build and 0.1.0 APK from syncing.
-- Zero emoji in any code, comment, commit message or copy (CLAUDE.md, enforced by `npm run lint:emoji`).
+- Zero emoji in any code, comment, commit message or copy (CLAUDE.md). Note that
+  `npm run lint:emoji` runs `check_no_emoji.py --no-dash src` and therefore covers
+  `src/` ONLY — documentation and this plan are not scanned by it. For a docs
+  change, run the checker against the file directly:
+  `python scripts/check_no_emoji.py --no-dash docs/RELEASING.md`.
 - Every task ends green on `npm run lint` and `npm test`.
 
 ## File Structure
@@ -882,8 +886,11 @@ Add under "What is waiting on a human":
 
 - [ ] **Step 3: Verify the emoji gate and lint**
 
-Run: `npm run lint:emoji && npm run lint`
-Expected: both clean. The emoji check scans the instruction surface as well as `src/`.
+`npm run lint:emoji` covers `src/` only, so it would pass without ever reading
+the files this task changed. Point the checker at them directly:
+
+Run: `python scripts/check_no_emoji.py --no-dash docs/RELEASING.md STATUS.md && npm run lint`
+Expected: both clean.
 
 - [ ] **Step 4: Commit**
 
