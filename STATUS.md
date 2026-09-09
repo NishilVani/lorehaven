@@ -94,16 +94,36 @@ had idled out; Chrome replays that for GET, never for POST. `netRetry.js`
 replays a request that never left the client exactly once, and never a
 response the server sent.
 
-**The Twitch token is cached at the edge** as of 2026-09-09, which is what those
-174 exchanges in 24h were: not refreshes — a token lasts ~60 days — but one mint
-per cold isolate. A cold isolate now adopts the token the last one left in the
-edge cache, so Twitch is reached about once per colo per token lifetime. The
-stored value is the access token, never the client secret; it is keyed under an
-unroutable `.invalid` URL that no inbound request can produce, carries its own
+**The Twitch token is cached at the edge**, deployed 2026-09-09 as version
+`247dc70b`. Those 174 exchanges were never refreshes — a token lasts ~60 days —
+they were one mint per cold isolate. A cold isolate now adopts the token the
+last one left in the edge cache.
+
+Measured on the live Worker, per script version, from Cloudflare's
+`workersSubrequestsAdaptiveGroups`:
+
+| | IGDB subrequests | Twitch mints | IGDB calls per mint |
+|---|---|---|---|
+| `9a8bdd3a` (before) | 2820 | 190 | 14.8 |
+| `247dc70b`, warm colo | 72 | **0** | — |
+
+The second row is the one that means anything: 40 deliberately distinct queries,
+every one a response-cache MISS and therefore needing a token, all landing in
+BOM, adding 72 IGDB subrequests and not one token exchange. The old code would
+have minted roughly five.
+
+Do not read the first minutes after a deploy as the steady state — I nearly did.
+Overall the new version sits at 113 IGDB / 5 mints, because a deploy kills every
+isolate and each colo's first few then race on an empty token cache. Those mints
+scale with colos and deploys, not with traffic.
+
+The stored value is the access token, never the client secret; it is keyed under
+an unroutable `.invalid` URL that no inbound request can produce, carries its own
 expiry which is re-checked on read, and is dropped from the edge as well as
 memory on a 401 — without that last part a revoked token would be served back to
 every cold isolate until the entry expired. Nine checks in
-`functions/token-cache.test.mjs`, in `npm test`, with Twitch stubbed.
+`functions/token-cache.test.mjs`, in `npm test`, with Twitch stubbed; the live
+check is `qa/2026-09-09-sync/proxy-verify.mjs`.
 
 ## What is waiting on a human
 

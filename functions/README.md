@@ -136,6 +136,18 @@ worth not breaking: dropping only this isolate's would leave the next cold
 isolate reading the same dead token straight back out of the edge, in every
 colo, until the entry expired.
 
+Measured on the live Worker after deploying `247dc70b`: 40 deliberately
+distinct queries -- every one a response-cache MISS, so every one needing a
+token -- all landing in BOM, added 72 IGDB subrequests and **zero** token
+exchanges. Before, the ratio was one mint per 14.8 IGDB calls.
+
+The first minutes after a deploy are not the steady state. A deploy kills every
+isolate, and each colo's first few then race on a token cache that is still
+empty, so several mint before the first `cache.put` lands. That is a handful of
+requests per colo per deploy and it is not worth coordinating away -- doing so
+would need a Durable Object, which is a lot of machinery for a cost that does
+not scale with traffic.
+
 Workers KV would make this global rather than per-colo and collapse the
 remaining mints to one, but it needs a namespace and a binding this deployment
 does not have, and one exchange per colo per 60 days is already nothing.
