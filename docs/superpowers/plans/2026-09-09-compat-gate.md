@@ -280,24 +280,25 @@ Then add a `define` key to the object passed to `defineConfig`, directly after `
   },
 ```
 
-- [ ] **Step 2: Build and verify the version reached the bundle**
+- [ ] **Step 2: Verify the define is computed correctly, and the build still succeeds**
 
-Run:
+The version cannot be checked in the bundle yet. Nothing under `src/` imports
+`compat.js` until Task 4 wires it into `db.js`, so Rollup tree-shakes the module
+out and the define never lands in any asset. That is correct behaviour, not a
+failure — the bundle-presence check belongs in Task 4 and is there.
+
+What this task can prove is that the config reads the right value and does not
+break the build:
 
 ```bash
-npm run build && node -e "
-const fs=require('node:fs');
-const v=JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json','utf8')).version;
-/* Quote-agnostic on purpose: the minifier is free to emit the injected string
-   with single, double or backtick quotes, and an earlier version of this check
-   looked only for double quotes and reported a false failure. */
-const re=new RegExp('['"\`]'+v.replace(/\./g,'\.')+'['"\`]');
-const hit=fs.readdirSync('dist/assets').some(f=>f.endsWith('.js')&&re.test(fs.readFileSync('dist/assets/'+f,'utf8')));
-console.log(hit?'ok    version '+v+' is in the bundle':'FAIL  version '+v+' not found');
-process.exit(hit?0:1);"
+node -e "
+const {readFileSync}=require('node:fs');
+const v=JSON.parse(readFileSync('src-tauri/tauri.conf.json','utf8')).version;
+console.log(/^\d+\.\d+\.\d+/.test(v) ? 'ok    vite will define __APP_VERSION__ as '+v : 'FAIL  unexpected version '+v);
+" && npm run build
 ```
 
-Expected: `ok    version 0.1.0 is in the bundle`
+Expected: `ok    vite will define __APP_VERSION__ as 0.1.0`, then a successful build.
 
 - [ ] **Step 3: Verify lint and tests still pass**
 
@@ -558,10 +559,26 @@ const readAppConfig = async () => {
 readAppConfig();
 ```
 
-- [ ] **Step 5: Verify nothing regressed**
+- [ ] **Step 5: Verify nothing regressed, and that the version now reaches the bundle**
 
 Run: `npm test && npm run lint && npm run build`
 Expected: all green. The node harnesses have no Firestore connection, so `readAppConfig` rejects and takes the fail-open path — which is exactly the behaviour being asserted.
+
+This task is the first point at which `__APP_VERSION__` can be verified in the
+build output: `db.js` importing `compat.js` is what stops Rollup tree-shaking the
+module away. Quote-agnostic, because the minifier may emit any quote style:
+
+```bash
+node -e "
+const fs=require('node:fs');
+const v=JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json','utf8')).version;
+const re=new RegExp('['"\`]'+v.replace(/\./g,'\.')+'['"\`]');
+const hit=fs.readdirSync('dist/assets').some(f=>f.endsWith('.js')&&re.test(fs.readFileSync('dist/assets/'+f,'utf8')));
+console.log(hit?'ok    version '+v+' is in the bundle':'FAIL  version '+v+' not found');
+process.exit(hit?0:1);"
+```
+
+Expected: `ok    version 0.1.0 is in the bundle`
 
 - [ ] **Step 6: Commit**
 
