@@ -7,39 +7,15 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    /* The IGDB credentials the client authenticates with.
-     *
-     * READABLE BY ANYONE, AND THAT IS NOT FIXED HERE. The document holds
-     * client_id AND client_secret (App.jsx reads both into localStorage), and
-     * every route works signed out, so requiring request.auth would break the
-     * catalogue for the visitors it is meant for. There is no server of ours to
-     * hold the secret instead: /api is a Vite dev proxy that rewrites straight
-     * to api.igdb.com, and the browser sends the credentials itself.
-     *
-     * So the secret is public, and the only real fix is architectural — a token
-     * endpoint the app owns, which mints short-lived IGDB tokens and never ships
-     * the secret to a browser. Until that exists, treat this credential as
-     * compromised and rotate it on the same schedule you would a leaked key.
-     *
-     * What this rule DOES do is stop the collection being a wildcard: only the
-     * one document the app reads is exposed, so a second config document added
-     * later is not world-readable by inheritance.
+    /* config/igdb was here: a world-readable document holding the IGDB
+     * credential, from before functions/proxy.js existed. Nothing has read it
+     * since the proxy took over the credential, so the rule was exposing a
+     * superseded pair to anyone who looked -- including, once this repository
+     * went public, anyone reading this file. Removed rather than tightened,
+     * because the right number of rules for a document nothing reads is zero.
+     * The document itself is deleted separately; see SECURITY.md.
      */
-    match /config/igdb {
-      allow read: if true;
-      allow write: if false;
-    }
 
-    /* What the client needs to explain itself: the minimum compatibility level
-     * an account will accept, and the newest version on offer.
-     *
-     * World-readable like config/igdb and for the same reason -- a signed-out
-     * visitor must be able to read it, and there is nothing here to leak. Never
-     * client-writable: it is edited from the Firebase console or the CLI, and a
-     * client that could raise minCompatLevel could lock out every other device.
-     *
-     * Shape: { minCompatLevel: int, latestVersion: string, latestNotes: string }
-     */
     match /config/app {
       allow read: if true;
       allow write: if false;

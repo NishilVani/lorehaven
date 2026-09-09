@@ -1,0 +1,38 @@
+# Paths that ask for a review before they change.
+#
+# Not distrust -- each of these fails in a way a diff does not show. A merge
+# rule that looks fine loses data on the second device; a workflow edit runs
+# with signing keys in scope; a rules change is the only thing between a bug and
+# every user's library.
+#
+# IMPORTANT: this file is advisory on its own. GitHub only *requires* the review
+# it requests when branch protection on `main` has "Require review from Code
+# Owners" turned on. Without that setting these lines add a reviewer and nothing
+# more.
+
+# The cross-device merge. A whole-document overwrite here cost seven games and
+# 56 priority edits in September 2026; tests/two-sessions.test.mjs exists
+# because of it.
+/src/services/syncMerge.js      @NishilVani
+/src/services/db.js             @NishilVani
+
+# COMPAT_LEVEL gates cloud writes for every client. Raising it stops older
+# builds syncing -- see CONTRIBUTING.md.
+/src/services/compat.js         @NishilVani
+
+# The only thing standing between a bug and every user's data.
+/firestore.rules                @NishilVani
+
+# These run with Android signing keys, a Windows certificate and deploy
+# credentials in scope.
+/.github/workflows/             @NishilVani
+/.github/CODEOWNERS             @NishilVani
+
+# Holds the IGDB credential. Its endpoint allowlist is what stops it being an
+# open credential for the whole of IGDB.
+/functions/                     @NishilVani
+
+# Structurally prevent CI from arming the compatibility gate. The guarantee is
+# in how these are written, so a rewrite can quietly remove it.
+/scripts/app_config_payload.mjs @NishilVani
+/scripts/publish_app_config.mjs @NishilVani
