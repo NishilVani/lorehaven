@@ -1,19 +1,25 @@
 name: Deploy web
 
-# Continuous deployment of the web app to Firebase Hosting.
+# Deploys the web app to Firebase Hosting.
 #
-#   push to main  -> builds, tests, deploys to the live channel (moctalegames.web.app)
-#   pull request  -> builds and deploys to a throwaway preview channel, and comments
-#                    the preview URL on the PR
+#   called by main.yml  -> the live channel (moctalegames.web.app), after CI is green
+#   pull request        -> a throwaway 7-day preview channel, with the URL commented on the PR
 #
-# The tests run before the deploy in the same job on purpose: a red suite must
-# not be able to reach the live site.
+# This workflow used to run lint, unit tests and build itself before deploying,
+# duplicating ci.yml. That is gone. On the live path main.yml will not reach this
+# job unless the suite passed, and on the pull-request path CI runs against the
+# same commit as its own required check. `npm run build` stays because the deploy
+# needs the artefact, not because it is a gate.
+#
+# A preview channel is therefore deployed even when CI is red, which is
+# deliberate: a preview is throwaway and looking at a broken build is often the
+# fastest way to understand why it broke. Nothing reaches the live channel that
+# way -- that path runs only from main.yml, behind `needs: test`.
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
+  workflow_call:
 
 # Never let two deploys of the same ref race each other to the live channel.
 concurrency:
@@ -37,6 +43,9 @@ jobs:
     #
     # Skipping is honest: there is nothing here a fork PR can do. `CI` runs on
     # forks, uses no secrets, and is the check that actually judges the change.
+    #
+    # github.event_name is the ORIGINAL event even when this workflow is called
+    # by another, so on the live path it reads 'push' and this passes.
     if: >-
       github.event_name == 'push' ||
       github.event.pull_request.head.repo.full_name == github.repository
@@ -49,15 +58,6 @@ jobs:
           cache: npm
 
       - run: npm ci
-
-      # A hard gate. The backlog that made this advisory is cleared: eslint
-      # reports zero errors, and the four suppressions that remain each carry
-      # their reason at the point of use.
-      - name: Lint
-        run: npm run lint
-
-      - name: Unit tests
-        run: npm test
 
       - name: Build
         run: npm run build

@@ -1,0 +1,119 @@
+name: Main
+
+# What happens when code lands on main. This workflow is the chain; the pieces
+# it calls are reusable workflows that hold no trigger of their own for this
+# path, so each step runs exactly once and each depends on the last.
+#
+#   test  -----> web       (deploys as soon as the suite is green)
+#          \
+#           \--> release   (only when the version changed)
+#                  -> tag + draft release
+#                  -> desktop x4 + Android      [production approval]
+#                  -> publish (undraft)
+#                  -> latestVersion into Firestore
+#                  -> submit the MSIX to the Microsoft Store
+#
+# The web deploy hangs off `test`, not off `release`, and that is a deliberate
+# choice rather than an oversight. Chaining it behind the release would put every
+# site update behind a human approval and roughly twenty-five minutes of desktop
+# and Android builds. The cost is a short window on release day where the website
+# is a version ahead of the downloadable bundles; nothing reads a version across
+# that boundary, and config/app is not written until `publish` has succeeded, so
+# no client is told to fetch a build that does not exist yet.
+
+on:
+  push:
+    branches: [main]
+
+# cancel-in-progress is off on purpose. The default would let a second push
+# cancel a release that is already signing bundles or has passed the production
+# approval, leaving a draft release with a partial set of assets and a tag that
+# points at a build nobody has.
+concurrency:
+  group: main-${{ github.ref }}
+  cancel-in-progress: false
+
+# A called workflow gets the intersection of its own permissions and the
+# caller's, so anything the callees ask for has to be granted here or it is
+# silently dropped: contents:write for the release, checks and pull-requests for
+# the hosting deploy's status reporting.
+permissions:
+  contents: write
+  checks: write
+  pull-requests: write
+
+jobs:
+  test:
+    name: Test
+    uses: ./.github/workflows/ci.yml
+
+  # Deliberately not `needs: test` -- it is a fifteen-second git lookup and the
+  # release gates on both, so running it alongside the suite costs nothing and
+  # puts the decision in the log even on a run that never releases.
+  version:
+    name: Detect a version change
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.detect.outputs.changed }}
+      version: ${{ steps.detect.outputs.version }}
+    steps:
+      # HEAD and its first parent. For a squash or merge commit from a pull
+      # request, HEAD^ is the previous state of main, which is the comparison
+      # that matters.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Compare the version against the previous commit
+        id: detect
+        run: |
+          NOW=$(node -p "require('./src-tauri/tauri.conf.json').version")
+
+          # src-tauri/tauri.conf.json is the authority, not package.json, which
+          # still reads 0.0.0 and has never been maintained. release.yml has
+          # always validated the tag against this file; keeping one source of
+          # truth is why this reads the same one.
+          PREV=""
+          if git rev-parse --verify --quiet "HEAD^" >/dev/null; then
+            PREV=$(git show "HEAD^:src-tauri/tauri.conf.json" 2>/dev/null \
+              | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version" 2>/dev/null || true)
+          fi
+
+          echo "this commit:     $NOW"
+          echo "previous commit: ${PREV:-<none>}"
+
+          CHANGED=false
+          if [ -z "$PREV" ]; then
+            # No parent, or the file did not exist in it. Treated as "no change"
+            # rather than "release": the failure mode of guessing wrong here is
+            # a public release nobody asked for.
+            echo "No previous version to compare against. Not releasing."
+          elif [ "$NOW" = "$PREV" ]; then
+            echo "Version unchanged. Not releasing."
+          elif git ls-remote --tags --exit-code origin "refs/tags/v$NOW" >/dev/null 2>&1; then
+            # Makes a re-run of this workflow safe. Without it, re-running a
+            # green run would try to create a tag that already exists and fail
+            # in the middle of the release rather than here.
+            echo "Tag v$NOW already exists. Nothing to do."
+          else
+            echo "Version moved $PREV -> $NOW. Releasing v$NOW."
+            CHANGED=true
+          fi
+
+          echo "changed=$CHANGED" >> "$GITHUB_OUTPUT"
+          echo "version=$NOW" >> "$GITHUB_OUTPUT"
+
+  web:
+    name: Web
+    needs: test
+    uses: ./.github/workflows/firebase-hosting.yml
+    secrets: inherit
+
+  release:
+    name: Release
+    needs: [test, version]
+    if: needs.version.outputs.changed == 'true'
+    uses: ./.github/workflows/release.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+    secrets: inherit

@@ -18,12 +18,47 @@ infinite-scroll audit, with the measurement behind every claim.
 
 ## Pipelines
 
+Landing on `main` is now one chain rather than four workflows that happened to
+share a trigger. `main.yml` orchestrates it; the rest are reusable workflows it
+calls, so the suite runs **once** per push and everything downstream depends on
+that one result.
+
+```
+push to main
+  └─ ci.yml (lint, unit, build gate it; e2e advisory)
+       ├─ green                  ──► deploy web (live channel)
+       └─ green + version bumped ──► release.yml
+                                       tag + draft release
+                                       desktop x4 + Android   [production approval]
+                                       publish (undraft)
+                                       latestVersion -> Firestore config/app
+                                       submit the MSIX to the Microsoft Store
+```
+
 | Workflow | Trigger | Does |
 |---|---|---|
-| `ci.yml` | push / PR to main | lint, unit tests, build; Playwright chromium (advisory) |
-| `firebase-hosting.yml` | push / PR to main | deploys live, or a 7-day PR preview channel |
-| `release.yml` | tag `v*` | macOS (arm64 + Intel), Linux, Windows (incl. MSIX), Android APKs into one draft release, published only when every platform succeeds |
-| `store-submission.yml` | `release.yml` completing | downloads that release's MSIX and publishes it to the Microsoft Store |
+| `main.yml` | push to main | The chain above. Detects a version change in `src-tauri/tauri.conf.json` against `HEAD^`, and only then releases |
+| `ci.yml` | PR to main, or called | lint, unit tests, build, which gate the release; Playwright chromium, **advisory** (see Known test failures) |
+| `firebase-hosting.yml` | PR to main, or called | live channel when called by `main.yml`; a 7-day preview channel on a PR |
+| `release.yml` | called by `main.yml`, tag `v*`, or dispatch | every platform into one draft release, published only when all succeed, then Firestore and the Store |
+| `store-submission.yml` | dispatch only | resubmits an **existing** release's MSIX by hand |
+| `arm-compat-gate.yml` | dispatch only | raises `minCompatLevel`. Deliberately never automated |
+
+Two things that path depends on and that are worth checking before trusting it:
+
+- **The `v*` tag ruleset no longer restricts creations** (changed 2026-09-10,
+  confirmed through the API: updates, deletions and force pushes still
+  restricted). `create-release` creates the tag itself, and a ruleset bypass list
+  cannot hold the workflow's `GITHUB_TOKEN`, so creation had to open. The
+  `production` approval is the gate that stops an unreviewed release. Side
+  effect: a `v*` tag that already exists makes `main.yml` skip that version, so
+  never push one ahead of a release. See docs/RELEASING.md.
+- **`FIREBASE_CONFIG_WRITER` is set** (2026-09-10, on the `production`
+  environment, a dedicated `config-writer` service account with Cloud Datastore
+  User only). Not yet exercised: the first `app-config` run proves it.
+- **The four Store secrets are still unset.** The `store` job fails the run
+  *after* the release is already public, deliberately, because a green run that
+  submitted nothing is the failure mode this path already had once.
 
 `v0.1.0` is **published**, from commit `772a0b3`, with every platform in one
 release: the four desktop bundles, `LoreHaven-0.1.0.msix`, and
@@ -169,13 +204,15 @@ check is `scripts/verify_proxy_live.mjs`.
   loudly on a tagged release rather than passing green having done nothing. See
   [docs/MICROSOFT-STORE.md](docs/MICROSOFT-STORE.md), which also flags that the
   publisher name in Partner Center reads "LoreHeaven".
-- **The Clone pair in `phase4-deep`** is the only real test failure left, and it
-  predates the recent refactoring. See the table below.
+- **e2e is advisory, and red.** Five cases fail every run and the category
+  tests depend on live IGDB, so the suite does not gate releases yet; lint, unit
+  tests and build do. See "Known test failures" below for what was measured.
 
 ## Lint
 
-`npm run lint` reports **zero errors** and is a blocking gate in both `ci.yml`
-and `firebase-hosting.yml`. It started at 270.
+`npm run lint` reports **zero errors** and is a blocking gate in `ci.yml`, which
+is the only place it runs now. `firebase-hosting.yml` used to run it a second
+time inline; that copy is gone.
 
 149 of those were never real: ESLint was walking `src-tauri/target`, where Cargo
 writes a JavaScript file per bundled asset. The rest were, and the bulk of them
@@ -238,17 +275,33 @@ there.
 
 ## Known test failures
 
-Measured on `--project=chromium`, 421 cases, and each one checked against the
-pre-refactor tree before being written down here.
+Re-measured 2026-09-10 on `--project=chromium`, 421 cases, run the way CI runs
+it (`CI=1`, so 2 retries), then every failure re-run alone with no retries.
+Result: **411 passed, 4 failed, 2 flaky, 4 skipped.** That run had the Clone
+pair temporarily marked `test.fixme` to see what else failed, which is why the
+pair shows as 2 of the 4 skips rather than 2 more failures. The quarantine was
+reverted when e2e was left advisory. The other two skips are phase5-deep
+mobile-accordion cases that were already skipped.
+
+The earlier measurement, taken against the pre-refactor tree, called two of
+these order-dependent. They now fail both inside the full run and alone, so that
+classification no longer holds.
+
+GitHub's own CI agrees the suite is red: the `Run e2e` step has exited 1 on every
+recent run on `main`, reported green only because of `continue-on-error`. Which
+cases fail there is not visible without signing in to the run logs.
 
 | Case | State |
 |---|---|
-| `phase4-deep:857` Clone writes a local copy and navigates to it | **Real, pre-existing.** The clone is written and the URL changes, but the new page renders its Not Found branch instead of the `(Clone)` heading. Reproduces identically on the pre-refactor tree. |
+| `phase4-deep:857` Clone writes a local copy and navigates to it | **Real, pre-existing.** The clone is written and the URL changes, but the new page renders its Not Found branch instead of the `(Clone)` heading. Reproduces identically on the pre-refactor tree, and failed again when run un-quarantined on 2026-09-10. |
 | `phase4-deep:870` FINDING 11 — Clone twice | **Real, pre-existing.** Same cause. |
-| `phase2-deep:912` no duplicate cards while scrolling | Flake. Passes in isolation. The grid de-duplicates by id; the assertion compares names, and IGDB can ship two ids with one name. |
-| `phase3-deep:1276` Save to Shelves | Order-dependent. Fails alone on the pre-refactor tree too, passes inside a batch. |
-| `phase6-deep:629` Reload refetches from IGDB | Order-dependent. Run as a pair with case 41 it fails on the pre-refactor tree identically; it passes inside a full-file run. |
-| `phase6-deep:862` a failed reload clears the stale plates | Real, pre-existing. Fails on the pre-refactor tree in every arrangement tried. |
+| `phase3-deep:1276` Save to Shelves | **Fails consistently**, in the full run after 2 retries and alone. Times out waiting for the `Save to Shelves` menu item to become visible, enabled and stable. |
+| `phase6-deep:629` Reload refetches from IGDB | **Fails consistently**, in the full run after 2 retries and alone. The reload never issues a new request: the call count stays at 2. |
+| `phase6-deep:862` a failed reload clears the stale plates | **Real, pre-existing.** Fails in the full run and alone: 8 plates remain where 0 are expected. |
+| `phase2-deep:794` a density-chart column narrows the grid | **Flake, live data.** Failed 2 of 4 runs: the narrowed grid renders no game links. The category tests call live IGDB through the deployed Worker with no stub. The IGDB request replay (`0ded9bc`) is ruled out: one run with it reverted passed, and one run with it restored passed straight after. |
+| `phase2-deep:771` the sort dropdown reorders the grid | **Flake, live data.** Timed out on the first attempt, passed on retry. Same describe block as 794, same live dependency. |
+| `phase3-deep:695` hero title, artwork and View Game target one game | **Flake.** Failed the first attempt, passed on retry. |
+| `phase2-deep:912` no duplicate cards while scrolling | Flake. Passes in isolation. The grid de-duplicates by id; the assertion compares names, and IGDB can ship two ids with one name. Not seen in the 2026-09-10 run. |
 
 `phase7-mobile.spec.ts` is now excluded from the desktop projects in
 `playwright.config.ts`. It asserts phone-only behaviour, so all ~47 of its cases

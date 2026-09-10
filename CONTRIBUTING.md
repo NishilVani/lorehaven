@@ -32,9 +32,15 @@ CI runs these on every pull request, and all three must be green:
 | `npm test` | Unit and integration checks. Plain node scripts, no framework. |
 | `npm run build` | The production Vite build. |
 
-Playwright end-to-end tests (`npm run test:e2e`) also run, but **advisory only** —
-two failures in the Clone pair predate the current code and are documented in
-`STATUS.md`. Do not let them stop you; do not add to them.
+Playwright end-to-end tests (`npm run test:e2e`) also run, but **advisory only**,
+and the reason is worth knowing rather than guessing at. Five cases fail on every
+run, and the category tests call live IGDB with no stub, so their results move
+with IGDB's response times. `STATUS.md` lists each one under "Known test
+failures", with what was measured. The CI step shows green regardless; its
+annotation carries the real exit code.
+
+Do not add to that list. If your change makes a case fail that is not on it,
+that is your change failing, advisory or not.
 
 ### No emoji. Anywhere.
 
