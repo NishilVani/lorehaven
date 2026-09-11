@@ -86,9 +86,11 @@ account, and four secrets.
 
 1. Sign in to Partner Center with an account that is a **Manager** *and* a
    **global administrator** of the Entra tenant. Partner Center requires both
-   before it lets you manage applications. The account also has to be associated
-   with a Microsoft Entra tenant; if it is not, associate or create one first
-   ([how][tenant]).
+   before it lets you manage applications. Signed in with a personal Microsoft
+   account, **User management** shows only a **Sign in with Microsoft Entra ID**
+   button; use it. The account also has to be associated with a Microsoft Entra
+   tenant: **Account settings → Tenants** offers **Create Microsoft Entra ID** and
+   **Associate Microsoft Entra ID** ([how][tenant]).
 2. **Account settings → User management → Microsoft Entra applications → Add
    Microsoft Entra application → Create Microsoft Entra application.** Give it a
    display name such as `LoreHaven GitHub Actions`. Partner Center also asks for a
@@ -100,9 +102,9 @@ account, and four secrets.
 4. Open the application and choose **Add new key**. Copy the **Client ID** and
    the **Key** before leaving the page; the key is never shown again. The same
    application page shows the **Tenant ID**.
-5. Find the **Seller ID** under **Account settings**, on the developer settings
-   or identifiers page. When this account was first set up that page returned
-   "Access restricted", so it may need the Manager sign-in from step 1.
+5. Find the **Seller ID** under **Account settings → Legal info → Developer**, in
+   the **Publisher IDs** section. It shows with the ordinary Partner Center
+   sign-in; no Entra sign-in is needed for this one.
 
 [tenant]: https://learn.microsoft.com/en-us/windows/apps/publish/partner-center/associate-existing-azure-ad-tenant-with-partner-center-account
 
