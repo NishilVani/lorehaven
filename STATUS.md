@@ -55,10 +55,20 @@ Two things that path depends on and that are worth checking before trusting it:
   never push one ahead of a release. See docs/RELEASING.md.
 - **`FIREBASE_CONFIG_WRITER` is set** (2026-09-10, on the `production`
   environment, a dedicated `config-writer` service account with Cloud Datastore
-  User only). Not yet exercised: the first `app-config` run proves it.
-- **The four Store secrets are still unset.** The `store` job fails the run
-  *after* the release is already public, deliberately, because a green run that
-  submitted nothing is the failure mode this path already had once.
+  User only). Its first run, `Publish latestVersion` in the v0.2.0 release,
+  finished green. The write itself cannot be confirmed from outside yet; see the
+  `config/app` note below.
+- **The Microsoft Store listing is live** with 0.1.0, submitted by hand.
+  **v0.2.0 is public on GitHub** (2026-09-10, through the old tag-triggered
+  workflow, since this chain is not merged yet) but **not in the Store**: its
+  `Store — submit release` run is waiting for approval, and the four Store
+  secrets are still unset. Setup is in docs/MICROSOFT-STORE.md. Without the
+  secrets the `store` job fails the run *after* the release is already public,
+  deliberately.
+- **`config/app` is not readable yet.** An unauthenticated read returns 403, so
+  the deployed rules predate the `match /config/app` block in `firestore.rules`.
+  Until the rules deploy, which the compatibility rollout holds back, no client
+  can read `latestVersion` and the update notice cannot appear.
 
 `v0.1.0` is **published**, from commit `772a0b3`, with every platform in one
 release: the four desktop bundles, `LoreHaven-0.1.0.msix`, and

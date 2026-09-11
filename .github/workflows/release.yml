@@ -443,7 +443,10 @@ jobs:
           Write-Host "Got $path ($([math]::Round((Get-Item $path).Length / 1MB, 2)) MB)"
           "msix=$path" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
-      - uses: microsoft/microsoft-store-apppublisher@v1.1
+      # v1.4, the action's latest release (2026-07-21). Microsoft's own guide
+      # still shows v1.1; the action repository's README and releases are the
+      # fresher source.
+      - uses: microsoft/microsoft-store-apppublisher@v1.4
 
       - name: Configure MSStore CLI
         shell: pwsh
@@ -459,4 +462,26 @@ jobs:
         # 9N7FD5QBSMBB is the Store ID for LoreHaven. It is public — it is the
         # listing URL, https://apps.microsoft.com/detail/9N7FD5QBSMBB — so it
         # lives here rather than in a variable.
-        run: msstore publish "${{ steps.fetch.outputs.msix }}" -id 9N7FD5QBSMBB
+        #
+        # The .msix goes in as the positional argument, the form Microsoft's own
+        # GitHub Actions guide uses for MSIX package updates. The command
+        # reference describes that argument as a project directory and offers
+        # -i for a package file, but the one reported failure of this command
+        # (microsoft/msstore-cli#50, closed) was -i pointed at a directory, not a
+        # file passed directly. -v keeps the upload and the submission in the
+        # log, which is the only place a failed submission can be traced from.
+        #
+        # publish commits the submission, so this sends it to certification. It
+        # also replaces any unsubmitted draft in Partner Center with one built
+        # from the last published submission. A green step means submitted, not
+        # live.
+        run: msstore publish "${{ steps.fetch.outputs.msix }}" -id 9N7FD5QBSMBB -v
+
+      # Read-only: puts the submission's state in the log, so a run shows what
+      # Partner Center accepted without anyone signing in to check. Allowed to
+      # fail, because by this point the submission already exists and a failed
+      # status read must not turn a successful submission red.
+      - name: Report the submission status
+        shell: pwsh
+        continue-on-error: true
+        run: msstore submission status 9N7FD5QBSMBB

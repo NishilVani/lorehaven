@@ -63,70 +63,115 @@ nothing to configure:
 
 **The publisher is spelled `LoreHeaven`, the app `LoreHaven`.** That is what
 Partner Center holds, so that is what the manifest must say — a mismatch is a
-rejected package. It is also the name shown as the publisher on the listing. If
-the extra "e" is not deliberate, change it in Partner Center *before* the first
-submission and update the manifest to match. Be aware the `Package/Identity/Name`
-prefix is derived from the publisher name at reservation and may not follow a
-later rename.
+rejected package. It is also the name shown as the publisher on the listing.
+The listing is now live, so treat the identity as fixed: every update has to
+carry exactly these values. Changing the publisher display name in Partner
+Center later would mean updating `PublisherDisplayName` in the manifest too, and
+the `Package/Identity/Name` prefix, derived from the publisher name at
+reservation, may not follow the rename.
 
-## What still needs doing
+## Status
 
-The first submission is **done**: `LoreHaven-0.1.0.msix` went through Partner
-Center by hand with the full listing, and is in certification. That was always
-going to be manual — the automation *updates* an app that already exists, it
-does not create a listing.
+LoreHaven is **live** at https://apps.microsoft.com/detail/9N7FD5QBSMBB, with
+`0.1.0` submitted by hand through Partner Center. That first submission was
+always going to be manual: the automation *updates* a listing that already
+exists, it does not create one.
 
-What is left is the automation for later releases:
+## Connecting the pipeline to the Store
 
-1. **Register an application in Microsoft Entra ID**, then add it in Partner
-   Center under **Account settings → User management → Microsoft Entra
-   applications** with the **Manager** role.
-2. **Add the four secrets below.** Until they exist, `store-submission.yml`
-   fails on a tagged release. That is deliberate: a green run that submitted
-   nothing is worse than a red one.
+It needs one Microsoft Entra application with access to the Partner Center
+account, and four secrets.
 
-## Repository secrets
+### 1. Partner Center: an Entra application with the Manager role
 
-Four, under **Settings → Secrets and variables → Actions → Secrets**. No
-variables, and no certificate.
+1. Sign in to Partner Center with an account that is a **Manager** *and* a
+   **global administrator** of the Entra tenant. Partner Center requires both
+   before it lets you manage applications. The account also has to be associated
+   with a Microsoft Entra tenant; if it is not, associate or create one first
+   ([how][tenant]).
+2. **Account settings → User management → Microsoft Entra applications → Add
+   Microsoft Entra application → Create Microsoft Entra application.** Give it a
+   display name such as `LoreHaven GitHub Actions`. Partner Center also asks for a
+   reply URL; this application never signs anyone in, so the site URL
+   (`https://moctalegames.web.app/`) is fine.
+3. Assign the **Manager** role. It is broad, and it is what Microsoft's GitHub
+   Actions guide requires. That breadth is why the key below lives behind the
+   `production` approval rather than in a repository secret.
+4. Open the application and choose **Add new key**. Copy the **Client ID** and
+   the **Key** before leaving the page; the key is never shown again. The same
+   application page shows the **Tenant ID**.
+5. Find the **Seller ID** under **Account settings**, on the developer settings
+   or identifiers page. When this account was first set up that page returned
+   "Access restricted", so it may need the Manager sign-in from step 1.
 
-| Secret | Where to find it |
+[tenant]: https://learn.microsoft.com/en-us/windows/apps/publish/partner-center/associate-existing-azure-ad-tenant-with-partner-center-account
+
+### 2. GitHub: four environment secrets
+
+Add them on the **production** environment
+(https://github.com/NishilVani/lorehaven/settings/environments, then
+**production**, then **Add environment secret**), the same place as
+`FIREBASE_CONFIG_WRITER`:
+
+| Secret | Value |
 |---|---|
-| `AZURE_AD_TENANT_ID` | Entra admin center → Identity → Overview |
-| `AZURE_AD_APPLICATION_CLIENT_ID` | Entra → App registrations → your app → Application (client) ID |
-| `AZURE_AD_APPLICATION_SECRET` | Entra → your app → Certificates & secrets. **Shown once — copy it immediately.** |
-| `SELLER_ID` | Partner Center → Account settings → Identifiers. This page returned "Access restricted" when I looked, so it may need the account-admin role or a different entry point for this account type. |
+| `AZURE_AD_TENANT_ID` | Tenant ID |
+| `AZURE_AD_APPLICATION_CLIENT_ID` | Client ID |
+| `AZURE_AD_APPLICATION_SECRET` | The key |
+| `SELLER_ID` | Seller ID |
 
-The release workflow packs and attaches the MSIX regardless; only the submission
-step needs these.
+Environment secrets, not repository secrets: with the Manager role this
+application can change anything in the Partner Center account, and an
+environment secret is only handed to a job after you approve it. Both jobs that
+read these, `store` in `release.yml` and `store-submission.yml`, declare
+`environment: production`.
+
+**The key expires.** The application page in Partner Center shows each key's
+expiry date. When it lapses the `store` job stops authenticating; add a new key
+and replace `AZURE_AD_APPLICATION_SECRET`.
 
 ## What happens on a release
 
-1. You tag a version. The Windows job builds the app, packs the MSIX, and
-   attaches `LoreHaven-<version>.msix` to the draft release.
-2. When every platform succeeds the release is published.
-3. **Store — submit release** fires when the whole **Release** workflow
-   completes, downloads the MSIX from the release, and runs `msstore publish`.
+1. `release.yml` builds every platform. The Windows leg packs
+   `LoreHaven-<version>.msix` and attaches it to the draft release.
+2. `publish` makes the release public. `app-config` and `store` run after it,
+   each once you approve.
+3. `store` downloads that MSIX from the release, configures the Store CLI, and
+   runs `msstore publish <file> -id 9N7FD5QBSMBB -v`, which uploads the package
+   and commits a new submission. It then logs the submission's status.
+4. Certification takes hours to days. **A green `store` job means submitted, not
+   live.**
 
-Step 3 keys off the *workflow* finishing rather than the release being
-published, and that is not a stylistic choice. The `publish` job undrafts the
-release using `GITHUB_TOKEN`, and GitHub will not let an action authenticated
-with `GITHUB_TOKEN` raise events that start further workflow runs — the rule
-that stops a workflow from triggering itself forever. A `release: published`
-trigger here therefore never fires. It looked correct and sat at zero runs.
+Without the four secrets `store` fails on purpose, after the release is already
+public. A green run that submitted nothing is the failure this path already had
+once, when it hung off `release: published`, which a `GITHUB_TOKEN` action never
+raises, and it sat at zero runs looking healthy.
+
+To submit a release that already exists (a failed submission, or a release cut
+before the secrets existed), run **Store — resubmit a release** from the Actions
+tab with the tag.
+
+**Submitting replaces any unsubmitted draft.** When the app already has a
+published submission, `msstore publish` deletes the pending draft and starts a
+new one from the last published submission, discarding changes staged in that
+draft. Submit listing edits in Partner Center before the next release goes out,
+or they are lost.
 
 Version numbering: the manifest uses four fields and the Store reserves the
 last, so `0.2.0` is packed as `0.2.0.0`. The packing script appends the zero.
 
 ## Known limits
 
-- Microsoft supports GitHub Actions app updates **for free products only**. A
-  paid listing has to be updated through Partner Center by hand.
-- Every submission still goes through certification, which takes hours to days.
-  A green workflow means *submitted*, not *live*.
+- Microsoft supports Store CLI and GitHub Actions app updates **for free products
+  only**. A paid listing has to be updated through Partner Center by hand.
+- The pipeline updates the **package** only. Listing text, screenshots and
+  release notes stay as the last published submission had them; change those in
+  Partner Center.
 
 ## References
 
 - [App package requirements for MSIX apps](https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msix/app-package-requirements)
 - [Publish app updates to Microsoft Store with GitHub Actions](https://learn.microsoft.com/en-us/windows/apps/publish/msstore-dev-cli/github-actions)
-- [Microsoft Store Developer CLI](https://learn.microsoft.com/en-us/windows/apps/publish/msstore-dev-cli/overview)
+- [Microsoft Store Developer CLI commands](https://learn.microsoft.com/en-us/windows/apps/publish/msstore-dev-cli/commands)
+- [Manage Microsoft Entra applications in Partner Center](https://learn.microsoft.com/en-us/windows/apps/publish/partner-center/manage-azure-ad-applications-in-partner-center)
+- [microsoft/microsoft-store-apppublisher](https://github.com/microsoft/microsoft-store-apppublisher)
