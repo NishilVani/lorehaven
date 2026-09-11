@@ -1,34 +1,87 @@
 # Releasing
 
-One tag cuts every build. The version in `src-tauri/tauri.conf.json` is the
-single source of truth; the release workflow refuses a tag that disagrees with
-it.
+A version bump cuts every build. The version in `src-tauri/tauri.conf.json` is
+the single source of truth: `main.yml` watches that one field, and the release
+workflow refuses a version that disagrees with it. `package.json` is **not** the
+source of truth and still reads `0.0.0`.
 
 ## Cutting a release
 
 1. Bump `version` in `src-tauri/tauri.conf.json`.
-2. Commit that bump on `main`.
-3. Tag and push:
+2. Get that bump onto `main`, through a pull request like anything else.
 
-```bash
-git tag v0.2.0 && git push origin v0.2.0
-```
+That is the whole procedure. There is no tag to push: when the version on `main`
+differs from the version on the previous commit, `main.yml` runs the suite and,
+if it is green, calls `Release`, which creates the tag itself.
+
+A push that does not touch the version runs the suite and deploys the web app,
+and stops there. Re-running a release that already has its tag is a no-op, so a
+re-run of a green workflow cannot double-publish.
+
+### Why the workflow is allowed to create the tag
+
+The `release tag protection` ruleset on `v*` restricts **updates, deletions and
+force pushes, but not creations**. Creation has to stay open: a ruleset bypass
+list accepts roles, teams, GitHub Apps and Dependabot, never a workflow's
+`GITHUB_TOKEN`, so with "Restrict creations" ticked `create-release` fails with a
+ruleset violation.
+
+That is safe because the gate that matters is the `production` approval, not the
+tag. A new `v*` tag can at most start a draft release; nothing is signed,
+published, written to Firestore or sent to the Store until you approve the run.
+And once a release tag exists, nobody off the bypass list can move or delete it.
+
+**Do not push a `v*` tag for a version you have not released yet.** `main.yml`
+treats an existing tag as "already released" and skips, so a tag pushed early,
+or left behind by a failed run, stops that version releasing automatically. The
+run stays green and says `Tag vX.Y.Z already exists. Nothing to do.` in the
+`Detect a version change` log. Because updates are restricted, the tag cannot be
+moved either; delete it (you are on the bypass list) and use the manual path
+below.
+
+### Releasing by hand
+
+To rebuild a tag that already exists, run `Release` from the Actions tab and pass
+the tag name.
 
 The `Release` workflow then:
 
 | Job | Produces |
 |---|---|
-| `create-release` | A **draft** GitHub Release, after checking the tag matches `tauri.conf.json` |
+| `create-release` | The tag, and a **draft** GitHub Release, after checking the version matches `tauri.conf.json` |
 | `desktop` | `.dmg` + `.app` (Apple Silicon and Intel), `.deb` + `.AppImage` + `.rpm` (Linux), `.msi` + `.exe` NSIS + `.msix` (Windows) |
 | `android` | A signed universal APK |
 | `publish` | Flips the release from draft to public |
+| `app-config` | Writes `latestVersion` into the Firestore document `config/app`, so running clients learn a newer version exists |
+| `store` | Submits the MSIX to the Microsoft Store |
 
 Nothing is visible until every platform has uploaded, so a partially built
-release never reaches anyone. If a job fails, the release stays a draft — fix
-the cause, delete the tag, and re-tag.
+release never reaches anyone. If a job fails, the release stays a draft, and
+pushing a fix will **not** start a new release: the version on `main` no longer
+differs from the commit before it. Recover by hand:
 
-To rebuild an existing tag without moving it, run the workflow manually from the
-Actions tab and pass the tag name.
+1. Merge the fix to `main`.
+2. Delete the stale draft release first, so the new run cannot append to it.
+3. Delete the tag (you are on the ruleset's bypass list).
+4. Run `Release` from the Actions tab with the tag name. It recreates the tag at
+   the current `main` commit and builds from there.
+
+`desktop`, `android`, `publish`, `app-config` and `store` all declare
+`environment: production`, so the run pauses for your approval before anything is
+signed, published or written.
+
+### Why `app-config` cannot arm the compatibility gate
+
+`app-config` writes `latestVersion` and nothing else. That is structural, not a
+convention: `scripts/app_config_payload.mjs` builds the release object from named
+locals rather than spreading its input, so `minCompatLevel` has no route into a
+release write, and `publish_app_config.mjs` re-reads the document afterwards and
+fails the job if that field moved.
+
+Raising `minCompatLevel` is `arm-compat-gate.yml`, which only a human can
+trigger and which makes you type `ARM` to confirm. Doing it at release time would
+gate every device that had not yet installed that release. See "Raising the
+compatibility level" below.
 
 ## Required Actions secrets
 
@@ -100,9 +153,13 @@ Output lands under `src-tauri/gen/android/app/build/outputs/`.
 ## Web
 
 The web app deploys itself. Every push to `main` runs
-[`firebase-hosting.yml`](../.github/workflows/firebase-hosting.yml), which lints,
-runs the unit tests, builds, and deploys to the live Firebase Hosting channel at
-https://moctalegames.web.app. A red lint or a red test stops the deploy.
+[`main.yml`](../.github/workflows/main.yml), which runs
+[`ci.yml`](../.github/workflows/ci.yml) (lint, unit tests, build) and, only if
+that is green, calls
+[`firebase-hosting.yml`](../.github/workflows/firebase-hosting.yml) to build and
+deploy to the live Firebase Hosting channel at https://moctalegames.web.app. A red
+lint or a red test stops the deploy. The deploy workflow no longer runs the tests
+itself; that copy drifted from `ci.yml` and was removed.
 
 Every pull request gets its own preview channel with a URL commented on the PR,
 expiring after seven days.

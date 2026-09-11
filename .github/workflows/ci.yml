@@ -1,14 +1,43 @@
 name: CI
 
+# The single definition of "green" for this repository.
+#
+# There used to be two. This workflow ran lint, unit tests, build and Playwright;
+# `firebase-hosting.yml` ran lint, unit tests and build again, inline, before it
+# deployed. Two copies of a gate do not stay identical, and these had already
+# drifted -- one ran Playwright and the other did not -- so "the tests passed"
+# meant something different depending on which run you happened to open. The
+# copy is gone; this workflow is now called rather than duplicated.
+#
+# Triggers:
+#   pull_request  -- runs directly. That matters more than it looks: the branch
+#                    ruleset on main requires a status check named "Lint, test,
+#                    build", and a check's context is the job name. Called from
+#                    another workflow the context becomes "<caller-job> / Lint,
+#                    test, build", which the ruleset would never match, and every
+#                    pull request would be unmergeable until somebody edited the
+#                    ruleset. Keeping the direct trigger keeps the name.
+#   workflow_call -- how main.yml gates the deploy and the release on ONE test
+#                    run rather than one per consumer.
+
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
+  workflow_call:
 
+# Keyed on the workflow as well as the ref: when main.yml calls this, github.ref
+# is refs/heads/main for both, and a shared group would have the caller and the
+# callee cancelling each other.
+#
+# Cancelling is limited to pull requests, which is the case it was added for --
+# a force-push should not leave the superseded run burning a runner. On main it
+# would be actively harmful: a second push would cancel the first push's test
+# job, and if the first was the commit that bumped the version, its release is
+# cancelled with it and that version is never cut. Nothing then retries it,
+# because the next push sees the version already matching its parent.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
@@ -49,16 +78,21 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      # Advisory for now, for one reason worth naming rather than hiding: two
-      # cases in phase4-deep fail on this suite today and failed before any of
-      # the recent refactoring — the /collection/igdb/:id Clone pair, verified
-      # against the pre-refactor tree and reproducing identically there. Until
-      # those are fixed, a blocking e2e job would be red on every commit and
-      # would stop meaning anything. The report is uploaded either way.
+      # Advisory, and not for a comfortable reason. Measured 2026-09-10 (see
+      # "Known test failures" in STATUS.md): five cases fail every time -- the
+      # phase4-deep Clone pair, phase3-deep:1276, phase6-deep:629 and :862 -- and
+      # the category tests in phase2-deep call live IGDB through the deployed
+      # Worker with no stub, so :794 failed 2 of 4 runs on response times alone.
+      # This step has exited 1 on every run on main; continue-on-error is what
+      # made those runs green.
       #
-      # `retries: 2` in playwright.config.ts already absorbs the two known
-      # order-dependent cases (phase2 duplicate-cards, phase3 Save to Shelves),
-      # both of which pass in isolation.
+      # Blocking on it today would put every release behind those failures and
+      # behind IGDB latency. So releases gate on lint, unit tests and build in the
+      # job above, and this one reports. Its annotation, "Process completed with
+      # exit code 1", is the real result; the check mark is not.
+      #
+      # It becomes blocking once the five are fixed or quarantined by name and the
+      # live-IGDB specs are stubbed -- not by deleting the line below.
       - name: Run e2e
         run: npm run test:e2e
         continue-on-error: true

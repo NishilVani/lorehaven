@@ -1,20 +1,44 @@
 name: Release
 
-# Cut a release by pushing a tag that matches the version in
-# src-tauri/tauri.conf.json, e.g.  git tag v0.1.0 && git push origin v0.1.0
+# Builds every platform, publishes the GitHub Release, tells running clients a
+# new version exists, and submits the package to the Microsoft Store.
 #
-# The tag creates a draft GitHub Release, the desktop matrix and the Android job
-# attach their bundles to it, and the final job publishes it. Nothing goes public
-# until every platform has uploaded, so a half-built release is never visible.
+# Three ways in, one path through:
+#
+#   workflow_call     main.yml calls this when the version in
+#                     src-tauri/tauri.conf.json changes on main. The normal path.
+#                     The tag does not exist yet and is created here.
+#   push tag v*       You pushed a tag by hand. Kept as the escape hatch for a
+#                     release main.yml did not cut.
+#   workflow_dispatch Re-run a release for a tag that already exists.
+#
+# The tag creates a draft release, the desktop matrix and the Android job attach
+# their bundles to it, and `publish` undrafts it. Nothing goes public until every
+# platform has uploaded, so a half-built release is never visible.
+#
+# On creating the tag: the `release tag protection` ruleset on `v*` restricts
+# updates, deletions and force pushes, but NOT creations, and that gap is what
+# lets this job make the tag. It cannot be closed with a bypass entry instead:
+# a ruleset bypass list takes roles, teams, GitHub Apps and Dependabot, never
+# the workflow's GITHUB_TOKEN, so with "Restrict creations" on, create-release
+# fails with a ruleset violation. Leaving creation open is safe because every
+# job that signs or publishes waits for the production approval, and nothing
+# can move or delete a release tag once it exists.
 
 on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Version to release, without the leading v (e.g. 0.2.0)"
+        required: true
+        type: string
   push:
     tags:
       - "v*"
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag to build (must already exist)"
+        description: "Tag to build (created if it does not exist)"
         required: true
 
 permissions:
@@ -36,32 +60,50 @@ jobs:
       release_id: ${{ steps.create.outputs.id }}
       upload_url: ${{ steps.create.outputs.upload_url }}
       version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Resolve version
         id: version
         run: |
-          TAG="${{ github.event.inputs.tag || github.ref_name }}"
-          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          # One resolution for all three triggers. On workflow_call the version
+          # arrives already stripped; the other two carry a tag to strip. Never
+          # falls back to github.ref_name on the called path, where it would be
+          # "main" and would silently release a version called main.
+          VERSION="${{ inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            TAG="${{ inputs.tag || github.ref_name }}"
+            VERSION="${TAG#v}"
+          fi
+          if [ -z "$VERSION" ]; then
+            echo "Could not resolve a version from this trigger." >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Releasing v$VERSION"
 
-      - name: Check the tag matches tauri.conf.json
+      - name: Check the version matches tauri.conf.json
         run: |
           CONF=$(node -p "require('./src-tauri/tauri.conf.json').version")
           TAG_VERSION="${{ steps.version.outputs.version }}"
           if [ "$CONF" != "$TAG_VERSION" ]; then
-            echo "Tag v$TAG_VERSION does not match tauri.conf.json version $CONF." >&2
+            echo "Version $TAG_VERSION does not match tauri.conf.json version $CONF." >&2
             echo "Bump src-tauri/tauri.conf.json, or retag." >&2
             exit 1
           fi
-          echo "Version $CONF matches the tag."
+          echo "Version $CONF matches."
 
       - name: Create draft release
         id: create
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
+          # Creates the tag when it does not exist, at the commit this run was
+          # started from. On the tag-push path the tag is already here and this
+          # is a no-op.
+          target_commitish: ${{ github.sha }}
           name: LoreHaven ${{ steps.version.outputs.version }}
           draft: true
           generate_release_notes: true
@@ -177,7 +219,7 @@ jobs:
         if: matrix.platform == 'windows-latest'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          tag_name: ${{ needs.create-release.outputs.tag }}
           draft: true
           files: msix-out/*.msix
 
@@ -275,7 +317,7 @@ jobs:
       - name: Attach to the draft release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          tag_name: ${{ needs.create-release.outputs.tag }}
           draft: true
           files: ${{ steps.collect.outputs.dir }}/*
 
@@ -343,4 +385,103 @@ jobs:
             echo "::warning::FIREBASE_CONFIG_WRITER is not set - latestVersion was not published. Clients still treat themselves as current, because the config read fails open. See docs/RELEASING.md."
             exit 0
           fi
-          node scripts/publish_app_config.mjs release             --version "$VERSION"             --notes "LoreHaven $VERSION"
+          node scripts/publish_app_config.mjs release \
+            --version "$VERSION" \
+            --notes "LoreHaven $VERSION"
+
+  # Submits the MSIX to the Microsoft Store.
+  #
+  # This was its own workflow, triggered by `workflow_run` on this one finishing,
+  # and before that by `release: published`. The second of those never fired at
+  # all: this workflow undrafts the release with GITHUB_TOKEN, and GitHub
+  # deliberately does not let a GITHUB_TOKEN action emit events that start
+  # further workflow runs, so the workflow sat at zero runs looking healthy. The
+  # workflow_run replacement worked, but it re-derived the tag from
+  # `head_branch`, re-downloaded an asset this run had just built, and failed
+  # open on anything it could not parse.
+  #
+  # As a job it needs none of that. `needs: publish` is a real dependency rather
+  # than an inferred one, and the version is the same string the rest of the run
+  # used. store-submission.yml survives as a dispatch-only workflow, for
+  # resubmitting a release that already exists.
+  store:
+    name: Submit to the Microsoft Store
+    needs: [create-release, publish]
+    runs-on: windows-latest
+    environment: production
+    steps:
+      # A tagged release with no credentials fails, deliberately: a green run
+      # that submitted nothing is the exact failure mode this path already had
+      # once, and it hid for weeks.
+      - name: Check the Store credentials are present
+        shell: pwsh
+        env:
+          TENANT: ${{ secrets.AZURE_AD_TENANT_ID }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:TENANT)) {
+            Write-Error "Store credentials are not set, so ${{ needs.create-release.outputs.tag }} was published but not submitted to the Store. See docs/MICROSOFT-STORE.md."
+            exit 1
+          }
+
+      - name: Download the MSIX from the release
+        id: fetch
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "${{ needs.create-release.outputs.tag }}"
+          $asset = "LoreHaven-${{ needs.create-release.outputs.version }}.msix"
+
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          gh release download $tag --pattern $asset --dir release --repo ${{ github.repository }}
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "No $asset on release $tag. Did the Windows leg succeed?"
+            exit 1
+          }
+
+          $path = (Resolve-Path "release/$asset").Path
+          Write-Host "Got $path ($([math]::Round((Get-Item $path).Length / 1MB, 2)) MB)"
+          "msix=$path" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      # v1.4, the action's latest release (2026-07-21). Microsoft's own guide
+      # still shows v1.1; the action repository's README and releases are the
+      # fresher source.
+      - uses: microsoft/microsoft-store-apppublisher@v1.4
+
+      - name: Configure MSStore CLI
+        shell: pwsh
+        run: |
+          msstore reconfigure `
+            --tenantId ${{ secrets.AZURE_AD_TENANT_ID }} `
+            --sellerId ${{ secrets.SELLER_ID }} `
+            --clientId ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }} `
+            --clientSecret ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
+
+      - name: Publish the package
+        shell: pwsh
+        # 9N7FD5QBSMBB is the Store ID for LoreHaven. It is public — it is the
+        # listing URL, https://apps.microsoft.com/detail/9N7FD5QBSMBB — so it
+        # lives here rather than in a variable.
+        #
+        # The .msix goes in as the positional argument, the form Microsoft's own
+        # GitHub Actions guide uses for MSIX package updates. The command
+        # reference describes that argument as a project directory and offers
+        # -i for a package file, but the one reported failure of this command
+        # (microsoft/msstore-cli#50, closed) was -i pointed at a directory, not a
+        # file passed directly. -v keeps the upload and the submission in the
+        # log, which is the only place a failed submission can be traced from.
+        #
+        # publish commits the submission, so this sends it to certification. It
+        # also replaces any unsubmitted draft in Partner Center with one built
+        # from the last published submission. A green step means submitted, not
+        # live.
+        run: msstore publish "${{ steps.fetch.outputs.msix }}" -id 9N7FD5QBSMBB -v
+
+      # Read-only: puts the submission's state in the log, so a run shows what
+      # Partner Center accepted without anyone signing in to check. Allowed to
+      # fail, because by this point the submission already exists and a failed
+      # status read must not turn a successful submission red.
+      - name: Report the submission status
+        shell: pwsh
+        continue-on-error: true
+        run: msstore submission status 9N7FD5QBSMBB

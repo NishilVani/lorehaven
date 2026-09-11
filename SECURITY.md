@@ -38,10 +38,13 @@ Two mechanisms, because they cover different routes:
 
 - **A branch ruleset on `main`** requires a pull request, an approving review
   from a code owner, and a green `Lint, test, build` before anything merges.
-- **A tag ruleset on `v*`** stops anyone creating, moving or deleting a release
-  tag. Without it the release path went around the branch ruleset entirely: a
-  tag is not a branch, so pushing `v9.9.9` would have built and signed a release
-  with no review at all.
+- **A tag ruleset on `v*`** stops anyone moving, deleting or force-pushing a
+  release tag once it exists. It deliberately does **not** restrict creating
+  one: the release workflow creates the tag itself, and a ruleset bypass list
+  cannot hold a workflow's `GITHUB_TOKEN`. Tag creation used to be the gate
+  that stopped `v9.9.9` building and signing a release with no review; that
+  gate is now the `production` environment below, which every signing and
+  publishing job waits on. A new tag can at most start a draft release.
 - **A `production` environment with a required reviewer** gates every job that
   holds a secret -- the desktop and Android builds that use the signing keys,
   the job that makes a release public, the Firestore write, the Store

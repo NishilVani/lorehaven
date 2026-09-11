@@ -1,28 +1,21 @@
-name: Store — submit release
+name: Store — resubmit a release
 
-# Publishes the MSIX from a GitHub Release to the Microsoft Store.
+# Submits the MSIX from an EXISTING GitHub Release to the Microsoft Store, by
+# hand.
+#
+# The automatic submission is no longer here. It is the `store` job in
+# release.yml, which runs after `publish` in the same run that built the package.
+# This workflow is only the manual path: a submission that failed certification
+# and needs sending again, a release cut before the Store credentials existed, or
+# a resubmission of an older version.
 #
 # MSIX rather than MSI/EXE, and that choice is what makes this free: the Store
 # re-signs MSIX packages with a Microsoft certificate after certification and
 # hosts the download itself, so there is no code-signing certificate to buy and
 # no installer URL to keep alive. An MSI/EXE listing gets neither — the Store
 # does not re-sign those, and you must Authenticode-sign them yourself.
-#
-# Triggered by the Release workflow finishing, NOT by `release: published`.
-# That distinction matters and cost a silent failure to find: the Release
-# workflow undrafts the release with GITHUB_TOKEN, and GitHub deliberately does
-# not let a GITHUB_TOKEN action emit events that start further workflow runs —
-# it is how they stop a workflow triggering itself forever. So `release:
-# published` never fired here and this workflow sat at zero runs looking healthy.
-#
-# workflow_run fires on the Release run itself, which a human started by pushing
-# a tag, so it is not suppressed. The `success()` guard keeps it from submitting
-# a release whose jobs failed.
 
 on:
-  workflow_run:
-    workflows: ["Release"]
-    types: [completed]
   workflow_dispatch:
     inputs:
       tag:
@@ -32,23 +25,32 @@ on:
 permissions:
   contents: read
 
-# Every job below that holds a secret declares `environment: production`, which
-# has a required reviewer. GitHub pauses those jobs until a human approves the
-# run, so signing keys, publishing and Firestore writes cannot happen because
-# somebody pushed a tag or clicked "Run workflow".
-#
-# The branch ruleset only governs merges into main. A tag is not a branch and a
-# workflow_dispatch is not a merge, so before this the release path went around
-# it entirely.
+# `environment: production` has a required reviewer, so a submission pauses until
+# a human approves the run. Clicking "Run workflow" is not on its own enough to
+# put a build in front of Microsoft.
 jobs:
   submit:
     name: Publish to the Store
     runs-on: windows-latest
     environment: production
-    # A failed or cancelled Release must not reach the Store.
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     steps:
-      - uses: actions/checkout@v4
+      - name: Check the tag and the credentials
+        id: check
+        shell: pwsh
+        env:
+          TENANT: ${{ secrets.AZURE_AD_TENANT_ID }}
+        run: |
+          $tag = "${{ inputs.tag }}"
+          if (-not $tag.StartsWith('v')) {
+            Write-Error "'$tag' is not a release tag. Expected something like v0.1.0."
+            exit 1
+          }
+          if ([string]::IsNullOrWhiteSpace($env:TENANT)) {
+            Write-Error "Store credentials are not set. See docs/MICROSOFT-STORE.md."
+            exit 1
+          }
+          $version = $tag -replace '^v', ''
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: Download the MSIX from the release
         id: fetch
@@ -56,54 +58,26 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # head_branch is the ref the Release run was started from, i.e. the tag.
-          $tag = "${{ github.event.inputs.tag }}"
-          if ([string]::IsNullOrWhiteSpace($tag)) { $tag = "${{ github.event.workflow_run.head_branch }}" }
-          if ([string]::IsNullOrWhiteSpace($tag) -or -not $tag.StartsWith('v')) {
-            # The Release workflow can also be started by hand against a branch.
-            # `exit 0` alone would not be enough - later steps would still run and
-            # hand msstore an empty path - so the remaining steps are gated on
-            # this output rather than on the step succeeding.
-            Write-Host "::notice::'$tag' is not a release tag - nothing to submit."
-            "submit=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-            exit 0
-          }
-          $version = $tag -replace '^v', ''
-          $asset = "LoreHaven-$version.msix"
+          $tag = "${{ inputs.tag }}"
+          $asset = "LoreHaven-${{ steps.check.outputs.version }}.msix"
 
           New-Item -ItemType Directory -Force -Path release | Out-Null
           gh release download $tag --pattern $asset --dir release --repo ${{ github.repository }}
           if ($LASTEXITCODE -ne 0) {
-            Write-Error "No $asset on release $tag. Did the Windows leg of the Release workflow succeed?"
+            Write-Error "No $asset on release $tag. Did the Windows leg of that release succeed?"
             exit 1
           }
 
           $path = (Resolve-Path "release/$asset").Path
           Write-Host "Got $path ($([math]::Round((Get-Item $path).Length / 1MB, 2)) MB)"
           "msix=$path" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          "submit=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
-      # After the tag is resolved, not before: a Release run started by hand
-      # against a branch has nothing to submit, and failing that for a missing
-      # secret would be a red run for no reason. A tagged release with no
-      # credentials does fail, deliberately - a green run that submitted nothing
-      # is the exact failure mode this workflow already had once.
-      - name: Check the Store credentials are present
-        if: steps.fetch.outputs.submit == 'true'
-        shell: pwsh
-        env:
-          TENANT: ${{ secrets.AZURE_AD_TENANT_ID }}
-        run: |
-          if ([string]::IsNullOrWhiteSpace($env:TENANT)) {
-            Write-Error "Store credentials are not set. See docs/MICROSOFT-STORE.md."
-            exit 1
-          }
-
-      - uses: microsoft/microsoft-store-apppublisher@v1.1
-        if: steps.fetch.outputs.submit == 'true'
+      # v1.4, the action's latest release (2026-07-21). Microsoft's own guide
+      # still shows v1.1; the action repository's README and releases are the
+      # fresher source.
+      - uses: microsoft/microsoft-store-apppublisher@v1.4
 
       - name: Configure MSStore CLI
-        if: steps.fetch.outputs.submit == 'true'
         shell: pwsh
         run: |
           msstore reconfigure `
@@ -113,9 +87,30 @@ jobs:
             --clientSecret ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
 
       - name: Publish the package
-        if: steps.fetch.outputs.submit == 'true'
         shell: pwsh
         # 9N7FD5QBSMBB is the Store ID for LoreHaven. It is public — it is the
         # listing URL, https://apps.microsoft.com/detail/9N7FD5QBSMBB — so it
         # lives here rather than in a variable.
-        run: msstore publish "${{ steps.fetch.outputs.msix }}" -id 9N7FD5QBSMBB
+        #
+        # The .msix goes in as the positional argument, the form Microsoft's own
+        # GitHub Actions guide uses for MSIX package updates. The command
+        # reference describes that argument as a project directory and offers
+        # -i for a package file, but the one reported failure of this command
+        # (microsoft/msstore-cli#50, closed) was -i pointed at a directory, not a
+        # file passed directly. -v keeps the upload and the submission in the
+        # log, which is the only place a failed submission can be traced from.
+        #
+        # publish commits the submission, so this sends it to certification. It
+        # also replaces any unsubmitted draft in Partner Center with one built
+        # from the last published submission. A green step means submitted, not
+        # live.
+        run: msstore publish "${{ steps.fetch.outputs.msix }}" -id 9N7FD5QBSMBB -v
+
+      # Read-only: puts the submission's state in the log, so a run shows what
+      # Partner Center accepted without anyone signing in to check. Allowed to
+      # fail, because by this point the submission already exists and a failed
+      # status read must not turn a successful submission red.
+      - name: Report the submission status
+        shell: pwsh
+        continue-on-error: true
+        run: msstore submission status 9N7FD5QBSMBB
