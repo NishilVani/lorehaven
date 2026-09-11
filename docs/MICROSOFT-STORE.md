@@ -95,7 +95,7 @@ account, and four secrets.
    Microsoft Entra application → Create Microsoft Entra application.** Give it a
    display name such as `LoreHaven GitHub Actions`. Partner Center also asks for a
    reply URL; this application never signs anyone in, so the site URL
-   (`https://moctalegames.web.app/`) is fine.
+   (`https://lorehaven.web.app/`) is fine.
 3. Assign the **Manager** role. It is broad, and it is what Microsoft's GitHub
    Actions guide requires. That breadth is why the key below lives behind the
    `production` approval rather than in a repository secret.

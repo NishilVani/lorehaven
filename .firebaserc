@@ -1,5 +1,17 @@
 {
   "projects": {
     "default": "moctalegames"
+  },
+  "targets": {
+    "moctalegames": {
+      "hosting": {
+        "app": [
+          "lorehaven"
+        ],
+        "legacy": [
+          "moctalegames"
+        ]
+      }
+    }
   }
 }

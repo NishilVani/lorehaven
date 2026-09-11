@@ -4,7 +4,7 @@ A personal game library: track what you own across every platform, browse an
 awards corpus, and keep a profile of what you have played. Runs as a web app, a
 desktop app, and an Android app from one React codebase.
 
-- **Web** — https://moctalegames.web.app
+- **Web** — https://lorehaven.web.app
 - **Desktop** — Windows, macOS and Linux, via Tauri
 - **Android** — via Tauri
 

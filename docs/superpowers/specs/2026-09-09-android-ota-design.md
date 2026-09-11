@@ -13,7 +13,7 @@ Update the Android app's frontend without an APK reinstall, and make the app
 LoreHaven has no Play Store listing. The APK is sideloaded from a GitHub Release,
 so a device can sit on an old build indefinitely and there is no channel that
 will move it. Meanwhile the same frontend is deployed continuously to
-`moctalegames.web.app`, where every user is current within minutes.
+`lorehaven.web.app`, where every user is current within minutes.
 
 The APK is mostly web bundle wrapped in a thin native shell. The bundle changes
 almost every release; the shell changes rarely. Updating just the bundle covers
