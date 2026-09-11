@@ -2,8 +2,16 @@ name: Deploy web
 
 # Deploys the web app to Firebase Hosting.
 #
-#   called by main.yml  -> the live channel (moctalegames.web.app), after CI is green
+#   called by main.yml  -> the live channel of lorehaven.web.app, after CI is green,
+#                          and then moctalegames.web.app as a redirect to it
 #   pull request        -> a throwaway 7-day preview channel, with the URL commented on the PR
+#
+# Two Hosting sites, mapped as deploy targets in .firebaserc. `app` is the
+# `lorehaven` site. `legacy` is `moctalegames`, the project's default site, which
+# Firebase does not allow deleting; it now only redirects. It was retired on
+# 2026-09-12 after its last 30 days of Hosting downloads came to 3.63 MB, a
+# handful of page loads, and no account other than the maintainer's had signed in
+# since it was first deployed.
 #
 # This workflow used to run lint, unit tests and build itself before deploying,
 # duplicating ci.yml. That is gone. On the live path main.yml will not reach this
@@ -62,7 +70,10 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Deploy to live channel
+      # Two separate live deploys, app first. As separate steps the redirect is
+      # only published once the app deploy has succeeded, so moctalegames.web.app
+      # never sends anyone to a lorehaven.web.app that failed to update.
+      - name: Deploy the app to lorehaven.web.app
         if: github.event_name == 'push'
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
@@ -70,7 +81,20 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MOCTALEGAMES }}
           projectId: moctalegames
           channelId: live
+          target: app
 
+      - name: Redirect moctalegames.web.app to lorehaven.web.app
+        if: github.event_name == 'push'
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MOCTALEGAMES }}
+          projectId: moctalegames
+          channelId: live
+          target: legacy
+
+      # Previews are of the app only. A preview of a site that redirects every
+      # path to production would show a pull request nothing about itself.
       - name: Deploy to preview channel
         if: github.event_name == 'pull_request'
         uses: FirebaseExtended/action-hosting-deploy@v0
@@ -79,3 +103,4 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MOCTALEGAMES }}
           projectId: moctalegames
           expires: 7d
+          target: app

@@ -19,18 +19,32 @@
     },
     "singleProjectMode": true
   },
-  "hosting": {
-    "public": "dist",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
-    "rewrites": [
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
-    ]
-  }
+  "hosting": [
+    {
+      "target": "app",
+      "public": "dist",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ]
+    },
+    {
+      "target": "legacy",
+      "public": "hosting/legacy",
+      "redirects": [
+        {
+          "regex": "^/(.*)$",
+          "destination": "https://lorehaven.web.app/:1",
+          "type": 301
+        }
+      ]
+    }
+  ]
 }

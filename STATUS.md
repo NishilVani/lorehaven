@@ -7,8 +7,12 @@ infinite-scroll audit, with the measurement behind every claim.
 
 ## Where this stands
 
-- **Live at https://moctalegames.web.app**, deployed by CI on every push to
-  `main`. See [docs/RELEASING.md](docs/RELEASING.md).
+- **Live at https://lorehaven.web.app**, deployed by CI on every push to
+  `main`. The old address, `moctalegames.web.app`, is the project's default site,
+  which Firebase does not allow deleting, so it redirects there instead. It was
+  retired on 2026-09-12: 3.63 MB of Hosting downloads in its last 30 days, a
+  handful of page loads, and the only other account last signed in before the
+  site was ever deployed. See [docs/RELEASING.md](docs/RELEASING.md).
 - **The deep QA run is complete through group 2.** Group 3 is untouched,
   deliberately — those eighteen items need a product decision or an
   investigation first, and they are listed at the end of `FIXES.md`.
@@ -39,7 +43,7 @@ push to main
 |---|---|---|
 | `main.yml` | push to main | The chain above. Detects a version change in `src-tauri/tauri.conf.json` against `HEAD^`, and only then releases |
 | `ci.yml` | PR to main, or called | lint, unit tests, build, which gate the release; Playwright chromium, **advisory** (see Known test failures) |
-| `firebase-hosting.yml` | PR to main, or called | live channel when called by `main.yml`; a 7-day preview channel on a PR |
+| `firebase-hosting.yml` | PR to main, or called | when called by `main.yml`: the app to lorehaven.web.app, then the redirect on moctalegames.web.app; on a PR, a 7-day preview channel of the app |
 | `release.yml` | called by `main.yml`, tag `v*`, or dispatch | every platform into one draft release, published only when all succeed, then Firestore and the Store |
 | `store-submission.yml` | dispatch only | resubmits an **existing** release's MSIX by hand |
 | `arm-compat-gate.yml` | dispatch only | raises `minCompatLevel`. Deliberately never automated |
@@ -60,7 +64,7 @@ Two things that path depends on and that are worth checking before trusting it:
   `config/app` note below.
 - **The Microsoft Store listing is live** with 0.1.0, submitted by hand.
   **v0.2.0 is public on GitHub** (2026-09-10, through the old tag-triggered
-  workflow, since this chain is not merged yet) but **not in the Store**: its
+  workflow, before this chain was merged) but **not in the Store**: its
   `Store — submit release` run is waiting for approval, and the four Store
   secrets are still unset. Setup is in docs/MICROSOFT-STORE.md. Without the
   secrets the `store` job fails the run *after* the release is already public,
