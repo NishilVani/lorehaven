@@ -1,182 +1,174 @@
-import { useId, useMemo, useRef, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ArrowUpRight } from 'lucide-react';
 import { PlatformLogo } from '../platforms/PlatformLogo';
-import { getShortPlatformName } from '../platforms/platformLogoUtils';
-import { platKey, normalizePlat, matchPlatformsForGame } from '../../services/platformMatch';
+import { getBrandSwatch, getPlatformLogoUrl, getShortPlatformName, inkFilter, inverseInk } from '../platforms/platformLogoUtils';
+import { platKey } from '../../services/platformMatch';
+import { buildPlatformArea } from '../../services/gameLinks';
+import ExternalLink from '../ui/ExternalLink';
 
-/* One row: the platforms the game runs on, with the ones you own marked.
+/* The platforms area of the game page: where the game runs, where it can be
+ * bought, and where you own it.
  *
- * This replaced two copies of the same JSX -- the desktop plate and the mobile
- * sheet each spread [...gamePlats, ...userPlats] into chips -- which is how the
- * row came to mix "the game exists here" with "you have it here" in both places
- * at once. */
-function Chip({ plat, active, onToggle }) {
+ * A control you own fills with its brand colour. The fill never carries that on
+ * its own: Steam, GOG, Epic and Oculus sit within 1.5:1 of the black page, so an
+ * owned control also takes a solid white border and the Yours tag. What goes
+ * where is decided in services/gameLinks.js; this file only draws it. */
+
+/* A solid block in the swatch's ink, not an outline: it reads on every fill. */
+function YoursTag({ ink }) {
+  return (
+    <span
+      className="lh-label shrink-0 px-1 py-0.5 pointer-events-none"
+      style={{ backgroundColor: ink, color: inverseInk(ink) }}
+    >
+      Yours
+    </span>
+  );
+}
+
+function OwnershipPill({ plat, active, onToggle }) {
+  const swatch = getBrandSwatch(getPlatformLogoUrl(plat));
+  const name = getShortPlatformName(plat);
   return (
     <button
+      type="button"
       onClick={() => onToggle(plat)}
       title={plat.name}
       aria-pressed={active}
-      aria-label={`${active ? 'Unmark' : 'Mark'} ${getShortPlatformName(plat)} as yours`}
-      className={`flex items-center gap-1.5 border px-2 py-1.5 lh-label transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white ${active
-        ? 'bg-white border-white text-black'
+      aria-label={`${active ? 'Unmark' : 'Mark'} ${name} as yours`}
+      className={`tap-block flex items-center gap-1.5 border px-2 py-1.5 lh-label transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black ${active
+        ? 'border-white'
         : 'border-white/15 text-white/60 hover:border-white hover:text-white'
         }`}
+      style={active ? { backgroundColor: swatch.fill, color: swatch.ink } : undefined}
     >
       <PlatformLogo platform={plat} className="w-4 h-4 p-[2px]" disableTooltip />
-      <span className="pointer-events-none">{getShortPlatformName(plat)}</span>
+      <span className="pointer-events-none">{name}</span>
+      {active && <YoursTag ink={swatch.ink} />}
     </button>
   );
 }
 
-/* A row in the "Where do you own it?" picker. A toggle button, not a menu
- * item -- there is no arrow-key navigation here, so it does not claim the
- * ARIA menu pattern. aria-pressed announces the checked state the same way
- * Chip does. Hoisted to module scope (like Chip) so its identity is stable
- * across renders -- defined inside PlatformSection, it was a new component
- * type every render, so React unmounted and remounted every row on each
- * toggle, dropping focus to document.body mid-click. */
-function Row({ plat, active, onToggle }) {
+/* Two sibling controls in one outline: the name records ownership, the arrow
+   opens the store. Never one inside the other (DESIGN.md: Two Actions, Two
+   Buttons). */
+function StoreRow({ row, active, onToggle }) {
+  const swatch = getBrandSwatch(row.brand);
   return (
-    <button
-      onClick={() => onToggle(plat)}
-      aria-pressed={active}
-      className="flex items-center gap-2 w-full text-left px-2 py-2 lh-label text-white/60 hover:text-white hover:bg-white/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white cursor-pointer"
+    <div
+      className={`flex items-stretch border transition-colors ${active ? 'border-white' : 'border-white/15'}`}
+      style={active ? { backgroundColor: swatch.fill, color: swatch.ink } : undefined}
     >
-      <span aria-hidden="true" className={`w-3 h-3 border ${active ? 'bg-white border-white' : 'border-white/40'}`} />
-      <PlatformLogo platform={plat} className="w-4 h-4 p-[2px]" disableTooltip />
-      <span>{plat.name}</span>
-    </button>
+      <span aria-hidden="true" className="w-9 shrink-0 flex items-center justify-center" style={{ backgroundColor: swatch.fill }}>
+        {row.iconUrl && (
+          <img src={row.iconUrl} alt="" className="w-5 h-5 object-contain" style={{ filter: inkFilter(swatch.ink) }} />
+        )}
+      </span>
+      <button
+        type="button"
+        onClick={() => onToggle(row.platform)}
+        aria-pressed={active}
+        aria-label={`${active ? 'Unmark' : 'Mark'} ${row.name} as yours`}
+        /* Wraps rather than truncates. On a phone "Microsoft Store" and
+           "Series X|S, XONE" do not fit one line together, and a clipped store
+           name is worse than a second line: the covers list drops below. */
+        className={`tap-block flex-1 min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2.5 text-left cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-current ${active ? '' : 'text-white hover:bg-white/5'}`}
+      >
+        <span className="lh-label min-w-0 break-words">{row.name}</span>
+        {active && <YoursTag ink={swatch.ink} />}
+        {row.covers.length > 0 && (
+          <span className={`ml-auto text-xs text-right ${active ? '' : 'text-white/60'}`}>{row.covers.join(', ')}</span>
+        )}
+      </button>
+      {row.url && (
+        <ExternalLink
+          href={row.url}
+          aria-label={`Open ${row.name} in a new tab`}
+          className={`tap-block shrink-0 flex items-center justify-center min-w-11 px-3 border-l transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-current ${active
+            ? 'border-current hover:opacity-70'
+            : 'border-white/15 text-white/60 hover:bg-white hover:text-black'
+            }`}
+        >
+          <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
+        </ExternalLink>
+      )}
+    </div>
   );
 }
 
 export default function PlatformSection({ game, userPlatforms, selectedKeys, onToggle }) {
-  const gamePlats = [];
-  const seen = new Set();
-  for (const p of (game?.platforms || []).map(normalizePlat)) {
-    const key = platKey(p);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    gamePlats.push(p);
-  }
-
-  /* Marked platforms with no chip of their own -- a store, a subscription, or
-     hardware IGDB does not list -- are appended rather than dropped. */
-  const appended = (userPlatforms || [])
-    .filter(p => selectedKeys.has(platKey(p)) && !seen.has(platKey(p)));
-
-  const [open, setOpen] = useState(false);
   const [showOther, setShowOther] = useState(false);
-  const triggerRef = useRef(null);
-  /* This page mounts PlatformSection twice (desktop aside + mobile strip,
-     one CSS-hidden). useId keeps the two instances' group ids from colliding
-     in the DOM. */
-  const baseId = useId();
-  const fittingHeadingId = `${baseId}-fitting-heading`;
-  const otherHeadingId = `${baseId}-other-heading`;
+  /* The page mounts this twice (desktop aside and mobile strip, one hidden), so
+     ids come from useId rather than a literal. */
+  const otherId = useId();
 
-  /* matchPlatformsForGame does a scan over the user's platform list; memoize
-     it so it isn't paid on every render, twice over since both mounted
-     instances re-render on every toggle. */
-  const { fitting, other } = useMemo(
-    () => matchPlatformsForGame(game, userPlatforms),
-    [game, userPlatforms]
+  const { pills, rows, others } = useMemo(
+    () => buildPlatformArea(game, userPlatforms, selectedKeys),
+    [game, userPlatforms, selectedKeys]
   );
 
-  const noIgdbPlatforms = gamePlats.length === 0;
+  const noIgdbPlatforms = !(game?.platforms?.length);
+  const hasUserPlatforms = (userPlatforms || []).length > 0;
 
-  /* Not an edge case: about one IGDB game in six lists no platforms, and every
-     custom entry the user adds has none. Hiding the section there would hide it
-     from the people with the most reason to record where they own something,
-     since IGDB is telling them nothing. It is hidden only when there is also
-     nothing of the user's to offer. */
-  if (noIgdbPlatforms && (userPlatforms || []).length === 0) return null;
+  /* About one IGDB game in six lists no platforms, and custom entries list none.
+     The area still shows while there is anything of yours or IGDB's to offer. */
+  if (pills.length === 0 && rows.length === 0 && others.length === 0 && noIgdbPlatforms) return null;
+
+  const isOn = (p) => selectedKeys.has(platKey(p));
 
   return (
-    <div>
-      <div className="lh-label text-white/60 mb-2">Available On</div>
-      <div className="flex flex-wrap gap-1.5">
-        {gamePlats.map(p => (
-          <Chip key={platKey(p)} plat={p} active={selectedKeys.has(platKey(p))} onToggle={onToggle} />
-        ))}
-      </div>
-      {appended.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mt-1.5 pl-3 border-l border-white/15">
-          {appended.map(p => (
-            <Chip key={platKey(p)} plat={p} active onToggle={onToggle} />
-          ))}
-        </div>
-      )}
-      {noIgdbPlatforms && (
-        <p className="lh-label text-white/40">IGDB lists no platforms for this game.</p>
-      )}
-      {/* Escape needs to close the picker with focus still on the trigger
-          (right after opening) as well as with focus inside the panel, so
-          the handler sits on the wrapper that covers both -- not just the
-          panel, which is a sibling of the trigger button. */}
-      <div
-        onKeyDown={(e) => {
-          if (e.key === 'Escape' && open) {
-            setOpen(false);
-            triggerRef.current?.focus();
-          }
-        }}
-      >
-        <button
-          ref={triggerRef}
-          onClick={() => setOpen(v => !v)}
-          aria-expanded={open}
-          className="lh-label mt-2 px-2 py-1.5 border border-white/15 text-white/60 hover:border-white hover:text-white transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white"
-        >
-          Where do you own it?
-        </button>
-        {open && (
-          <div className="mt-1.5 border border-white/15">
-            {noIgdbPlatforms
-              ? userPlatforms.map(p => (
-                <Row key={platKey(p)} plat={p} active={selectedKeys.has(platKey(p))} onToggle={onToggle} />
-              ))
-              /* fitting and other are both built from userPlatforms, so both empty
-                 here (with the game's own IGDB platforms present, the noIgdbPlatforms
-                 branch above) means one thing: nothing is configured yet. Rendering
-                 the two group blocks below would just skip both `.length > 0` guards
-                 and leave an empty bordered box with no way out. */
-              : (fitting.length === 0 && other.length === 0)
-                ? (
-                  <div role="group" aria-labelledby={fittingHeadingId}>
-                    <div id={fittingHeadingId} className="lh-label text-white/40 px-2 pt-2">Available for this game</div>
-                    <p className="lh-label text-white/40 px-2 pb-2">
-                      No platforms added yet. <Link to="/platforms" className="underline hover:text-white">Add your platforms</Link> to mark where you own this.
-                    </p>
-                  </div>
-                )
-                : (<>
-                {fitting.length > 0 && (
-                  <div role="group" aria-labelledby={fittingHeadingId}>
-                    <div id={fittingHeadingId} className="lh-label text-white/40 px-2 pt-2">Available for this game</div>
-                    {fitting.map(p => (
-                      <Row key={platKey(p)} plat={p} active={selectedKeys.has(platKey(p))} onToggle={onToggle} />
-                    ))}
-                  </div>
-                )}
-                {other.length > 0 && (
-                  <div role="group" aria-labelledby={otherHeadingId}>
-                    <button
-                      id={otherHeadingId}
-                      onClick={() => setShowOther(v => !v)}
-                      aria-expanded={showOther}
-                      className="lh-label w-full text-left text-white/40 px-2 py-2 hover:text-white cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white"
-                    >
-                      {showOther ? 'Hide' : 'Other platforms'} ({other.length})
-                    </button>
-                    {showOther && other.map(p => (
-                      <Row key={platKey(p)} plat={p} active={selectedKeys.has(platKey(p))} onToggle={onToggle} />
-                    ))}
-                  </div>
-                )}
-              </>)}
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-2">
+        <div className="lh-label text-white/60">Available On</div>
+        {pills.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {pills.map((p) => (
+              <OwnershipPill key={platKey(p)} plat={p} active={isOn(p)} onToggle={onToggle} />
+            ))}
           </div>
         )}
+        {noIgdbPlatforms && <p className="lh-label lh-multiline text-white/60">IGDB lists no platforms for this game.</p>}
       </div>
+
+      <div className="flex flex-col gap-2">
+        <div className="lh-label text-white/60">Stores and subscriptions</div>
+        {rows.length > 0 ? (
+          <div className="flex flex-col gap-1.5">
+            {rows.map((row) => (
+              <StoreRow key={row.key} row={row} active={isOn(row.platform)} onToggle={onToggle} />
+            ))}
+          </div>
+        ) : (
+          <p className="lh-label lh-multiline text-white/60">IGDB lists no stores for this game.</p>
+        )}
+        {!hasUserPlatforms && (
+          <p className="lh-label lh-multiline text-white/60">
+            <Link to="/platforms" className="underline py-2 -my-2 hover:text-white">Add your platforms</Link> to see your subscriptions here.
+          </p>
+        )}
+      </div>
+
+      {others.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            onClick={() => setShowOther((v) => !v)}
+            aria-expanded={showOther}
+            aria-controls={showOther ? otherId : undefined}
+            className="tap-block self-start lh-label px-2 py-1.5 border border-white/15 text-white/60 hover:border-white hover:text-white transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white"
+          >
+            {showOther ? 'Hide other platforms' : `Other platforms (${others.length})`}
+          </button>
+          {showOther && (
+            <div id={otherId} className="flex flex-wrap gap-1.5">
+              {others.map((p) => (
+                <OwnershipPill key={platKey(p)} plat={p} active={isOn(p)} onToggle={onToggle} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
