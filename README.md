@@ -116,9 +116,9 @@ npm ci
 npm run dev
 ```
 
-Three gates run on every pull request and all must be green: `npm run lint`
-(zero errors, not "no new errors"), `npm test`, and `npm run build`. Playwright
-end-to-end tests also run but are advisory.
+Four gates run on every pull request and all must be green: `npm run lint`
+(zero errors, not "no new errors"), `npm test`, `npm run build`, and the
+Playwright end-to-end suite (`npm run test:e2e`, chromium, run offline).
 
 Two conventions that catch people:
 
