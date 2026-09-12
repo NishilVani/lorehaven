@@ -66,6 +66,9 @@ test('awards: a year click leaves a history entry, so Back returns to the ceremo
   await blockCloud(page);
   await page.route('**/api/games', r =>
     r.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
+  // Every by-id game lookup also asks for time-to-beat; unanswered, it went to live IGDB.
+  await page.route('**/api/game_time_to_beats', r =>
+    r.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
   await page.goto('/awards');
   const row = page.locator('a[href^="/awards/Q"]').first();
   await expect(row).toBeVisible({ timeout: 20000 });

@@ -325,33 +325,45 @@ const shared = (key, run) => {
  * (even if stale) and stale entries refresh in the background so the next call is
  * fresh. Empty/null results are never cached, so a transient failure never sticks.
  * Concurrent callers of the same key share one request.
+ *
+ * `.fresh(...args)` skips the read and keeps the write, for an action a person
+ * takes to see what IGDB holds now. A Reload button routed through the cached
+ * call re-read an entry up to a week old and issued no request at all.
  */
-export const withCache = (ns, ttl, fn) => async (...args) => {
-  const key = `${ns}:${JSON.stringify(args)}`;
-  const now = Date.now();
-  const hit = kvGet(key, now);
+export const withCache = (ns, ttl, fn) => {
+  const keyFor = (args) => `${ns}:${JSON.stringify(args)}`;
 
   /* Fetch and store, as one unit, so waiters that joined mid-flight do not each
      write the same result back. */
-  const fetchAndStore = () => shared(key, async () => {
+  const fetchAndStore = (key, args) => shared(key, async () => {
     const data = await fn(...args);
     if (isCacheable(data)) kvSet(key, data, ttl, Date.now());
     return data;
   });
 
-  // Discard entries poisoned before the isCacheable() guard existed. Their TTLs run
-  // up to a month, so without this an already-affected user stays broken long after
-  // auth recovers. Treating it as a miss self-heals on the next call.
-  if (hit && isIgdbError(hit.data)) {
-    kvDelete(key);
-    return fetchAndStore();
-  }
-  if (hit) {
-    if (hit.stale) {
-      /* Best-effort, and not awaited: the caller gets the stale copy now. */
-      fetchAndStore().catch(() => { /* background refresh is best-effort */ });
+  const cached = async (...args) => {
+    const key = keyFor(args);
+    const hit = kvGet(key, Date.now());
+
+    // Discard entries poisoned before the isCacheable() guard existed. Their TTLs run
+    // up to a month, so without this an already-affected user stays broken long after
+    // auth recovers. Treating it as a miss self-heals on the next call.
+    if (hit && isIgdbError(hit.data)) {
+      kvDelete(key);
+      return fetchAndStore(key, args);
     }
-    return hit.data;
-  }
-  return fetchAndStore();
+    if (hit) {
+      if (hit.stale) {
+        /* Best-effort, and not awaited: the caller gets the stale copy now. */
+        fetchAndStore(key, args).catch(() => { /* background refresh is best-effort */ });
+      }
+      return hit.data;
+    }
+    return fetchAndStore(key, args);
+  };
+
+  /* Joining a request already in flight is still fresh: it started after
+     anything that is cached. */
+  cached.fresh = (...args) => fetchAndStore(keyFor(args), args);
+  return cached;
 };

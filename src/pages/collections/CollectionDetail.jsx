@@ -281,9 +281,12 @@ export default function CollectionDetail() {
                 <div className="flex items-center gap-2 shrink-0">
                   {isIgdb ? (
                     <>
+                      {/* Held until the collection has loaded. Clone copies `name`
+                          and `games` out of state, and pressed early it wrote a
+                          nameless, empty " (Clone)" and navigated to it. */}
                       <button
                         onClick={handleToggleSaved}
-                        disabled={!!loadError}
+                        disabled={loading || !!loadError}
                         className={`lh-label flex items-center gap-1.5 px-3 py-2 border transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${saved
                           ? 'bg-white text-black border-white'
                           : 'border-white/20 text-white/60 hover:text-white hover:border-white'
@@ -294,7 +297,7 @@ export default function CollectionDetail() {
                       </button>
                       <button
                         onClick={handleClone}
-                        disabled={!!loadError}
+                        disabled={loading || !!loadError}
                         className="lh-label flex items-center gap-1.5 px-3 py-2 border border-white/20 text-white/60 hover:bg-white hover:text-black transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <Copy className="w-3 h-3" />

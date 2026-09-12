@@ -24,7 +24,10 @@ import { test, expect, type Page, type ConsoleMessage } from '@playwright/test';
 import { seed, KEYS, SEED_LIBRARY, KNOWN_NOISE, realErrors } from './fixtures';
 import path from 'node:path';
 
-const FIXTURES = path.resolve(process.cwd(), 'qa/2026-09-05-deep');
+/* Tracked beside the specs. They used to live in qa/2026-09-05-deep, which
+   .gitignore excludes, so on any fresh checkout -- CI included -- every /import
+   case failed with ENOENT before it reached the page. */
+const FIXTURES = path.resolve(process.cwd(), 'tests/data/import');
 const csv = (n: string) => path.join(FIXTURES, n);
 
 /* ── Console watch ───────────────────────────────────────────────────────── */
@@ -214,7 +217,14 @@ const ls = (page: Page, key: string) =>
    /profile
    ═══════════════════════════════════════════════════════════════════════════ */
 test.describe('/profile', () => {
-  test.beforeEach(async ({ page }) => { await noFirestore(page); await seedCreds(page); });
+  test.beforeEach(async ({ page }) => {
+    await noFirestore(page);
+    await seedCreds(page);
+    /* A seeded library makes YourTaste look its games up in IGDB. None of these
+       cases read the answer, and an empty index is a valid one; unanswered, the
+       lookup went to live IGDB. */
+    await page.route('**/api/**', r => r.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
+  });
 
   test('1. the h1 IS the edit control and clicking it mounts a selected input', async ({ page }) => {
     await seed(page, { [KEYS.library]: SEED_LIBRARY });

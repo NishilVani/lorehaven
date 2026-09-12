@@ -67,9 +67,15 @@ export default function AllEvents() {
   // Debounce search so typing doesn't fire a request per keystroke
   const [debouncedQuery, setDebouncedQuery] = useState('');
   useEffect(() => {
+    /* Only a query that differs from the one in force resets paging. This ran on
+       mount too, so 300ms in it set the offset back to 0: a Load More pressed in
+       that window fetched page two, then had it cancelled and page one painted
+       back over it. tests/phase5-deep.spec.ts case 25 caught it once IGDB was
+       stubbed and answered faster than the debounce. */
+    if (query === debouncedQuery) return;
     const t = setTimeout(() => { setDebouncedQuery(query); setOffset(0); }, 300);
     return () => clearTimeout(t);
-  }, [query]);
+  }, [query, debouncedQuery]);
 
   /* The request the list is about to make. Raising `loading` here rather than
      in the effect below means the spinner and the new request start in the same

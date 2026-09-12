@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { seedLibrary, seedCollections, seedFeedback, SEED_COLLECTION_ID } from './fixtures';
+import { offlineIgdb } from './igdb-stub';
 
 /**
  * ROUTE REACHABILITY PROBE — the map every later QA phase works from.
@@ -23,11 +24,15 @@ import { seedLibrary, seedCollections, seedFeedback, SEED_COLLECTION_ID } from '
  * tabs for a picker below 1280px), so those are the two the probe covers.
  * tests/smoke.spec.ts still runs on all five.
  *
- * PARAM ROUTES. Ids that are stable public catalogue rows are inlined and named.
- * Ids that are not (franchises, IGDB collections, events, taxonomy terms) are
- * DERIVED at run time from the index page that links to them — which also tests
- * the index -> detail hop a real user takes, instead of hardcoding an id that
- * silently rots.
+ * PARAM ROUTES. Ids that name a fixed row are inlined and named. Ids that do
+ * not (franchises, IGDB collections, events, taxonomy terms) are DERIVED at run
+ * time from the index page that links to them, which also tests the index ->
+ * detail hop a real user takes.
+ *
+ * OFFLINE. Every case answers IGDB from tests/igdb-stub.ts. This probe used to
+ * read the live catalogue through the deployed Worker, so a slow IGDB failed a
+ * route that was fine. playwright.config.ts now points the proxy at an origin
+ * nothing listens on, and the stub is what these routes render from.
  *
  * SEEDED STATE. Nothing here signs in and nothing here touches Firestore. The
  * library, collections and feedback marks all live in localStorage, so
@@ -36,11 +41,13 @@ import { seedLibrary, seedCollections, seedFeedback, SEED_COLLECTION_ID } from '
 
 const NET = { timeout: 30_000 };
 
-/* Stable IGDB / Wikidata rows, named so a future 404 is diagnosable.
-   1942  — The Witcher 3: Wild Hunt (also used by smoke.spec.ts)
-   Q18642757 — The Game Awards, from src/services/wikidata/ceremonies.seed.json */
+/* Named rows. 1942 is The Witcher 3: Wild Hunt in tests/igdb-stub.ts, as it is
+   in IGDB (also used by smoke.spec.ts). Q18642757 is The Game Awards, from the
+   awards corpus shipped in src/services/wikidata/, which renders with no network. */
 const GAME_ID = 1942;
 const AWARD_QID = 'Q18642757';
+
+test.beforeEach(async ({ page }) => { await offlineIgdb(page); });
 
 /* The chromium / Mobile Chrome restriction is enforced in playwright.config.ts
    with a per-project `testIgnore`, NOT with a skip in here. It has to be:

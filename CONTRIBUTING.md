@@ -24,23 +24,26 @@ NDK) and are only worth setting up if you are changing native behaviour. See
 
 ## The gates
 
-CI runs these on every pull request, and all three must be green:
+CI runs these on every pull request, and all four must be green:
 
 | Command | What it is |
 |---|---|
 | `npm run lint` | ESLint. **Zero errors** is the bar, not "no new errors". Warnings are tolerated. |
 | `npm test` | Unit and integration checks. Plain node scripts, no framework. |
 | `npm run build` | The production Vite build. |
+| `npm run test:e2e` | Playwright end-to-end suite, chromium. About 11 minutes at one worker. |
 
-Playwright end-to-end tests (`npm run test:e2e`) also run, but **advisory only**,
-and the reason is worth knowing rather than guessing at. Five cases fail on every
-run, and the category tests call live IGDB with no stub, so their results move
-with IGDB's response times. `STATUS.md` lists each one under "Known test
-failures", with what was measured. The CI step shows green regardless; its
-annotation carries the real exit code.
+On the pull request itself only "Lint, test, build" is a required check today, so
+a red end-to-end run is reported rather than blocking the merge. After the merge
+it does block: `main.yml` deploys and releases only when all four pass, so a red
+run on `main` stops both.
 
-Do not add to that list. If your change makes a case fail that is not on it,
-that is your change failing, advisory or not.
+The end-to-end suite runs **offline**, and a new spec has to as well. No spec may
+reach live IGDB, Wikidata or production Firestore: call `offlineIgdb(page)` from
+`tests/igdb-stub.ts`, or install your own `page.route`, before `page.goto`. The
+config points the IGDB proxy at an origin nothing listens on, so a forgotten stub
+fails straight away instead of passing whenever IGDB happens to be quick. A case
+that only passes on a retry is reported as flaky; treat that as a bug.
 
 ### No emoji. Anywhere.
 

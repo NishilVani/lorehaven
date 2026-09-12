@@ -29,7 +29,7 @@ that one result.
 
 ```
 push to main
-  └─ ci.yml (lint, unit, build gate it; e2e advisory)
+  └─ ci.yml (lint, unit, build and e2e gate it)
        ├─ green                  ──► deploy web (live channel)
        └─ green + version bumped ──► release.yml
                                        tag + draft release
@@ -42,7 +42,7 @@ push to main
 | Workflow | Trigger | Does |
 |---|---|---|
 | `main.yml` | push to main | The chain above. Detects a version change in `src-tauri/tauri.conf.json` against `HEAD^`, and only then releases |
-| `ci.yml` | PR to main, or called | lint, unit tests, build, which gate the release; Playwright chromium, **advisory** (see Known test failures) |
+| `ci.yml` | PR to main, or called | lint, unit tests, build and Playwright chromium, all of which gate the deploy and the release; on a PR only "Lint, test, build" is a required check |
 | `firebase-hosting.yml` | PR to main, or called | when called by `main.yml`: the app to lorehaven.web.app, then the redirect on moctalegames.web.app; on a PR, a 7-day preview channel of the app |
 | `release.yml` | called by `main.yml`, tag `v*`, or dispatch | every platform into one draft release, published only when all succeed, then Firestore and the Store |
 | `store-submission.yml` | dispatch only | resubmits an **existing** release's MSIX by hand |
@@ -218,9 +218,11 @@ check is `scripts/verify_proxy_live.mjs`.
   loudly on a tagged release rather than passing green having done nothing. See
   [docs/MICROSOFT-STORE.md](docs/MICROSOFT-STORE.md), which also flags that the
   publisher name in Partner Center reads "LoreHeaven".
-- **e2e is advisory, and red.** Five cases fail every run and the category
-  tests depend on live IGDB, so the suite does not gate releases yet; lint, unit
-  tests and build do. See "Known test failures" below for what was measured.
+- **e2e gates the deploy and the release, but not a pull request.** `main.yml`
+  needs the whole of `ci.yml`, e2e included, to pass. The branch ruleset on
+  `main` still requires only "Lint, test, build", so a red e2e run on a pull
+  request does not stop the merge. Adding "Playwright (chromium)" to that
+  ruleset is the one-line change that would.
 
 ## Lint
 
@@ -289,33 +291,59 @@ there.
 
 ## Known test failures
 
-Re-measured 2026-09-10 on `--project=chromium`, 421 cases, run the way CI runs
-it (`CI=1`, so 2 retries), then every failure re-run alone with no retries.
-Result: **411 passed, 4 failed, 2 flaky, 4 skipped.** That run had the Clone
-pair temporarily marked `test.fixme` to see what else failed, which is why the
-pair shows as 2 of the 4 skips rather than 2 more failures. The quarantine was
-reverted when e2e was left advisory. The other two skips are phase5-deep
-mobile-accordion cases that were already skipped.
+**None on `--project=chromium`.** Measured 2026-09-12 on `feature/e2e-gate` by
+running exactly what CI runs, `CI=1 npm run test:e2e`, twice back to back:
+419 passed, 2 skipped, 0 failed, 0 flaky, 0 retries, about 11 minutes each at
+workers: 1. The two skips are phase5 cases 61 and 62, the ceremony page's
+mobile accordion, which skip themselves on a desktop project
+(`test.skip(!isMobile)`; the accordion is `lg:hidden`).
 
-The earlier measurement, taken against the pre-refactor tree, called two of
-these order-dependent. They now fail both inside the full run and alone, so that
-classification no longer holds.
+On that evidence CI's `Run e2e` step no longer has `continue-on-error`. A red
+run now fails `ci.yml`, which `main.yml`'s deploy and release both need. On a
+pull request it is reported but not required: the branch ruleset on `main`
+still requires only "Lint, test, build".
 
-GitHub's own CI agrees the suite is red: the `Run e2e` step has exited 1 on every
-recent run on `main`, reported green only because of `continue-on-error`. Which
-cases fail there is not visible without signing in to the run logs.
+The baseline it replaced, measured 2026-09-10 the same way: 411 passed,
+4 failed, 2 flaky, 4 skipped, two of those skips being the Clone pair, which
+was quarantined for that run to see what else failed.
 
-| Case | State |
-|---|---|
-| `phase4-deep:857` Clone writes a local copy and navigates to it | **Real, pre-existing.** The clone is written and the URL changes, but the new page renders its Not Found branch instead of the `(Clone)` heading. Reproduces identically on the pre-refactor tree, and failed again when run un-quarantined on 2026-09-10. |
-| `phase4-deep:870` FINDING 11 — Clone twice | **Real, pre-existing.** Same cause. |
-| `phase3-deep:1276` Save to Shelves | **Fails consistently**, in the full run after 2 retries and alone. Times out waiting for the `Save to Shelves` menu item to become visible, enabled and stable. |
-| `phase6-deep:629` Reload refetches from IGDB | **Fails consistently**, in the full run after 2 retries and alone. The reload never issues a new request: the call count stays at 2. |
-| `phase6-deep:862` a failed reload clears the stale plates | **Real, pre-existing.** Fails in the full run and alone: 8 plates remain where 0 are expected. |
-| `phase2-deep:794` a density-chart column narrows the grid | **Flake, live data.** Failed 2 of 4 runs: the narrowed grid renders no game links. The category tests call live IGDB through the deployed Worker with no stub. The IGDB request replay (`0ded9bc`) is ruled out: one run with it reverted passed, and one run with it restored passed straight after. |
-| `phase2-deep:771` the sort dropdown reorders the grid | **Flake, live data.** Timed out on the first attempt, passed on retry. Same describe block as 794, same live dependency. |
-| `phase3-deep:695` hero title, artwork and View Game target one game | **Flake.** Failed the first attempt, passed on retry. |
-| `phase2-deep:912` no duplicate cards while scrolling | Flake. Passes in isolation. The grid de-duplicates by id; the assertion compares names, and IGDB can ship two ids with one name. Not seen in the 2026-09-10 run. |
+What the 2026-09-10 list turned out to be:
+
+| Case | Verdict | Fix |
+|---|---|---|
+| `phase4-deep:857`, `:870` Clone | **Product bug.** Not a lookup failure: Clone was enabled before the IGDB collection had loaded, so an early press wrote a nameless, empty `" (Clone)"` and navigated to it. | Save and Clone stay disabled until the collection loads (`CollectionDetail.jsx`). |
+| `phase6-deep:629` Reload refetches, `:862` a failed reload | **Product bug.** Reload and Try Again went through `getGamesForWallpapers`' week-long cache and issued no request. | `withCache(...).fresh()` skips the cache read (`igdbCache.js`); both buttons use it. Unit test in `tests/igdb-cache.test.mjs`. |
+| `phase3-deep:1276` Save to Shelves | **Test bug.** Failed 6 of 6 alone. DropdownMenu closes on any scroll, and the trigger was clicked while the page was still settling. | The spec settles the page and the trigger before opening the menu. |
+| `phase2-deep:771`, `:794`, `:912`, `phase3-deep:695` | **Live data.** These describes had no IGDB stub. | Stubbed; see below. |
+
+Found on the way:
+
+- **Every `/import` case failed on a fresh checkout, CI included.** Its CSV
+  fixtures lived in `qa/2026-09-05-deep/`, which `.gitignore` excludes. They are
+  tracked in `tests/data/import/` now, and `.gitattributes` stops git converting
+  their line ends, so a Windows checkout parses the same bytes CI does.
+- **`/events` Load More was undone** when pressed within 300ms of mount: the
+  search debounce reset the offset on mount as well (`AllEvents.jsx`). Caught by
+  phase5 case 25 once IGDB answered faster than the debounce.
+- **phase3's unparseable-completion-date case raced React's value tracker** and
+  flaked 1 run in 2. The spec now fires the change deterministically; checked
+  25 of 25 green, and red with the guard removed.
+- **phase2's Platform-dropdown case** built a RegExp from a platform name and
+  re-opened the menu by text the chip no longer shows. It had only passed
+  because live IGDB's first platform had a regex-safe name.
+
+How the suite stays off the network:
+
+- `playwright.config.ts` points `VITE_PROXY_ORIGIN` at `http://127.0.0.1:9`, so
+  a spec with no stub fails at once instead of reading live IGDB.
+- `tests/igdb-stub.ts` (`offlineIgdb(page)`, called before `goto`) answers
+  `/api/**` from one deterministic catalogue, `/wdqs` with an empty result and
+  the image CDNs with a pixel. Category-shaped queries filter the catalogue by
+  their own where clauses, so a narrowing really narrows; a clause it cannot
+  read answers 501.
+- Firebase hosts resolve to nothing in both chromium projects
+  (`--host-resolver-rules`), so no spec reads or writes production Firestore.
+  Firefox and WebKit still rely on each spec's own routes.
 
 `phase7-mobile.spec.ts` is now excluded from the desktop projects in
 `playwright.config.ts`. It asserts phone-only behaviour, so all ~47 of its cases

@@ -11,6 +11,7 @@
  */
 import { test, expect, type Page, type ConsoleMessage } from '@playwright/test';
 import { seed, KEYS, KNOWN_NOISE, realErrors } from './fixtures';
+import { offlineIgdb } from './igdb-stub';
 
 /* ── A deterministic shelf ────────────────────────────────────────────────
    The shared fixture puts ONE game on each shelf, which cannot prove a sort
@@ -665,6 +666,11 @@ async function countsIn(page: Page) {
 }
 
 test.describe('/browse/:taxonomy', () => {
+  /* The index and its counts are both IGDB, so without this every case here ran
+     against the live catalogue. A case that needs a failure adds its own route
+     on top, which takes precedence. */
+  test.beforeEach(async ({ page }) => { await offlineIgdb(page); });
+
   for (const [tax, title] of [['genres', 'Genres'], ['themes', 'Themes'], ['modes', 'Modes']] as const) {
     test(`${tax} lists terms, orders them largest first, and each term links to its page`, async ({ page }) => {
       const errs = watchConsole(page);
@@ -748,8 +754,9 @@ test.describe('/browse/:taxonomy', () => {
 // CATEGORY — /games/:type/:id
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** Genre 12 is Role-playing (RPG) — large, stable, and every control on the
-    page has something to act on. */
+/** Genre 12 is Role-playing (RPG). In the offline catalogue (tests/igdb-stub.ts)
+    it holds 161 games spread over every release period, platform and rating,
+    so every control on the page has something to act on. */
 const CAT = '/games/genre/12';
 
 async function categoryReady(page: Page) {
@@ -757,6 +764,12 @@ async function categoryReady(page: Page) {
 }
 
 test.describe('/games/:type/:id — category', () => {
+  /* This describe used to act on live IGDB and failed on its response time:
+     the density-chart case 2 runs in 4, the sort case once. The offline
+     catalogue answers the grid, the count and the histogram from one data set,
+     so a narrowing changes the grid and the count agrees with it every run. */
+  test.beforeEach(async ({ page }) => { await offlineIgdb(page); });
+
   test('the page names the taxonomy, states a counted total, and fills a grid', async ({ page }) => {
     const errs = watchConsole(page);
     await page.goto(CAT);
@@ -860,8 +873,15 @@ test.describe('/games/:type/:id — category', () => {
 
     // Re-open: the chosen platform reads as checked, and a second choice
     // makes the chip say "2 platforms".
-    await page.locator('button.lh-label', { hasText: new RegExp(pfName.slice(0, 6), 'i') }).first().click()
-      .catch(() => page.getByRole('button', { name: /platform/i }).first().click());
+    /* Re-opened by position, not by text. Once a platform is chosen the chip
+       reads its abbreviation ("PC") while the menu row reads the full name
+       ("PC (Microsoft Windows)"), so no slice of one finds the other -- and the
+       old lookup built a RegExp from that raw name, which throws on its
+       parenthesis. It only passed against live IGDB, whose first platform
+       happened to be named like its abbreviation. The toolbar's menu triggers
+       run Type, Platform, Sort. */
+    await page.getByRole('main').locator('button[aria-haspopup="menu"]').nth(1).click();
+    void pfName;
     const menu2 = page.locator('[role="menu"]').last();
     await menu2.getByRole('menuitemradio').nth(1).click();
     await page.waitForTimeout(1500);
@@ -953,7 +973,7 @@ test.describe('/games/:type/:id — category', () => {
   });
 
   test('a card menu on a category page offers Add to Wishlist, and it shelves the game', async ({ page }) => {
-    // NO libraryOffline here — this page needs the real IGDB grid to act on.
+    // NO libraryOffline here: that answers every query empty, and this case needs a grid to act on.
     await seed(page, { [KEYS.library]: [] });
     await page.goto(CAT);
     await categoryReady(page);

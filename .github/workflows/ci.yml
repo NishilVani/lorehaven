@@ -78,24 +78,26 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      # Advisory, and not for a comfortable reason. Measured 2026-09-10 (see
-      # "Known test failures" in STATUS.md): five cases fail every time -- the
-      # phase4-deep Clone pair, phase3-deep:1276, phase6-deep:629 and :862 -- and
-      # the category tests in phase2-deep call live IGDB through the deployed
-      # Worker with no stub, so :794 failed 2 of 4 runs on response times alone.
-      # This step has exited 1 on every run on main; continue-on-error is what
-      # made those runs green.
+      # Blocking, and that is what gates the deploy and the release on it:
+      # main.yml's web and release jobs need the whole of this workflow to pass.
+      # It was advisory while it failed on every run, for reasons that had
+      # nothing to do with the commit under test -- specs read live IGDB through
+      # the deployed Worker, the /import fixtures sat in the gitignored qa/
+      # folder where no fresh checkout could find them, and five cases were real
+      # bugs. Now no spec reaches IGDB, Wikidata or production Firestore (see the
+      # webServer and project comments in playwright.config.ts), so a red run
+      # means the code. Before continue-on-error was removed, exactly this
+      # command ran twice back to back: 419 passed, 2 skipped, 0 failed, 0 flaky.
       #
-      # Blocking on it today would put every release behind those failures and
-      # behind IGDB latency. So releases gate on lint, unit tests and build in the
-      # job above, and this one reports. Its annotation, "Process completed with
-      # exit code 1", is the real result; the check mark is not.
+      # On a pull request it reports but does not stop the merge: the branch
+      # ruleset on main requires "Lint, test, build" only. Adding "Playwright
+      # (chromium)" to that ruleset is what would make it block there too.
       #
-      # It becomes blocking once the five are fixed or quarantined by name and the
-      # live-IGDB specs are stubbed -- not by deleting the line below.
+      # `retries: 2` in playwright.config.ts can still turn a failure into a
+      # pass. A retried case is listed as flaky in the report uploaded below;
+      # treat one as a bug, not as noise.
       - name: Run e2e
         run: npm run test:e2e
-        continue-on-error: true
 
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}

@@ -598,7 +598,7 @@ export default function Wallpapers() {
   }, [activePreviewIndex]);
 
   // Load Library Games and Fetch Wallpapers
-  const fetchAllData = useCallback(async (reset = true) => {
+  const fetchAllData = useCallback(async (reset = true, { fresh = false } = {}) => {
     const lib = getLibrary();
     /* Outside the reset guard on purpose. This is not part of clearing the feed,
        it is reading what the register currently holds, and libraryGames.length
@@ -631,7 +631,11 @@ export default function Wallpapers() {
          reported "url not allowed on the configured scope". Nothing here holds
          a credential now, and the request is rate limited and cached with the
          rest. */
-      const gamesData = await getGamesForWallpapers(libraryIds, true);
+      /* A press of Reload or Try Again asks for what IGDB holds now. Through the
+         week-long cache it re-read the stored copy and issued no request at all,
+         so a reload that would have failed went on showing the old plates. */
+      const load = fresh ? getGamesForWallpapers.fresh : getGamesForWallpapers;
+      const gamesData = await load(libraryIds, true);
       /* The "IGDB returned an error object rather than rows" branch that used to
          be here is gone with the raw fetch: igdbGames already recognises an IGDB
          error body, announces it on moctale_api_error for the banner, and hands
@@ -689,7 +693,7 @@ export default function Wallpapers() {
       // Always fetch similar games wallpapers on mount to combine in pool
       if (allSimilarIds.size > 0) {
         const similarIdsArray = Array.from(allSimilarIds).slice(0, 40); // Limit to top 40 similar games to keep performance optimal
-        const simGamesData = await getGamesForWallpapers(similarIdsArray);
+        const simGamesData = await load(similarIdsArray);
 
         if (Array.isArray(simGamesData)) {
           simGamesData.forEach(game => {
@@ -1190,7 +1194,7 @@ export default function Wallpapers() {
     <button
       /* aria-disabled, not disabled: the click is what sets `loading`, and a
          disabled element drops focus to <body>. WCAG 2.4.3. */
-      onClick={() => { if (!loading) fetchAllData(); }}
+      onClick={() => { if (!loading) fetchAllData(true, { fresh: true }); }}
       aria-disabled={loading}
       aria-label="Reload wallpapers"
       title="Reload wallpapers"
@@ -1418,7 +1422,7 @@ export default function Wallpapers() {
                   Wallpapers could not be loaded from IGDB. Your library and selection are untouched.
                 </p>
                 <button
-                  onClick={() => fetchAllData()}
+                  onClick={() => fetchAllData(true, { fresh: true })}
                   className="lh-label inline-flex items-center gap-2 px-4 py-2.5 min-h-[44px] border border-white text-white hover:bg-white hover:text-black transition-colors cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-white"
                 >
                   <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />

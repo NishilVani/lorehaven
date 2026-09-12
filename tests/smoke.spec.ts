@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { offlineIgdb } from './igdb-stub';
 
 /**
  * Route smoke tests. Each one asserts the route renders ITS OWN content — the
@@ -6,11 +7,14 @@ import { test, expect } from '@playwright/test';
  * Every route in this app is a lazy() chunk behind a Suspense fallback, so a
  * 200 with an empty <main> is the exact failure these catch.
  *
- * Timeouts are generous because /browse, /collections and /game/:id all wait on
- * an IGDB round trip before their body fills in.
+ * IGDB is answered by tests/igdb-stub.ts, not the live catalogue: these ran on
+ * every project against the deployed Worker, so a slow IGDB failed a route that
+ * rendered fine. The generous timeouts stay for webkit's slower first paint.
  */
 
 const NET = { timeout: 30_000 };
+
+test.beforeEach(async ({ page }) => { await offlineIgdb(page); });
 
 test('library redirects to a shelf and renders it', async ({ page }) => {
   await page.goto('/library');
@@ -46,7 +50,7 @@ test('browse redirects to genres and lists real terms', async ({ page }) => {
 });
 
 test('games detail renders the game, not a shell', async ({ page }) => {
-  // IGDB id 1942 — The Witcher 3. Stable public catalogue row.
+  // IGDB id 1942 — The Witcher 3, the same row in tests/igdb-stub.ts as in IGDB.
   await page.goto('/game/1942');
   await expect(page.locator('h1')).toHaveText(/The Witcher 3/i, NET);
   await expect(page.getByText(/Before You Decide/i).first()).toBeVisible(NET);

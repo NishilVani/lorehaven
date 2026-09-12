@@ -240,3 +240,36 @@ const fatGame = (id) => ({
 }
 
 console.log('igdb-cache: storage-budget assertions passed');
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A user-initiated reload must reach the network.
+//
+// Wallpapers' Reload button called the same withCache-wrapped fetcher as the
+// mount, and that entry lives for a week, so the press re-read the cache and
+// issued no request at all. A reload that fails at IGDB therefore went on
+// showing the old plates, and one that would succeed showed nothing new.
+// Caught by tests/phase6-deep.spec.ts cases 28 and 41.
+// ─────────────────────────────────────────────────────────────────────────────
+{
+  store.clear();
+  let requests = 0;
+  const view = withCache('test:reload', TTL.WEEK, async (id) => {
+    requests += 1;
+    return [{ id, answer: requests }];
+  });
+
+  await view(7);
+  await view(7);
+  assert.equal(requests, 1, 'precondition: a second read inside the TTL is served from cache');
+
+  assert.equal(typeof view.fresh, 'function', 'a cached fetcher must offer a way to bypass its cache');
+  const reloaded = await view.fresh(7);
+  assert.equal(requests, 2, 'fresh() must issue a request even while the cached copy is inside its TTL');
+  assert.equal(reloaded[0].answer, 2);
+
+  const next = await view(7);
+  assert.equal(requests, 2, 'the refetch is written back, so the next ordinary read is a cache hit');
+  assert.equal(next[0].answer, 2, 'and that hit is the refetched copy, not the one it replaced');
+}
+
+console.log('igdb-cache: reload-bypass assertions passed');
