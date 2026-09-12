@@ -6,6 +6,7 @@ import GameCard from '../../components/games/GameCard';
 import { useLibraryCards } from '../../components/games/useLibraryCards';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { getEventById } from '../../services/igdb';
+import ExternalLink from '../../components/ui/ExternalLink';
 import { ceremonyForEvent, awardTally } from '../../services/wikidata/eventLink';
 
 /* An event is not an appointment. It is the moment a slate of games entered the
@@ -278,14 +279,12 @@ export default function EventDetail() {
             </span>
             {end && <span className="lh-label text-white/60 tabular-nums">Ends in {countdown(end - now)}</span>}
             {event.live_stream_url && (
-              <a
+              <ExternalLink
                 href={event.live_stream_url}
-                target="_blank"
-                rel="noopener noreferrer"
                 className="tap lh-label text-white ml-auto border border-white/40 px-4 py-2.5 hover:bg-white hover:text-black focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white transition-colors"
               >
                 Watch the stream &rarr;
-              </a>
+              </ExternalLink>
             )}
           </div>
         )}
@@ -383,10 +382,8 @@ export default function EventDetail() {
               {event.live_stream_url && (
                 <div className="flex items-baseline gap-4 py-3 px-3 border-t border-white/10">
                   <span className="lh-label text-white/60 w-20 shrink-0">Stream</span>
-                  <a
+                  <ExternalLink
                     href={event.live_stream_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
                     /* py-2 -my-2 grows the hit box without moving the line box.
                        `.tap` alone was not enough: it is gated on pointer:coarse,
                        so this measured 198x11 on desktop and failed 2.5.8 there
@@ -394,7 +391,7 @@ export default function EventDetail() {
                     className="tap lh-label text-white flex-1 min-w-0 break-words py-2 -my-2 underline underline-offset-4 decoration-white/30 hover:decoration-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white transition-colors"
                   >
                     Watch
-                  </a>
+                  </ExternalLink>
                 </div>
               )}
             </div>

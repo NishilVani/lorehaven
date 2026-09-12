@@ -184,7 +184,7 @@ The palette character is strictly monochrome, where game art provides all emotio
 ### Sanctioned Exceptions
 - **Status / Priority / Rating Scale**: Controlled semantic badges (Playing `#34d399`, Backlog `#60a5fa`, Wishlist `#a78bfa`, Beaten `#fcd34d`, Dropped `#f87171`, Perfection `#B048FF`).
 - **Destructive Actions**: Subtle red highlight (`text-red-400/70 hover:bg-red-500 hover:text-black`) for library removal and deletion actions.
-- **Platform Brand Marks**: A platform's own logo and brand colour, via `PlatformLogo` / `PlatformGlyph`. See The One Voice Rule below.
+- **Platform Brand Marks and Fills**: A platform's, store's or subscription's own logo and brand colour, from `BRAND_SWATCHES` in `src/components/platforms/platformLogoUtils.js`. See The One Voice Rule below.
 
 ### The three coloured state scales
 
@@ -284,14 +284,25 @@ state scales, the feedback roles, and platform brand marks.
 Platform marks are the newest of the four and the only one that is not the
 app's own paint. `PlatformLogo` renders a platform in its own brand colour --
 PlayStation blue, Xbox green, Switch red -- in the library's platform group
-headings and in every platform filter menu. It earns the exception the same way
-cover art does: the colour *is* the identity, and two white silhouettes at 16px
-are far harder to tell apart than two coloured ones. A platform name always sits
-beside the mark, so the colour is never the only carrier (1.4.1).
+headings, in every platform filter menu, and in the game page's platforms area.
+It earns the exception the same way cover art does: the colour *is* the identity,
+and two white silhouettes at 16px are far harder to tell apart than two coloured
+ones. A platform name always sits beside the mark, so the colour is never the
+only carrier (1.4.1).
+
+**The Brand Fill Rule.** On the game page, a platform pill or store row you own
+fills with its brand colour. Each colour is a swatch in `BRAND_SWATCHES`: a
+`fill` chosen to stay recognisable, and an `ink` for the label and glyph, white
+wherever white reaches 4.5:1 on the fill and black otherwise.
+`tests/brand-palette.test.mjs` measures every pair. Some fills sit within 1.5:1
+of the black page (Steam, GOG, Epic, Oculus), so the fill never carries the
+state alone: an owned control also takes a solid white border and a Yours tag,
+a solid block in the swatch's ink.
 
 This does not open the door further. A platform mark is licensed artwork
 standing for a real product, exactly like a cover; it is not a decorative accent,
-and the ban on those is unchanged.
+and the ban on those is unchanged. Brand fills appear only on a control that
+records ownership.
 
 ## Typography
 

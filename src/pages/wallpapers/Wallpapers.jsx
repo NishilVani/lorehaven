@@ -28,6 +28,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { getLibrary } from '../../services/db';
 import { getGamesForWallpapers } from '../../services/igdb';
+import { openExternal } from '../../services/openExternal';
 import { toast } from '../../components/ui/toastBus';
 import MarqueeText from '../../components/ui/MarqueeText';
 import DropdownMenu from '../../components/ui/DropdownMenu';
@@ -149,23 +150,6 @@ async function saveToAndroidGallery(bytes, filename) {
 }
 
 /**
- * Hands a URL to the host OS. Inside Tauri that is the shell plugin, which is
- * already permitted for `^https?://.+` in src-tauri/capabilities/default.json;
- * on the web it is an ordinary new tab.
- *
- * `window.open` is not a substitute. A Tauri webview has no popup handling, so
- * on Android it silently does nothing at all.
- */
-async function openExternally(url) {
-  if (isTauri()) {
-    const { open } = await import('@tauri-apps/plugin-shell');
-    await open(url);
-    return;
-  }
-  window.open(url, '_blank', 'noopener,noreferrer');
-}
-
-/**
  * → { outcome: 'saved' | 'handoff' | 'failed', where? }. `where` names the
  * directory a save landed in, so the toast can say it out loud — on a phone
  * "downloaded" is useless if you cannot find the file afterwards.
@@ -238,7 +222,7 @@ async function downloadUrlAsFile(url, filename) {
          wallpaper, which is the point. */
       console.warn('[wallpapers] native save failed, handing off to the system:', err);
       try {
-        await openExternally(url);
+        await openExternal(url);
         return { outcome: 'handoff' };
       } catch (err2) {
         console.error('[wallpapers] could not hand the plate to the system:', url, err2);

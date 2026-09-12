@@ -19,6 +19,22 @@ infinite-scroll audit, with the measurement behind every claim.
 - **All ten performance findings are fixed.** Two are done but not verified end
   to end: the Firestore sharding needs the emulator, which needs a JDK 21 this
   machine does not have, and the proxy's edge cache needs a deploy.
+- **Game page platforms and stores: in review.** Branch
+  `feature/game-page-platforms`, opened as a pull request against `main`. Owned
+  platforms, stores and subscriptions fill with their brand colour, and a combined
+  "Stores and subscriptions" list links to each store. Plan and constraints:
+  `docs/superpowers/plans/2026-09-12-game-page-platforms.md`. Brand colours now live
+  in `BRAND_SWATCHES` in `src/components/platforms/platformLogoUtils.js` and drive
+  every platform mark in the app. Verified: `npm test` passes, including the new
+  `test:brands` and `test:links`; lint has 0 errors; the build succeeds; the four
+  `phase3-deep` "platforms and collections" e2e cases pass. Rendered and clicked
+  through a stubbed Playwright run (the live-data route cannot work: specs must
+  stub IGDB): six store links point at the right URLs, marking PC, Steam and
+  PlayStation Plus saves `6`, `custom_store_steam` and
+  `custom_subscription_playstation_plus`, axe finds 0 violations in the platforms
+  area at 1280px and 375px, no control is under 24px, and no row clips or
+  overflows at 375px. `.impeccable/design.json` is older than DESIGN.md; refresh it
+  with `/impeccable document`.
 
 ## Pipelines
 
