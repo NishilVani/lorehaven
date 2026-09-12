@@ -19,8 +19,22 @@ infinite-scroll audit, with the measurement behind every claim.
 - **All ten performance findings are fixed.** Two are done but not verified end
   to end: the Firestore sharding needs the emulator, which needs a JDK 21 this
   machine does not have, and the proxy's edge cache needs a deploy.
-- **Game page platforms and stores: in review.** Branch
-  `feature/game-page-platforms`, opened as a pull request against `main`. Owned
+- **One platform pill everywhere: pushed for review.** Branch
+  `feature/unified-platform-pill`. `PlatformPill` now draws hardware, stores and
+  subscriptions on the game page, Manage Platforms and the import wizard: brand
+  tile, a one-line name and detail that ellipsise and scroll on hover, and an arrow
+  for stores. An owned pill is marked by its brand fill alone, with no separate
+  mark; a white border appears only on hover, on every pill. Known trade-off,
+  chosen by the user: on the near-black Steam, GOG, Epic and Oculus fills the owned
+  state is subtle. Pills carry no tooltip (`MarqueeText` gained `showTitle`). "Manage
+  Platforms" moved beside "Available On". Verified: lint 0 errors, `npm test`,
+  build, `lint:label`, `lint:emoji`, the Impeccable detector (0 findings), and 36
+  of 36 `phase3-deep`/`phase4-deep` platform e2e cases. Headless render on the dev
+  server with live data: every pill 36px tall at 1280px and 375px, axe 0
+  violations, no horizontal overflow, the selected arrow's hover is black on white,
+  and an unselected pill's hover border is white.
+- **Game page platforms and stores: merged** (PR #9,
+  `feature/game-page-platforms`). Owned
   platforms, stores and subscriptions fill with their brand colour, and a combined
   "Stores and subscriptions" list links to each store. Plan and constraints:
   `docs/superpowers/plans/2026-09-12-game-page-platforms.md`. Brand colours now live

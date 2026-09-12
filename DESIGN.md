@@ -290,14 +290,20 @@ and two white silhouettes at 16px are far harder to tell apart than two coloured
 ones. A platform name always sits beside the mark, so the colour is never the
 only carrier (1.4.1).
 
-**The Brand Fill Rule.** On the game page, a platform pill or store row you own
-fills with its brand colour. Each colour is a swatch in `BRAND_SWATCHES`: a
-`fill` chosen to stay recognisable, and an `ink` for the label and glyph, white
-wherever white reaches 4.5:1 on the fill and black otherwise.
-`tests/brand-palette.test.mjs` measures every pair. Some fills sit within 1.5:1
-of the black page (Steam, GOG, Epic, Oculus), so the fill never carries the
-state alone: an owned control also takes a solid white border and a Yours tag,
-a solid block in the swatch's ink.
+**The Brand Fill Rule.** Every platform, store and subscription is drawn by one
+component, `PlatformPill`, on the game page, Manage Platforms and the import
+wizard alike. A pill you own fills with its brand colour. Each colour is a
+swatch in `BRAND_SWATCHES`: a `fill` chosen to stay recognisable, and an `ink`
+for the label and glyph, white wherever white reaches 4.5:1 on the fill and
+black otherwise. `tests/brand-palette.test.mjs` measures every pair. Some fills
+sit within 1.5:1 of the black page (Steam, GOG, Epic, Oculus). An owned pill is
+marked by that fill, with `aria-pressed` for assistive tech; a white border
+appears only on hover, on owned and unowned pills alike. This is a deliberate
+trade-off, chosen over a resting border or a mark: on those four near-black
+brands an owned pill differs from an unowned one by little more than its fill,
+so the state is subtle there. There is no separate owned mark; a check read as a
+checkbox. The pill stays one line; text that does not fit ellipsises and scrolls
+on hover. It carries no tooltip, because its name is already on it.
 
 This does not open the door further. A platform mark is licensed artwork
 standing for a real product, exactly like a cover; it is not a decorative accent,
