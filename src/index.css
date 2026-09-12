@@ -492,12 +492,29 @@
 .dm-item:hover .marquee-text,
 .dm-item:focus-within .marquee-text,
 .event-card:hover .marquee-text,
-.event-card:focus-within .marquee-text {
+.event-card:focus-within .marquee-text,
+.platform-pill:hover .marquee-text,
+.platform-pill:focus-within .marquee-text {
   display: flex;
   width: max-content;
   overflow: visible;
   text-overflow: clip;
   animation: marquee-scroll var(--marquee-dur, 5s) linear infinite;
+}
+
+/* A platform pill is one line by design, so a long store name or platform list
+   scrolls there too. Under reduced motion there is no scroll to release the box
+   for: keep the ellipsis rather than let the text spill past the pill's border.
+   The tooltip carries the full text. */
+@media (prefers-reduced-motion: reduce) {
+  .platform-pill:hover .marquee-text,
+  .platform-pill:focus-within .marquee-text {
+    display: block;
+    width: auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    animation: none;
+  }
 }
 
 .hover-game-card:hover .marquee-text-v,

@@ -4,8 +4,12 @@ const GAP = 48;
 
 /* `as` lets a caller render the outer element as a heading (e.g. as="h3" for a
    card title) so the visual hierarchy is also exposed to assistive tech, without
-   changing any layout. Defaults to a div. */
-export default function MarqueeText({ text, className, speed = 40, vertical = false, as: Tag = 'div' }) {
+   changing any layout. Defaults to a div.
+
+   `showTitle` turns off the native tooltip an overflowing text otherwise carries.
+   A card title needs it; a platform pill does not, because it scrolls on hover and
+   its control's accessible name already holds the full label. */
+export default function MarqueeText({ text, className, speed = 40, vertical = false, as: Tag = 'div', showTitle = true }) {
     const containerRef = useRef(null);
     const textRef = useRef(null);
     const [state, setState] = useState({ overflows: false, dist: 0, dur: '5s' });
@@ -57,7 +61,7 @@ export default function MarqueeText({ text, className, speed = 40, vertical = fa
        vertical-rl shrink-fits to 0px on WebKit (Chromium gives it the child's
        width), and overflow-hidden on a 0px box clips the whole title. */
     return (
-        <Tag ref={containerRef} title={overflows ? text : undefined} className={`overflow-hidden m-0 ${vertical ? 'h-full w-full' : ''}`}>
+        <Tag ref={containerRef} title={overflows && showTitle ? text : undefined} className={`overflow-hidden m-0 ${vertical ? 'h-full w-full' : ''}`}>
             <div
                 className={`${overflows ? scrollClass : 'flex'} ${vertical ? 'h-max' : 'items-baseline w-max'} ${className} whitespace-nowrap`}
                 style={{
