@@ -124,35 +124,62 @@ export function getPlatformLogoUrl(platform) {
   return `/platform-icons/other/${isComputer ? 'computer-pc-desktop-solid.svg' : 'game-console.svg'}`;
 }
 
+/* Brand swatches: the colour of every platform, store and subscription mark, and
+ * the fill a game page control takes once you own the game there.
+ *
+ * `fill` is the brand colour, chosen with the user on 2026-09-12 to stay
+ * recognisable. `ink` is the label and glyph colour on that fill: white wherever
+ * white reaches 4.5:1, black otherwise. tests/brand-palette.test.mjs measures
+ * every pair, so a fill cannot land here with unreadable text on it.
+ *
+ * Keyed by logo file stem, lowercased, as getPlatformLogoUrl returns it. `itch`
+ * has no logo file; the store row asks for it by name. */
+const PLAYSTATION = { fill: '#4073cf', ink: '#ffffff' };
+export const BRAND_SWATCHES = {
+  steam: { fill: '#171d25', ink: '#ffffff' },
+  steamdeck: { fill: '#1a9fff', ink: '#000000' },
+  playstation: PLAYSTATION,
+  playstation2: PLAYSTATION,
+  playstation3: PLAYSTATION,
+  playstation4: PLAYSTATION,
+  playstation5: PLAYSTATION,
+  playstationportable: PLAYSTATION,
+  playstationvita: PLAYSTATION,
+  xbox: { fill: '#107c10', ink: '#ffffff' },
+  'nintendo-switch': { fill: '#e60012', ink: '#ffffff' },
+  'windows 11': { fill: '#0078d4', ink: '#ffffff' },
+  apple: { fill: '#6f7679', ink: '#ffffff' },
+  applearcade: { fill: '#fa243c', ink: '#000000' },
+  appstore: { fill: '#007aff', ink: '#000000' },
+  'google-play': { fill: '#08865e', ink: '#ffffff' },
+  ios: { fill: '#e5e5ea', ink: '#000000' },
+  linux: { fill: '#fcc624', ink: '#000000' },
+  meta: { fill: '#0081fb', ink: '#000000' },
+  oculus: { fill: '#262626', ink: '#ffffff' },
+  stadia: { fill: '#ff5c35', ink: '#000000' },
+  epicgames: { fill: '#2a2a2a', ink: '#ffffff' },
+  gogdotcom: { fill: '#1c0c24', ink: '#ffffff' },
+  ubisoft: { fill: '#006ef5', ink: '#ffffff' },
+  ea: { fill: '#ff4747', ink: '#000000' },
+  itch: { fill: '#d73a3f', ink: '#ffffff' },
+};
+
+/* Unbranded marks: a colourless near-black with white ink. */
+export const FALLBACK_SWATCH = { fill: '#18181b', ink: '#ffffff' };
+
+/** A logo URL, file name or bare key -> its swatch. */
+export function getBrandSwatch(keyOrUrl) {
+  if (!keyOrUrl) return FALLBACK_SWATCH;
+  const stem = String(keyOrUrl).split('/').pop().replace(/\.svg$/i, '').toLowerCase();
+  return BRAND_SWATCHES[stem] || FALLBACK_SWATCH;
+}
+
+/** The other ink: text on a block painted in `ink`. */
+export const inverseInk = (ink) => (ink === '#ffffff' ? '#000000' : '#ffffff');
+
+/** The CSS filter that turns a logo SVG into the swatch's ink. */
+export const inkFilter = (ink) => (ink === '#ffffff' ? 'brightness(0) invert(1)' : 'brightness(0)');
+
 export function getPlatformBrandColor(filename) {
-  if (!filename) return '#18181b';
-  const name = filename.replace('.svg', '').toLowerCase();
-
-  const BRAND_COLORS = {
-    steam: '#171a21',
-    steamdeck: '#1b2838',
-    playstation5: '#003087',
-    playstation4: '#003087',
-    playstation3: '#003087',
-    playstation2: '#003087',
-    playstation: '#003087',
-    xbox: '#107c10',
-    'nintendo-switch': '#e60012',
-    'windows 11': '#0078d4',
-    apple: '#1a1a1a',
-    applearcade: '#1a1a1a',
-    appstore: '#007aff',
-    'google-play': '#1a1a1a',
-    ios: '#000000',
-    linux: '#1f1f1f',
-    meta: '#0081fb',
-    oculus: '#000000',
-    stadia: '#ff5c35',
-    epicgames: '#1f1f1f',
-    gogdotcom: '#1c0c24',
-    ubisoft: '#0a0a0a',
-    ea: '#1f1f1f',
-  };
-
-  return BRAND_COLORS[name] || '#18181b';
+  return getBrandSwatch(filename).fill;
 }

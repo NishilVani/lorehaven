@@ -1,4 +1,4 @@
-import { getPlatformLogoUrl, getPlatformBrandColor } from './platformLogoUtils';
+import { getPlatformLogoUrl, getBrandSwatch, inkFilter } from './platformLogoUtils';
 
 import { Tooltip } from '../ui/Tooltip';
 export { Tooltip };
@@ -59,16 +59,14 @@ export function PlatformLogo({ platform, className = '', style = {}, disableTool
   const url = getPlatformLogoUrl(platform);
   if (!url) return null;
 
-  const parts = url.split('/');
-  const filename = parts[parts.length - 1];
-  const brandBg = getPlatformBrandColor(filename);
+  const swatch = getBrandSwatch(url);
   const containerClass = className ? className : 'w-8 h-8 p-1.5';
 
   const logoContent = (
     <div
       className={`flex items-center justify-center shrink-0 overflow-hidden ${containerClass}`}
       style={{
-        backgroundColor: brandBg,
+        backgroundColor: swatch.fill,
         border: '1px solid rgba(255, 255, 255, 0.15)',
         ...style,
       }}
@@ -77,9 +75,9 @@ export function PlatformLogo({ platform, className = '', style = {}, disableTool
         src={url}
         alt={platform.name || (typeof platform === 'string' ? platform : '')}
         className="w-full h-full object-contain block shrink-0"
-        style={{
-          filter: 'brightness(0) invert(1)', // Use a single color (white)
-        }}
+        /* The glyph takes the swatch's ink: white on dark fills, black on light
+           ones such as Linux yellow, where a white glyph would vanish. */
+        style={{ filter: inkFilter(swatch.ink) }}
       />
     </div>
   );
