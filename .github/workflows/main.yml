@@ -4,7 +4,7 @@ name: Main
 # it calls are reusable workflows that hold no trigger of their own for this
 # path, so each step runs exactly once and each depends on the last.
 #
-#   test  -----> web       (deploys as soon as the suite is green)
+#   test  -----> web       (deploys as soon as lint, unit tests and build pass)
 #          \
 #           \--> release   (only when the version changed)
 #                  -> tag + draft release
@@ -20,6 +20,13 @@ name: Main
 # is a version ahead of the downloadable bundles; nothing reads a version across
 # that boundary, and config/app is not written until `publish` has succeeded, so
 # no client is told to fetch a build that does not exist yet.
+#
+# Playwright is not in this chain. e2e.yml runs it on the same push, and on every
+# pull request before the merge, as a workflow of its own. It used to be a second
+# job inside ci.yml, and a `needs` on a called workflow waits for every job in
+# it, so `web` and `release` waited for the whole suite: on the run for 6c8e891
+# (2026-09-12) the deploy started 10.1 minutes after lint, unit tests and build
+# had passed.
 
 on:
   push:
@@ -43,6 +50,9 @@ permissions:
   pull-requests: write
 
 jobs:
+  # Lint, unit tests and build, and nothing slower. Every job ci.yml gains is a
+  # job both `web` and `release` wait for, which is how the Playwright suite
+  # ended up in front of the deploy.
   test:
     name: Test
     uses: ./.github/workflows/ci.yml

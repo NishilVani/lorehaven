@@ -33,10 +33,12 @@ CI runs these on every pull request, and all four must be green:
 | `npm run build` | The production Vite build. |
 | `npm run test:e2e` | Playwright end-to-end suite, chromium. About 11 minutes at one worker. |
 
-On the pull request itself only "Lint, test, build" is a required check today, so
-a red end-to-end run is reported rather than blocking the merge. After the merge
-it does block: `main.yml` deploys and releases only when all four pass, so a red
-run on `main` stops both.
+The end-to-end suite runs from its own workflow and checks every pull request. It
+stops a merge once the branch ruleset lists "Playwright (chromium)" as a required
+check next to "Lint, test, build"; until then a red run is only reported. After
+the merge it holds nothing up: `main.yml` deploys and releases on lint, unit
+tests and build alone, because the pull request is where the suite is meant to
+have been passed.
 
 The end-to-end suite runs **offline**, and a new spec has to as well. No spec may
 reach live IGDB, Wikidata or production Firestore: call `offlineIgdb(page)` from

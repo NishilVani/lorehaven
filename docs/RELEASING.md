@@ -161,6 +161,14 @@ deploy to the live Firebase Hosting channel at https://lorehaven.web.app. A red
 lint or a red test stops the deploy. The deploy workflow no longer runs the tests
 itself; that copy drifted from `ci.yml` and was removed.
 
+Playwright is not on this path. [`e2e.yml`](../.github/workflows/e2e.yml) runs it
+on every pull request and on the same push, as a workflow of its own. A red run
+fails its check, and the branch ruleset decides whether that stops a merge; the
+deploy and the release never wait for it. It used to be a second job inside
+`ci.yml`, and because a `needs` on a called workflow waits for every job in it,
+the deploy for `6c8e891` started 10.1 minutes after lint, unit tests and build
+had already passed.
+
 The `moctalegames` project has two Hosting sites, mapped as deploy targets in
 `.firebaserc`:
 

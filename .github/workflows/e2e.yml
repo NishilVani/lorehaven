@@ -1,0 +1,75 @@
+name: E2E
+
+# The Playwright suite, on every pull request and every push to main.
+#
+# It fails its check when the suite fails, and it never gates the web deploy or
+# the release. That split is deliberate. The place to stop a bad change is its
+# pull request, before the merge. A commit on main has already been through that,
+# so making the deploy wait for the same suite again only delays every update to
+# lorehaven.web.app. Whether a red run actually stops a merge is set by the branch
+# ruleset on main, which has to list "Playwright (chromium)" as a required check
+# next to "Lint, test, build". Until it does, a red run is reported on the pull
+# request and blocks nothing anywhere.
+#
+# It is its own workflow, rather than a job in ci.yml, and main.yml does not call
+# it. As a job in ci.yml it held up the deploy and the release, because main.yml
+# gates those with `needs: test` and a `needs` on a called workflow waits for
+# every job inside it. Called from main.yml as a separate job it would still hold
+# main.yml's concurrency group, which never cancels on main, until the suite
+# finished -- so the next push, its deploy included, would queue behind it.
+# Triggered directly, it runs beside the chain and holds none of it up.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# The same rule as ci.yml: a superseded run is cancelled on a pull request, and
+# never on main, so a run that has started testing a commit on main always
+# finishes and uploads its report.
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  e2e:
+    name: Playwright (chromium)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      # Blocking. It was advisory while it failed on every run, for reasons that
+      # had nothing to do with the commit under test -- specs read live IGDB
+      # through the deployed Worker, the /import fixtures sat in the gitignored
+      # qa/ folder where no fresh checkout could find them, and five cases were
+      # real bugs. Now no spec reaches IGDB, Wikidata or production Firestore (see
+      # the webServer and project comments in playwright.config.ts), so a red run
+      # means the code. Before continue-on-error was removed, exactly this command
+      # ran twice back to back: 419 passed, 2 skipped, 0 failed, 0 flaky.
+      #
+      # `retries: 2` in playwright.config.ts can still turn a failure into a
+      # pass. A retried case is listed as flaky in the report uploaded below;
+      # treat one as a bug, not as noise.
+      - name: Run e2e
+        run: npm run test:e2e
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
