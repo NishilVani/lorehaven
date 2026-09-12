@@ -1,0 +1,6 @@
+# Import-wizard fixtures for tests/phase6-deep.spec.ts. Their exact bytes are
+# the test input -- an empty file, an unterminated quote, a 2000-row file -- so
+# git must not convert them. They are LF, and core.autocrlf would otherwise hand
+# a Windows checkout CRLF copies while CI reads LF: the same case would parse
+# different input on the two machines.
+tests/data/import/** -text

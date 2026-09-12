@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { FIREBASE_HOSTS } from './tests/igdb-stub';
 
 /**
  * See https://playwright.dev/docs/test-configuration.
@@ -28,6 +29,20 @@ const ROUTE_PROBE = /routes\.spec\.ts/;
    were not failures. Same argument as ROUTE_PROBE: exclude at collection time
    so the contexts are never built. */
 const MOBILE_ONLY = /phase7-mobile\.spec\.ts/;
+
+/* No spec may read or write production Firestore. Only some specs abort it with
+   a page.route; the rest boot the app, which reads config/app from the live
+   project on every load. Resolving the Firebase hosts to nothing at the browser
+   covers every spec at once, including one written tomorrow that forgets.
+   --host-resolver-rules is a Chromium switch, so this protects the chromium
+   projects, which are the ones CI gates on; firefox and webkit rely on the
+   per-spec routes. */
+const NO_FIREBASE = {
+  launchOptions: {
+    args: [`--host-resolver-rules=${FIREBASE_HOSTS.map(h => `MAP ${h} ~NOTFOUND`).join(', ')}`],
+  },
+};
+
 export default defineConfig({
   testDir: './tests',
   /* Only Playwright specs. tests/ also holds plain `node` .test.mjs files run by
@@ -86,7 +101,7 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: { ...devices['Desktop Chrome'], ...NO_FIREBASE },
       testIgnore: MOBILE_ONLY,
     },
 
@@ -106,7 +121,7 @@ export default defineConfig({
        library h1 is sr-only below lg and the nav rail is a different component. */
     {
       name: 'Mobile Chrome',
-      use: { ...devices['Pixel 5'] },
+      use: { ...devices['Pixel 5'], ...NO_FIREBASE },
     },
     {
       name: 'Mobile Safari',
@@ -121,5 +136,16 @@ export default defineConfig({
     url: 'http://localhost:5173',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
+    /* No spec may depend on live IGDB or Wikidata. The committed
+       .env.development points the client at the deployed Worker, and specs
+       without a stub went there: phase2's category describe failed 2 runs in 4
+       on nothing but IGDB's response time, which made the e2e job unfit to gate
+       a release. An origin nothing listens on turns an unstubbed request into
+       an immediate, reproducible failure instead of a pass on a good day, so
+       every spec answers /api/** and /wdqs/** itself. Vite gives process.env
+       priority over .env files, which is how this reaches the client. A dev
+       server you started yourself is reused outside CI and keeps its own
+       origin. */
+    env: { VITE_PROXY_ORIGIN: 'http://127.0.0.1:9' },
   },
 });

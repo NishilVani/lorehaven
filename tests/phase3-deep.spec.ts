@@ -17,6 +17,17 @@
  */
 import { test, expect, type Page, type ConsoleMessage } from '@playwright/test';
 import { seed, KEYS, KNOWN_NOISE, realErrors } from './fixtures';
+import { offlineIgdb } from './igdb-stub';
+
+/* GameDetail's Awards section asks Wikidata about every game, and no seed or
+   corpus answers it. An empty result rather than no answer: an unanswered query
+   is retried three times with backoff, which every game page sat through. */
+async function noAwards(page: Page) {
+  await page.route('**/wdqs/**', r => r.fulfill({
+    status: 200, contentType: 'application/sparql-results+json',
+    body: JSON.stringify({ head: { vars: [] }, results: { bindings: [] } }),
+  }));
+}
 
 /* ── Console watch (same contract as phase 2) ────────────────────────────── */
 function watchConsole(page: Page) {
@@ -35,6 +46,7 @@ function watchConsole(page: Page) {
    keeps forty mutation cases off IGDB's 4 req/s budget. The credential pair is
    seeded raw (not JSON) because igdb.js reads them with a bare getItem. */
 async function stubIgdb(page: Page, games: Record<string, unknown>[]) {
+  await noAwards(page);
   await page.addInitScript(() => {
     localStorage.setItem('igdb_client_id', 'qa-phase3-stub');
     localStorage.setItem('igdb_access_token', 'qa-phase3-token');
@@ -156,6 +168,7 @@ test.describe('/game/:id — entry points', () => {
   });
 
   test('a Discover card opens the detail page and Back returns to Discover', async ({ page }) => {
+    await offlineIgdb(page);
     await page.goto('/');
     const card = page.locator('.game-grid [role="link"]').first();
     await expect(card).toBeVisible({ timeout: 30000 });
@@ -321,7 +334,21 @@ test.describe('/game/:id — library state controls', () => {
        writing null over the stored value. */
     const date = page.locator('#completed-date-input:visible').first();
     await expect(date).toHaveValue('');
-    await date.fill('');
+    /* Not fill(''). React reports an input event only when the DOM value differs
+       from the last value it tracked, and for this field that depends on timing:
+       on mount React tracks the browser's sanitised '' (react-dom track() reads
+       node.value after assigning the unparseable string), so an empty fill is no
+       change and onChange never runs; only after some later re-render has React
+       written the raw string back does the same fill count. That made this case
+       fail whenever the page's async sections were slow to settle, and flake 1 in
+       2 CI runs once they were stubbed. So give React a tracked value first, clear
+       the DOM value behind it, and fire the event: onChange('') every run, which
+       is the only thing the guard below is about. */
+    await date.evaluate((el: HTMLInputElement) => {
+      el.value = '2000-01-01';
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, '');
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    });
     await expect(page.getByText(/format this field cannot show/).first()).toBeVisible();
     expect((await libRow(page, 5551) as { dateCompleted: string | null }).dateCompleted).toBe('sometime last spring');
   });
@@ -692,6 +719,11 @@ test.describe('/game/:id — failure and edges', () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 test.describe('/ — Discover', () => {
+  /* Every section on this page is IGDB. Live, the hero, the recommendations and
+     the shelf previews were whatever IGDB ranked that hour, and the hero case
+     flaked on it. The FINDING 8 case overrides window.fetch on top of this. */
+  test.beforeEach(async ({ page }) => { await offlineIgdb(page); });
+
   test('the hero title, artwork and View Game all target the same game', async ({ page }) => {
     const errs = watchConsole(page);
     await page.goto('/');
@@ -836,6 +868,8 @@ test.describe('/ — Discover', () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 test.describe('/explore/:section', () => {
+  test.beforeEach(async ({ page }) => { await offlineIgdb(page); });
+
   test('announced and trending each render their own h1 and a populated grid', async ({ page }) => {
     for (const [section, title] of [['announced', 'Recently Announced'], ['trending', 'Trending']]) {
       await page.goto(`/explore/${section}`);
@@ -1128,6 +1162,7 @@ test.describe('PickNext dialog', () => {
 
 /** stubIgdb plus canned rows for the three connection endpoints. */
 async function stubConnections(page: Page) {
+  await noAwards(page);
   await page.addInitScript(() => {
     localStorage.setItem('igdb_client_id', 'qa-phase3-stub');
     localStorage.setItem('igdb_access_token', 'qa-phase3-token');
@@ -1171,9 +1206,25 @@ test.describe('/game/:id — Appears In', () => {
 
   test('the Awards section lists the ceremony and its categories, both deep-linked', async ({ page }) => {
     /* Awards are keyed on the IGDB game id, not on anything the /api/games stub
-       returns, so id 5551 carries its real record (2011 IGF, Nuovo Award)
-       regardless of the stubbed name. That is what makes this drivable offline. */
+       returns. This case used to lean on id 5551's real record in production
+       Firestore's award_cache, which no spec may read. The same record (2011
+       IGF, Nuovo Award) is answered here as Wikidata's won-award query returns
+       it, and the nominee query comes back empty. */
     await stubIgdb(page, STUBS);
+    await page.route('**/wdqs/**', r => {
+      const won = /p%3AP166(?!\d)/.test(r.request().postData() || '');
+      const bindings = won ? [{
+        cat: { type: 'uri', value: 'http://www.wikidata.org/entity/Q60662069' },
+        catLabel: { type: 'literal', value: 'Nuovo Award' },
+        ceremony: { type: 'uri', value: 'http://www.wikidata.org/entity/Q110535947' },
+        ceremonyLabel: { type: 'literal', value: 'Independent Games Festival Awards' },
+        year: { type: 'literal', value: '2011' },
+      }] : [];
+      return r.fulfill({
+        status: 200, contentType: 'application/sparql-results+json',
+        body: JSON.stringify({ head: { vars: [] }, results: { bindings } }),
+      });
+    });
     await page.goto('/game/5551');
     await detailReady(page, 'Stub Complete Edition');
     const awards = page.locator('section:has(h2:text-is("Awards"))');
@@ -1319,8 +1370,23 @@ test.describe('/ — Discover, Shelves For You', () => {
     await expect(tile).toBeVisible();
     await expect(section.getByText('2/3 In Library')).toBeVisible();
 
-    await section.getByRole('button', { name: 'Collection options' }).first().click();
-    await page.locator('[role="menu"]').last().getByRole('menuitem', { name: 'Save to Shelves' }).click();
+    /* DropdownMenu closes on ANY scroll (DropdownMenu.jsx:147). This section sits
+       under the hero and the recommendations, which are still settling when the
+       tile appears, and both Playwright's scroll-into-view and the browser's
+       scroll anchoring fire a scroll that shut the menu the instant it opened:
+       6 of 6 runs timed out waiting for a row in a menu that was no longer
+       there. Settle the page, settle the trigger, then open it -- and open it
+       again if a late scroll still closed it. */
+    await expect.poll(() => page.locator('.skeleton-placeholder').count(), { timeout: 30000 }).toBe(0);
+    const trigger = section.getByRole('button', { name: 'Collection options' }).first();
+    await trigger.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(250);
+    const saveRow = page.locator('[role="menu"]').last().getByRole('menuitem', { name: 'Save to Shelves' });
+    await expect(async () => {
+      if (!(await saveRow.isVisible())) await trigger.click();
+      await expect(saveRow).toBeVisible({ timeout: 1000 });
+    }).toPass({ timeout: 15000 });
+    await saveRow.click();
     await expect(page.getByText('Saved to Shelves')).toBeVisible();
     await expect(tile).toHaveCount(0);
     const saved = await page.evaluate(() =>

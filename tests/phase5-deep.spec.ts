@@ -834,6 +834,10 @@ test.describe('/awards', () => {
   async function open(page: Page, url = '/awards') {
     await seedCreds(page);
     await awardsOffline(page);
+    /* The index itself is corpus only, but 49 and 53 click into a ceremony,
+       which looks its winners up in IGDB. Unanswered, that went to live IGDB. */
+    await page.route('**/api/**', (r: Route) =>
+      r.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
     await page.goto(url);
     await settled(page, 'Awards');
   }
@@ -953,6 +957,9 @@ test.describe('/awards/:awardQid', () => {
         .map(id => ({ id, cover: { image_id: 'co1wyy' } }));
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(rows) });
     });
+    // Every games chunk is followed by a time-to-beat lookup; unanswered, it went to live IGDB.
+    await page.route('**/api/game_time_to_beats', (r: Route) =>
+      r.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
     await page.goto(url);
     await settled(page, heading);
   }

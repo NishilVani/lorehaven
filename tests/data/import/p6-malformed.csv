@@ -1,0 +1,7 @@
+Name,Status,Rating
+"Unterminated quote game,Playing,8/10
+Ragged row,Backlog,7/10,extra,columns,here
+Short row
+,Beaten,10/10
+Comma, inside, unquoted,Playing,5/10
+"Quoted ""inner"" quotes",Beaten,9/10
