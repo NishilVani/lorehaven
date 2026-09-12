@@ -41,11 +41,14 @@ infinite-scroll audit, with the measurement behind every claim.
 Landing on `main` is now one chain rather than four workflows that happened to
 share a trigger. `main.yml` orchestrates it; the rest are reusable workflows it
 calls, so the suite runs **once** per push and everything downstream depends on
-that one result.
+that one result. The Playwright suite is the deliberate exception: `e2e.yml` runs
+it on the same push and on every pull request, as a workflow of its own, so it
+checks a change without holding up the deploy or the release.
 
 ```
 push to main
-  └─ ci.yml (lint, unit, build and e2e gate it)
+  ├─ e2e.yml (Playwright, its own run: checks the change, holds nothing up)
+  └─ ci.yml (lint, unit tests, build)
        ├─ green                  ──► deploy web (live channel)
        └─ green + version bumped ──► release.yml
                                        tag + draft release
@@ -58,7 +61,8 @@ push to main
 | Workflow | Trigger | Does |
 |---|---|---|
 | `main.yml` | push to main | The chain above. Detects a version change in `src-tauri/tauri.conf.json` against `HEAD^`, and only then releases |
-| `ci.yml` | PR to main, or called | lint, unit tests, build and Playwright chromium, all of which gate the deploy and the release; on a PR only "Lint, test, build" is a required check |
+| `ci.yml` | PR to main, or called | lint, unit tests, build: the only gate on the web deploy and the release, and a required check on a PR |
+| `e2e.yml` | push or PR to main | Playwright chromium. Fails its check when the suite fails; never gates the deploy or the release. Stops a PR merge only once the ruleset requires "Playwright (chromium)" |
 | `firebase-hosting.yml` | PR to main, or called | when called by `main.yml`: the app to lorehaven.web.app, then the redirect on moctalegames.web.app; on a PR, a 7-day preview channel of the app |
 | `release.yml` | called by `main.yml`, tag `v*`, or dispatch | every platform into one draft release, published only when all succeed, then Firestore and the Store |
 | `store-submission.yml` | dispatch only | resubmits an **existing** release's MSIX by hand |
@@ -234,11 +238,12 @@ check is `scripts/verify_proxy_live.mjs`.
   loudly on a tagged release rather than passing green having done nothing. See
   [docs/MICROSOFT-STORE.md](docs/MICROSOFT-STORE.md), which also flags that the
   publisher name in Partner Center reads "LoreHeaven".
-- **e2e gates the deploy and the release, but not a pull request.** `main.yml`
-  needs the whole of `ci.yml`, e2e included, to pass. The branch ruleset on
-  `main` still requires only "Lint, test, build", so a red e2e run on a pull
-  request does not stop the merge. Adding "Playwright (chromium)" to that
-  ruleset is the one-line change that would.
+- **e2e checks pull requests; the deploy and the release do not wait for it.**
+  It runs from `e2e.yml`, apart from `main.yml`'s chain. Until the branch ruleset
+  on `main` also requires "Playwright (chromium)", a red e2e run stops nothing:
+  not the merge, and no longer the deploy. Adding that required check is the
+  step that completes this. Before the split, the deploy for `6c8e891` started
+  10.1 minutes after lint, unit tests and build had passed.
 
 ## Lint
 
@@ -314,10 +319,10 @@ workers: 1. The two skips are phase5 cases 61 and 62, the ceremony page's
 mobile accordion, which skip themselves on a desktop project
 (`test.skip(!isMobile)`; the accordion is `lg:hidden`).
 
-On that evidence CI's `Run e2e` step no longer has `continue-on-error`. A red
-run now fails `ci.yml`, which `main.yml`'s deploy and release both need. On a
-pull request it is reported but not required: the branch ruleset on `main`
-still requires only "Lint, test, build".
+On that evidence the `Run e2e` step no longer has `continue-on-error`, so a red
+run fails its check. It runs from `e2e.yml`, apart from the deploy and the
+release; whether it stops a pull request is set by the branch ruleset on `main`,
+which has to list "Playwright (chromium)" as a required check.
 
 The baseline it replaced, measured 2026-09-10 the same way: 411 passed,
 4 failed, 2 flaky, 4 skipped, two of those skips being the Clone pair, which

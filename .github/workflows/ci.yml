@@ -1,13 +1,21 @@
 name: CI
 
-# The single definition of "green" for this repository.
+# The single definition of "green" for this repository: lint, unit tests and a
+# production build. It is the one gate on the web deploy and on the release.
 #
-# There used to be two. This workflow ran lint, unit tests, build and Playwright;
-# `firebase-hosting.yml` ran lint, unit tests and build again, inline, before it
-# deployed. Two copies of a gate do not stay identical, and these had already
-# drifted -- one ran Playwright and the other did not -- so "the tests passed"
-# meant something different depending on which run you happened to open. The
-# copy is gone; this workflow is now called rather than duplicated.
+# There used to be two copies. `firebase-hosting.yml` ran lint, unit tests and
+# build again, inline, before it deployed, and the copies had already drifted --
+# one ran Playwright and the other did not -- so "the tests passed" meant
+# something different depending on which run you happened to open. The copy is
+# gone; this workflow is now called rather than duplicated.
+#
+# Playwright used to be a second job in this file, which put it on the deploy
+# path: main.yml gates the deploy and the release with `needs: test`, and a
+# `needs` on a called workflow waits for every job inside it. Once the suite
+# became blocking, every push to main deployed about ten minutes late -- on the
+# run for 6c8e891 (2026-09-12) the deploy started 10.1 minutes after lint, unit
+# tests and build had passed. It now runs from its own workflow, e2e.yml, which
+# checks pull requests and never holds up the deploy.
 #
 # Triggers:
 #   pull_request  -- runs directly. That matters more than it looks: the branch
@@ -61,47 +69,3 @@ jobs:
 
       - name: Build
         run: npm run build
-
-  e2e:
-    name: Playwright (chromium)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - run: npm ci
-
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
-
-      # Blocking, and that is what gates the deploy and the release on it:
-      # main.yml's web and release jobs need the whole of this workflow to pass.
-      # It was advisory while it failed on every run, for reasons that had
-      # nothing to do with the commit under test -- specs read live IGDB through
-      # the deployed Worker, the /import fixtures sat in the gitignored qa/
-      # folder where no fresh checkout could find them, and five cases were real
-      # bugs. Now no spec reaches IGDB, Wikidata or production Firestore (see the
-      # webServer and project comments in playwright.config.ts), so a red run
-      # means the code. Before continue-on-error was removed, exactly this
-      # command ran twice back to back: 419 passed, 2 skipped, 0 failed, 0 flaky.
-      #
-      # On a pull request it reports but does not stop the merge: the branch
-      # ruleset on main requires "Lint, test, build" only. Adding "Playwright
-      # (chromium)" to that ruleset is what would make it block there too.
-      #
-      # `retries: 2` in playwright.config.ts can still turn a failure into a
-      # pass. A retried case is listed as flaky in the report uploaded below;
-      # treat one as a bug, not as noise.
-      - name: Run e2e
-        run: npm run test:e2e
-
-      - uses: actions/upload-artifact@v4
-        if: ${{ !cancelled() }}
-        with:
-          name: playwright-report
-          path: playwright-report/
-          retention-days: 7
