@@ -5,6 +5,7 @@ import {
   Gamepad2, List as ListIcon, Heart, Trophy, CircleMinus, X,
 } from 'lucide-react';
 import EmptyPlate from '../../components/ui/EmptyPlate';
+import ExternalLink from '../../components/ui/ExternalLink';
 import GameCard from '../../components/games/GameCard';
 import DropdownMenu from '../../components/ui/DropdownMenu';
 import { toast } from '../../components/ui/toastBus';
@@ -33,7 +34,7 @@ const HATCH = 'repeating-linear-gradient(45deg,rgba(255,255,255,0.06) 0 8px,rgba
 function Anchor({ game, className, children, ...rest }) {
   if (!game) return <div className={className} {...rest}>{children}</div>;
   if (game.id != null) return <Link to={`/game/${game.id}`} className={className} {...rest}>{children}</Link>;
-  if (game.href) return <a href={game.href} target="_blank" rel="noopener noreferrer" className={className} {...rest}>{children}</a>;
+  if (game.href) return <ExternalLink href={game.href} className={className} {...rest}>{children}</ExternalLink>;
   return <div className={className} {...rest}>{children}</div>;
 }
 
