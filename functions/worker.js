@@ -9,6 +9,7 @@
  *   npm i -D wrangler
  *   npx wrangler secret put IGDB_CLIENT_ID
  *   npx wrangler secret put IGDB_CLIENT_SECRET
+ *   npx wrangler secret put STEAM_API_KEY      (Steam import; see steam.js)
  *   npx wrangler deploy
  *
  * The secrets live in Cloudflare and are never readable back, which is the whole

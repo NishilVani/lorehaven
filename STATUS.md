@@ -19,6 +19,26 @@ infinite-scroll audit, with the measurement behind every claim.
 - **All ten performance findings are fixed.** Two are done but not verified end
   to end: the Firestore sharding needs the emulator, which needs a JDK 21 this
   machine does not have, and the proxy's edge cache needs a deploy.
+- **Steam import: committed on the same branch, not yet pushed; the Worker is
+  deployed with the Steam routes and the owner's Steam key.** Brief:
+  `docs/superpowers/specs/2026-09-15-steam-import-design.md`. `/import/steam`
+  (linked from Import and Your Data) reads a Steam library and wishlist, by Steam
+  sign-in on the web or a profile link everywhere, matches games to IGDB by Steam
+  app id through `external_games`, and imports with a per-game status and Undo.
+  New Worker routes in `functions/steam.js`, answered before the IGDB credential
+  check and never edge-cached. Verified: `test:steam` and `test:steamproxy` (both
+  mutation-checked, 11 of 11 mutations caught), lint 0 errors, and a stubbed
+  render of connect, loading, review, done and the private-library error at 1280
+  and 375 (axe 0, no overflow). Found and fixed in that render: row checkboxes
+  could not be clicked, because `Checkbox` only works inside a label. Verified
+  live on 2026-09-15: the deployed Worker resolves a custom Steam name with the
+  owner's key. Not verified live: reading games and the wishlist, because the
+  only profile tried keeps both private, and Steam's wishlist endpoint is not in
+  its published reference. Next round, in design: Steam as a LoreHaven sign-in,
+  account linking, the import prompt after sign-in, app deep links. The Worker
+  secrets it needs are already set (`FIREBASE_SERVICE_ACCOUNT`,
+  `STEAM_TICKET_SECRET`); the design awaits the owner's approval before its
+  spec is written.
 - **Auto Priority and Find Duplicates: committed, awaiting the owner's local
   check.** Branch `feature/auto-priority-and-duplicates`, not yet pushed. Brief: `docs/superpowers/specs/2026-09-12-auto-priority-and-find-duplicates-design.md`.
   Both open from a Tools menu at the end of the library's pill row. Auto Priority

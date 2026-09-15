@@ -580,6 +580,45 @@ export const getGamesProfile = withCache('getGamesProfile.v2', TTL.WEEK, async (
     return out;
 });
 
+/* The proxy-aware fetch, for the Worker's non-IGDB routes (Steam). Same origin
+   handling, Tauri transport and network retry as every IGDB call; a non-2xx
+   from those routes is returned, not thrown, so the caller can read the error
+   the Worker wrote. */
+export const proxyFetch = (url, options) => fetch(url, options);
+
+/**
+ * Steam app ids -> IGDB games, through IGDB's own record of which Steam app
+ * each game is (external_games, source 1). Exact, where the CSV import matches
+ * by name and takes the first search result.
+ *
+ * Chunked by 200 rather than 500 because one Steam app can be filed under more
+ * than one IGDB game (a game and a bundle containing it), and the response
+ * limit is per request, not per uid. Where that happens the main game wins.
+ * Throws on failure, so the page can say matching failed rather than showing a
+ * library of unmatched games.
+ */
+export const matchSteamApps = async (appids) => {
+    const ids = [...new Set((appids || []).map(String).filter(a => /^\d+$/.test(a)))];
+    const out = new Map();
+    for (let i = 0; i < ids.length; i += 200) {
+        const chunk = ids.slice(i, i + 200);
+        const r = await fetch('/api/external_games', {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: `fields uid, game.id, game.name, game.cover.image_id, game.cover.width, game.cover.height, game.first_release_date, game.game_type; where external_game_source = 1 & uid = (${chunk.map(u => `"${u}"`).join(',')}); limit 500;`,
+        });
+        const rows = await r.json();
+        if (!Array.isArray(rows)) throw new Error('IGDB did not return Steam matches');
+        for (const row of rows) {
+            if (!row?.game || typeof row.game !== 'object') continue;
+            const uid = String(row.uid);
+            const had = out.get(uid);
+            if (!had || (had.game_type !== 0 && row.game.game_type === 0)) out.set(uid, row.game);
+        }
+    }
+    return out;
+};
+
 /**
  * How library games relate to each other, for Find Duplicates: editions
  * (`version_parent`), the bundles a game is sold in, and its remakes, remasters
