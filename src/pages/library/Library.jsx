@@ -1,7 +1,8 @@
 import PageHeader from '../../components/ui/PageHeader';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { getLibrary, saveToLibrary, removeFromLibrary } from '../../services/db';
+import { getLibrary, saveToLibrary, saveManyToLibrary, removeFromLibrary } from '../../services/db';
+import { AUTO_PRIORITY_TABS, undoPatch } from '../../services/autoPriority';
 import { getGamesByIds } from '../../services/igdb';
 import { sortGames, groupDirection } from './librarySort';
 import GameCard from '../../components/games/GameCard';
@@ -12,11 +13,13 @@ import TransferDataModal from '../../components/games/TransferDataModal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import Dialog from '../../components/ui/Dialog';
 import PickNextDialog from '../../components/games/PickNextDialog';
+import AutoPriorityDialog from '../../components/games/AutoPriorityDialog';
 import {
   Gamepad2, List as ListIcon, Heart, Trophy, CircleMinus, CalendarClock,
   FilterX, Database, Edit3, Puzzle, Store,
   ArrowDownAZ, ArrowUpZA, AlertCircle, Star, Globe, Timer, Calendar, CalendarCheck,
-  Search, X, ChevronDown, Filter, Grid, RefreshCw, Trash2, ArrowUpDown, Target
+  Search, X, ChevronDown, Filter, Grid, RefreshCw, Trash2, ArrowUpDown, Target,
+  ListOrdered, GitMerge, Wrench
 } from 'lucide-react';
 /* The shared toast, not a private one. This page used to define its own —
    bottom-centre, 2300ms, pointer-events-none, no role, no aria-live, no dismiss —
@@ -225,6 +228,7 @@ export default function Library() {
 
   // ── Transfer Data state ──────────────────────────────────────────
   const [transferSourceGame, setTransferSourceGame] = useState(null);
+  const [autoPriorityOpen, setAutoPriorityOpen] = useState(false);
 
   // ── Sidebar filter/sort state ────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState(() => searchParams.get('q') || '');
@@ -1008,6 +1012,29 @@ export default function Library() {
     });
   }, []);
 
+  /* Auto Priority's write. One saveManyToLibrary call, so a shelf of 200 changes
+     is one commit and one cloud upload rather than 200. Undo carries each game's
+     own prior value, null included, for the same reason mutateGame names its
+     keys: the write merges, so only an explicit null clears. */
+  const autoPriorityGames = useMemo(
+    () => (autoPriorityOpen ? library.filter(g => normalizeStatus(g.status) === activeTab) : []),
+    [autoPriorityOpen, library, activeTab],
+  );
+  const applyAutoPriority = useCallback((changes) => {
+    const byId = new Map(changes.map(c => [String(c.id), c]));
+    const setTo = (key) => setLibrary(prev => prev.map(g => (byId.has(String(g.id)) ? { ...g, priority: byId.get(String(g.id))[key] } : g)));
+    saveManyToLibrary(changes.map(c => ({ id: c.id, priority: c.to })));
+    setTo('to');
+    setAutoPriorityOpen(false);
+    toast(`Set ${changes.length} ${changes.length === 1 ? 'priority' : 'priorities'} on ${activeTab}`, 'info', {
+      label: 'Undo',
+      onClick: () => {
+        saveManyToLibrary(undoPatch(changes));
+        setTo('from');
+      },
+    });
+  }, [activeTab]);
+
   /* Every rule about where a game may land, in one place. It used to live inside
      the drop handler, which meant the touch lift added later would have had to
      restate it — and a second copy of "IGDB unreleased games must stay put" is a
@@ -1517,6 +1544,38 @@ export default function Library() {
                       </span>
                     </button>
                   </DropdownMenu>
+
+                  {/* Library tools, one menu, at the end of the wrapping pill row
+                      rather than beside Pick For Me. As two labelled buttons on
+                      the right they pushed Group to a second row at 1280px and
+                      the pills to three rows on a phone. On the right even one
+                      icon forced a new row at 768 and 1024 (the right cluster
+                      does not shrink); in the wrapping row it takes a gap that
+                      is already there. Measured against the toolbar with the
+                      menu hidden, which is origin/main's toolbar exactly. Its
+                      word appears only at xl, where the row has room.
+                      Auto Priority is listed only on shelves that sort by it. */}
+                  <DropdownMenu
+                    options={[
+                      ...(AUTO_PRIORITY_TABS.includes(activeTab)
+                        ? [{ label: 'Auto Priority', icon: ListOrdered, onClick: () => setAutoPriorityOpen(true) }]
+                        : []),
+                      { label: 'Find Duplicates', icon: GitMerge, onClick: () => navigate('/library/duplicates') },
+                    ]}
+                    align="left"
+                  >
+                    <button
+                      aria-label="Library tools"
+                      className="flex items-center justify-center gap-2 h-8 px-2 xl:px-3 border border-white/20 hover:border-white/70 transition-colors lh-label text-white/60 hover:text-white cursor-pointer select-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white"
+                    >
+                      <Wrench className="w-4 h-4 shrink-0" aria-hidden="true" />
+                      {/* The word only at xl. On a phone it looked free on
+                          Backlog but measured a third row on Beaten, where the
+                          sort label is longer (70px to 108px), so below xl the
+                          wrench and the accessible name carry it. */}
+                      <span className="hidden xl:inline -mr-[0.18em]">Tools</span>
+                    </button>
+                  </DropdownMenu>
                 </div>
                 
                 {/* Right side: Pick Next + Search Toggle */}
@@ -1859,6 +1918,15 @@ export default function Library() {
 
       <ConfirmDialog {...confirmProps} />
       {pickNextOpen && <PickNextDialog onClose={() => setPickNextOpen(false)} />}
+      {autoPriorityOpen && (
+        <AutoPriorityDialog
+          shelf={activeTab}
+          games={autoPriorityGames}
+          library={library}
+          onApply={applyAutoPriority}
+          onClose={() => setAutoPriorityOpen(false)}
+        />
+      )}
 
       {/* Shelf picker. A sheet at the BOTTOM, not a menu dropping from the row:
           the strip lives at the top of the phone and a picker that also opens up

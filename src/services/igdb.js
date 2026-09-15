@@ -581,6 +581,35 @@ export const getGamesProfile = withCache('getGamesProfile.v2', TTL.WEEK, async (
 });
 
 /**
+ * How library games relate to each other, for Find Duplicates: editions
+ * (`version_parent`), the bundles a game is sold in, and its remakes, remasters
+ * and expanded versions. Chunked by 500.
+ *
+ * Throws when any chunk fails, where getGamesProfile swallows and returns what it
+ * got. A missing chunk here would not look like an error, it would look like a
+ * library with fewer duplicates, and the page has to say which checks did not
+ * run. Throwing also keeps withCache from storing the partial answer.
+ */
+export const getGamesRelations = withCache('getGamesRelations.v1', TTL.WEEK, async (ids) => {
+    ids = (ids || []).map(Number).filter(Number.isFinite);
+    if (ids.length === 0) return [];
+    const fields = 'fields name, cover.image_id, first_release_date, game_type, version_parent, parent_game, bundles, remakes, remasters, expanded_games';
+    let out = [];
+    for (let i = 0; i < ids.length; i += 500) {
+        const chunk = ids.slice(i, i + 500);
+        const r = await fetch('/api/games', {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: `${fields}; where id = (${chunk.join(',')}); limit 500;`,
+        });
+        const data = await r.json();
+        if (!r.ok || !Array.isArray(data)) throw new Error(`IGDB relations request failed (${r.status})`);
+        out = out.concat(data);
+    }
+    return out;
+});
+
+/**
  * Card-ready recommendation pool: highly-rated games matching any of the given
  * genre/theme ids. Over-fetches so the caller can filter owned client-side.
  */
