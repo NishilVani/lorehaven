@@ -19,7 +19,77 @@ infinite-scroll audit, with the measurement behind every claim.
 - **All ten performance findings are fixed.** Two are done but not verified end
   to end: the Firestore sharding needs the emulator, which needs a JDK 21 this
   machine does not have, and the proxy's edge cache needs a deploy.
-- **One platform pill everywhere: pushed for review.** Branch
+- **Steam import: committed on the same branch, not yet pushed; the Worker is
+  deployed with the Steam routes and the owner's Steam key.** Brief:
+  `docs/superpowers/specs/2026-09-15-steam-import-design.md`. `/import/steam`
+  (linked from Import and Your Data) reads a Steam library and wishlist, by Steam
+  sign-in on the web or a profile link everywhere, matches games to IGDB by Steam
+  app id through `external_games`, and imports with a per-game status and Undo.
+  New Worker routes in `functions/steam.js`, answered before the IGDB credential
+  check and never edge-cached. Verified: `test:steam` and `test:steamproxy` (both
+  mutation-checked, 11 of 11 mutations caught), lint 0 errors, and a stubbed
+  render of connect, loading, review, done and the private-library error at 1280
+  and 375 (axe 0, no overflow). Found and fixed in that render: row checkboxes
+  could not be clicked, because `Checkbox` only works inside a label. Verified
+  live on 2026-09-15: the deployed Worker resolves a custom Steam name with the
+  owner's key. Not verified live: reading games and the wishlist, because the
+  only profile tried keeps both private, and Steam's wishlist endpoint is not in
+  its published reference. Next round, in design: Steam as a LoreHaven sign-in,
+  account linking, the import prompt after sign-in, app deep links. The Worker
+  secrets it needs are already set (`FIREBASE_SERVICE_ACCOUNT`,
+  `STEAM_TICKET_SECRET`); the design awaits the owner's approval before its
+  spec is written.
+- **Auto Priority and Find Duplicates: committed, awaiting the owner's local
+  check.** Branch `feature/auto-priority-and-duplicates`, not yet pushed. Brief: `docs/superpowers/specs/2026-09-12-auto-priority-and-find-duplicates-design.md`.
+  Both open from a Tools menu at the end of the library's pill row. Auto Priority
+  (`src/components/games/AutoPriorityDialog.jsx`, `src/services/autoPriority.js`)
+  scores a planning shelf by public rating or by resemblance to rated Beaten games
+  (60/40 with public rating, needs 5), previews the result and writes once with
+  Undo. Find Duplicates (`src/pages/library/Duplicates.jsx`,
+  `src/services/duplicates.js`, IGDB relations via `getGamesRelations`) groups
+  editions, bundles, custom twins and name matches, with remakes and remasters
+  apart, and merges with Undo; collections move through the new
+  `src/services/libraryTransfer.js`, which Transfer Data now uses too. Verified:
+  lint 0 errors, `npm test` (new `test:autopriority`, `test:duplicates`,
+  `test:transfer`, each mutation-checked), build, `lint:label`, `lint:emoji`,
+  `lint:contrast` (4 violations, all pre-existing in `EmptyPlate.jsx` and
+  `LibraryNumbers.jsx`), the Impeccable detector (0), the new
+  `tests/auto-priority-duplicates.spec.ts` (5 of 5) and `phase2-deep` library
+  cases (25 of 25). Headless render at 1280 and 375: axe 0, no target under 24px,
+  no overflow. Known: on Backlog at exactly 768px the toolbar gains a second row
+  (32px to 72px); every other shelf and width measured the same as without the
+  menu. Finish review (Impeccable finish reviewer, one fix round): seven of
+  eight fixes resolved (status swatches on conflict chips, rating swatch, bottom
+  sheet below sm, distinct Keep radio names, "Keep This" copy, unclipped edition
+  names, inner focus outline on the chosen method row). The eighth, the phone
+  Tools trigger being a wrench with no visible word, was accepted by the owner:
+  the word cost Beaten a third toolbar row at 375px (70px to 108px). Recorded in
+  the brief under "Decisions made while building". Added since: a preview panel
+  on the Duplicates page (`src/components/games/GamePreview.jsx`), opened by a
+  Preview button on each game. From 1440px it docks as a full-height rail on
+  the window's right edge with the page re-centred beside it (the owner rejected
+  a first version docked inside the centred column, which squeezed the groups),
+  opens over the page as a right-hand panel below that, and as a bottom sheet
+  on phones. Verified: the spec is now 7 of 7 (docked open, switching entries,
+  Escape returning focus, the phone sheet); axe 0 in the docked rail at 1900,
+  the overlay at 1024 and the sheet at 375; no target under 24px; lint 0
+  errors; detector 0. Column rules on the page now draw per column, because a
+  three-column group wrapping to two filled its empty cell with grey. Each game
+  column is a three-row subgrid (fate, title, facts), so fact rows line up
+  across a group when a title wraps (Status rows measured level at 1280, 1440
+  and 1900). While the rail is docked the toast stack moves in by its width
+  (`--toast-right`, read by `src/components/ui/Toast.jsx`); measured clear, the
+  toast's right edge at 1494px against the rail's left edge at 1510px. The
+  preview's row of entry chips (switching games inside the panel) was not in
+  the owner's confirmed answers; the owner has been told it is an addition and
+  can ask for it to be removed. Finish
+  review of the panel (three fix rounds): ship, scoped to the fixes it scored.
+  Not done, never material: the screenshot strip does not drive the artwork
+  stage, and the platforms row has no platform marks. The DESIGN.md comparison
+  proposed three additions awaiting the owner (per-cell grid rules, when a
+  Dialog becomes a bottom sheet, a "lossless, undoable" row in the destructive
+  tier table).
+- **One platform pill everywhere: merged** (PR #11). Branch
   `feature/unified-platform-pill`. `PlatformPill` now draws hardware, stores and
   subscriptions on the game page, Manage Platforms and the import wizard: brand
   tile, a one-line name and detail that ellipsise and scroll on hover, and an arrow

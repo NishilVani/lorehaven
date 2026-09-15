@@ -18,7 +18,9 @@ const Profile = lazy(() => import('./pages/profile/Profile'));
 const YearInReview = lazy(() => import('./pages/profile/YearInReview'));
 const GameDetail = lazy(() => import('./pages/games/GameDetail'));
 const Library = lazy(() => import('./pages/library/Library'));
+const Duplicates = lazy(() => import('./pages/library/Duplicates'));
 const ImportWizardV2 = lazy(() => import('./pages/ImportWizard/ImportWizard'));
+const SteamImport = lazy(() => import('./pages/ImportWizard/SteamImport'));
 const FranchisePage = lazy(() => import('./pages/franchises/FranchisePage'));
 const Collections = lazy(() => import('./pages/collections/Collections'));
 const CollectionDetail = lazy(() => import('./pages/collections/CollectionDetail'));
@@ -141,8 +143,12 @@ function App() {
             <Route path="/schedule" element={<Schedule />} />
             <Route path="/game/:id" element={<KeyedRoute component={GameDetail} />} />
             <Route path="/library" element={<Navigate to="/library/backlog" replace />} />
+            {/* A static segment outranks :status in React Router's ranking, so
+                this is never read as a shelf called "duplicates". */}
+            <Route path="/library/duplicates" element={<Duplicates />} />
             <Route path="/library/:status" element={<Library />} />
             <Route path="/import" element={<ImportWizardV2 />} />
+            <Route path="/import/steam" element={<SteamImport />} />
             <Route path="/franchise/:franchiseId" element={<KeyedRoute component={FranchisePage} />} />
             <Route path="/collections" element={<Collections />} />
             {/* The hub page is gone: the sidebar submenu is the way in now, and

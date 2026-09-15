@@ -1,4 +1,6 @@
 import Papa from 'papaparse';
+import { Link } from 'react-router-dom';
+import { ChevronRight } from 'lucide-react';
 
 const SPEC = [
     ['Format', 'CSV — comma separated, first row is the header'],
@@ -19,6 +21,20 @@ export default function StepUpload({
 }) {
     return (
         <div className="max-w-3xl">
+            {/* Steam first: a library on Steam can be read directly and matched
+                by Steam's own ids, which is both less work and more exact than
+                exporting a sheet and matching it by name. */}
+            <Link
+                to="/import/steam"
+                className="group flex items-center justify-between gap-4 border border-white/15 px-5 py-4 mb-6 hover:border-white/70 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white"
+            >
+                <span className="min-w-0">
+                    <span className="block lh-label text-white">Import From Steam</span>
+                    <span className="block text-[13px] text-white/60 mt-1">Read your Steam library and wishlist directly, with no spreadsheet.</span>
+                </span>
+                <ChevronRight className="w-4 h-4 shrink-0 text-white/60 group-hover:text-white transition-colors" aria-hidden="true" />
+            </Link>
+
             {/* Dropzone — a bordered plate, nothing more */}
             <div
                 onDragOver={handleDragOver}

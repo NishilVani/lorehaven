@@ -1,10 +1,22 @@
-import { forwardRef } from 'react';
+import { forwardRef, useEffect, useRef } from 'react';
 
-const Checkbox = forwardRef(({ checked, onChange, className = '', ...props }, ref) => {
+/* `indeterminate` is a DOM property with no HTML attribute, so it is set on the
+   element after render. wizard.css already draws the dash for :indeterminate,
+   and the browser reports the mixed state to assistive tech on its own. */
+const Checkbox = forwardRef(({ checked, onChange, className = '', indeterminate = false, ...props }, ref) => {
+    const input = useRef(null);
+    useEffect(() => {
+        if (input.current) input.current.indeterminate = !!indeterminate;
+    }, [indeterminate]);
+    const setRef = (el) => {
+        input.current = el;
+        if (typeof ref === 'function') ref(el);
+        else if (ref) ref.current = el;
+    };
     return (
         <span className={`ios-cb ${className}`}>
-            <input 
-                ref={ref} 
+            <input
+                ref={setRef}
                 type="checkbox"
                 checked={checked}
                 onChange={onChange}

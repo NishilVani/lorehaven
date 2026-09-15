@@ -20,6 +20,8 @@
  * Run, a Cloudflare Worker, or the plain Node server in serve.js.
  */
 
+import { steamRoute } from './steam.js';
+
 const IGDB = 'https://api.igdb.com/v4';
 const TWITCH = 'https://id.twitch.tv/oauth2/token';
 const WDQS = 'https://query.wikidata.org';
@@ -35,7 +37,7 @@ const WD_UA = 'LoreHaven/1.0 (game library app; contact via app repo)';
 const ALLOWED = new Set([
   'games', 'games/count', 'genres', 'themes', 'platforms', 'companies',
   'franchises', 'collections', 'collection_memberships', 'collection_relations',
-  'collection_types', 'events', 'external_game_sources', 'game_engines',
+  'collection_types', 'events', 'external_game_sources', 'external_games', 'game_engines',
   'game_modes', 'game_time_to_beats', 'release_dates', 'multiquery',
 ]);
 
@@ -275,9 +277,21 @@ async function wikidata(path, req, ctx) {
 export async function handle(req, env, ctx) {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors() });
   if (req.method !== 'POST') return json(405, { error: 'POST only' });
-  if (!env.IGDB_CLIENT_ID || !env.IGDB_CLIENT_SECRET) return json(500, { error: 'proxy is not configured' });
 
   const { pathname } = new URL(req.url);
+
+  /* Steam before the IGDB credential check: its routes need their own key or
+     none at all, and a Steam sign-in should not fail because IGDB is
+     misconfigured. Never through the edge cache; see steam.js. */
+  if (/^\/+steam\//.test(pathname)) {
+    try {
+      return await steamRoute(pathname.replace(/^\/+steam\//, ''), req, env, json);
+    } catch {
+      return json(502, { error: 'Steam did not answer' });
+    }
+  }
+
+  if (!env.IGDB_CLIENT_ID || !env.IGDB_CLIENT_SECRET) return json(500, { error: 'proxy is not configured' });
   /* Hosting rewrites keep the original path, so both /api/games and a bare
      /games arrive here depending on how it is mounted. */
   const path = pathname.replace(/^\/+/, '').replace(/^(api|wdqs)\//, '');

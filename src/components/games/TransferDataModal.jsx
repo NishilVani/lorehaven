@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { searchGames } from '../../services/igdb';
-import { getLibrary, saveToLibrary, removeFromLibrary, getCollectionsWithGame, removeGameFromCollection, addGameToCollection } from '../../services/db';
+import { getLibrary, saveToLibrary, removeFromLibrary } from '../../services/db';
+import { moveCollections } from '../../services/libraryTransfer';
 import Checkbox from '../ui/Checkbox';
 import Dialog from '../ui/Dialog';
 import { X, Search, ImageOff, ArrowRight } from 'lucide-react';
@@ -115,13 +116,7 @@ export default function TransferDataModal({ sourceGame, onClose, onComplete }) {
 
     saveToLibrary(newGameData);
 
-    if (updateCollections) {
-      const collections = getCollectionsWithGame(fullSourceGame.id);
-      collections.forEach(colId => {
-        removeGameFromCollection(colId, fullSourceGame.id);
-        addGameToCollection(colId, newGameData.id);
-      });
-    }
+    if (updateCollections) moveCollections(fullSourceGame.id, newGameData.id);
 
     if (removeOriginal) {
       removeFromLibrary(fullSourceGame.id);

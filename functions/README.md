@@ -191,6 +191,32 @@ Only 200s are stored, so a failed upstream call is never cached. `caches` does
 not exist outside Workers, so `serve.js` and the test run the same file with the
 cache simply absent.
 
+## Steam
+
+`steam.js` adds four POST routes under `/steam/` for the Steam import: `verify`
+(checks a Steam sign-in with Steam's OpenID `check_authentication`), `resolve`
+(a profile link or custom name to a 64-bit SteamID), `owned` (the owned
+library with playtime) and `wishlist` (best effort; it reports
+`available: false` rather than failing). They are answered before the IGDB
+credential is checked, never pass through the edge cache, and are marked
+`no-store`, because unlike everything else here they are personal.
+
+`resolve` for a custom name and `owned` need a Steam Web API key, set like the
+IGDB pair and never written to disk:
+
+```bash
+npx wrangler secret put STEAM_API_KEY
+npx wrangler deploy
+```
+
+Without it those two answer `503 { error: 'steam not configured' }`; `verify`
+needs no key. A sign-in is only accepted when its `openid.return_to` is on one
+of the origins in `DEFAULT_RETURN_ORIGINS`; set `STEAM_RETURN_ORIGINS`
+(comma-separated) to replace that list for a preview deployment.
+
+`node functions/steam.test.mjs` covers all four with Steam stubbed, so it needs
+no key and no network.
+
 ## Adding an endpoint
 
 `ALLOWED` in `proxy.js` lists the IGDB endpoints the app calls. The proxy

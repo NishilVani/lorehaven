@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Download, Upload, Trash2, ChevronRight } from 'lucide-react';
+import { Download, Upload, Trash2, ChevronRight, Gamepad2 } from 'lucide-react';
 import useConfirm from '../../hooks/useConfirm';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import { toast } from '../../components/ui/toastBus';
@@ -177,6 +177,12 @@ export default function YourData({ stats: s }) {
             label="Import a Library"
             detail="Bring games across from a spreadsheet or another tracker"
             onClick={() => navigate('/import')}
+          />
+          <Action
+            icon={Gamepad2}
+            label="Import from Steam"
+            detail="Your owned games and wishlist, matched to IGDB by Steam's own app ids"
+            onClick={() => navigate('/import/steam')}
           />
           <Action
             icon={Download}

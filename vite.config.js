@@ -33,7 +33,7 @@ const igdbProxy = () => ({
     console.log(`  ➜  IGDB proxy:  in-process (credentials: ${configured ? 'loaded' : 'MISSING'})`);
 
     vite.middlewares.use(async (req, res, next) => {
-      if (!/^\/(api|wdqs)\//.test(req.url || '')) return next();
+      if (!/^\/(api|wdqs|steam)\//.test(req.url || '')) return next();
       req.on('error', () => {});
       res.on('error', () => {});
       try {
