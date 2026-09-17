@@ -7,8 +7,15 @@ infinite-scroll audit, with the measurement behind every claim.
 
 ## Where this stands
 
-- **Live at https://lorehaven.web.app**, deployed by CI on every push to
-  `main`. The old address, `moctalegames.web.app`, is the project's default site,
+- **Live at https://lorehaven.app** (connected 2026-09-16, Firebase-issued
+  certificate) and still at https://lorehaven.web.app, deployed by CI on every
+  push to `main`. `www.lorehaven.app` is added in Firebase as a redirect to the
+  apex and waits on a CNAME `www` -> `lorehaven.web.app` at Name.com. By decision
+  (2026-09-17) there is no web.app -> .app redirect: `lorehaven.app` is
+  production and `lorehaven.web.app` is kept for testing. Both are one Hosting
+  site, so they serve the same build until a separate testing site and a
+  promotion step are built (deferred). `moctalegames.web.app` now redirects to
+  `lorehaven.app`. The old address, `moctalegames.web.app`, is the project's default site,
   which Firebase does not allow deleting, so it redirects there instead. It was
   retired on 2026-09-12: 3.63 MB of Hosting downloads in its last 30 days, a
   handful of page loads, and the only other account last signed in before the
@@ -34,11 +41,49 @@ infinite-scroll audit, with the measurement behind every claim.
   live on 2026-09-15: the deployed Worker resolves a custom Steam name with the
   owner's key. Not verified live: reading games and the wishlist, because the
   only profile tried keeps both private, and Steam's wishlist endpoint is not in
-  its published reference. Next round, in design: Steam as a LoreHaven sign-in,
-  account linking, the import prompt after sign-in, app deep links. The Worker
-  secrets it needs are already set (`FIREBASE_SERVICE_ACCOUNT`,
-  `STEAM_TICKET_SECRET`); the design awaits the owner's approval before its
-  spec is written.
+  its published reference. Two changes after that first commit: the per-game
+  status is the app's own menu rather than a native select, and a game IGDB's
+  Steam records miss can be searched for by name and matched by hand
+  (`linkRowToIgdb` / `unlinkRowFromIgdb`, mutation-checked 8 of 8). That search
+  turned up a real bug in the shared `DropdownMenu`: a menu closes on any page
+  scroll, and a page that settles right after one opens (these rows use
+  content-visibility) scrolled and shut the menu the click had just opened, so
+  every row control took two clicks. Scrolls within 250ms of opening now
+  reposition the menu instead.
+- **Steam sign-in: the web half is built, not yet committed.** Brief:
+  `docs/superpowers/specs/2026-09-16-steam-sign-in-design.md`. `functions/auth.js`
+  adds `/auth/steam/{signin,create,link,unlink}`: it checks the Steam assertion
+  and the Firebase ID token, keeps `account_links/{provider}_{id}` in Firestore
+  (denied to clients in `firestore.rules`), sets a `links` custom claim, and
+  mints Firebase custom tokens with `jose`, the Worker's first dependency. The
+  app gains `/auth/steam` (`src/pages/auth/SteamAuth.jsx`): it hands a sign-in
+  on when it began elsewhere, signs in a linked Steam account, and otherwise
+  offers to link the account they have or start a new one, then asks once per
+  Steam account about importing. Sign In With Steam sits in `AuthModal`; Profile
+  gains `SteamAccount.jsx` for linking and unlinking. Every sign-in returns
+  through `https://lorehaven.app` (it was `lorehaven.web.app` until the domain
+  was connected; that stays allowed), because that is the only address Steam
+  returns to in practice. Verified: `test:auth` (13 of 13 mutations killed),
+  `tests/steam-signin.spec.ts` 6 of 6, lint 0 errors, build, and a stubbed render
+  of the choice screen, the import question and a refused return address at 1280
+  and 375 (axe 0, no overflow, no console errors). Owner to do: deploy the Worker
+  and `firestore.rules`. One LoreHaven account may hold several Steam accounts
+  (Profile lists them; `/auth/steam/accounts` names them; unlinking is refused
+  only for the last way in; `test:auth` now 15 of 15 mutations). **Built since,
+  same day:** the app links. A sign-in started
+  in the desktop or Android app opens Steam in the system browser, keeps a
+  verifier and sends Steam its SHA-256; lorehaven.app hands the result back
+  through `lorehaven://auth/steam` (with an Open LoreHaven button as a
+  fallback), `src/components/layout/AppLinks.jsx` follows only
+  `/auth/steam` and `/import/steam`, and the Worker finishes the sign-in only
+  for the verifier. Native: `tauri-plugin-deep-link` and
+  `tauri-plugin-single-instance` (`src-tauri/src/lib.rs`), the scheme in
+  `tauri.conf.json` for desktop and Android, and a protocol entry in
+  `src-tauri/msix/AppxManifest.xml`. Verified: `test:applinks` (the app's state
+  matches the Worker's check), `cargo check` for Windows, both Steam specs 15 of
+  15. Not verified: an Android build or a real link on a device; that needs a
+  release build. Xbox sign-in is next; a probe on 2026-09-16 showed an ordinary
+  Entra app registration can read the gamertag and Xbox user id.
 - **Auto Priority and Find Duplicates: committed, awaiting the owner's local
   check.** Branch `feature/auto-priority-and-duplicates`, not yet pushed. Brief: `docs/superpowers/specs/2026-09-12-auto-priority-and-find-duplicates-design.md`.
   Both open from a Tools menu at the end of the library's pill row. Auto Priority

@@ -46,6 +46,16 @@ service cloud.firestore {
       }
     }
 
+    /* Which LoreHaven account an external account (Steam today) signs in to.
+       Written by the Cloudflare Worker with a service-account key, after it has
+       checked both the store's sign-in and the Firebase ID token. A client that
+       could write here could point somebody else's Steam account at its own
+       account, so no client may read or write it; the app reads its own links
+       from a claim on its token instead. Admin SDK access ignores these rules. */
+    match /account_links/{linkId} {
+      allow read, write: if false;
+    }
+
     // One-time migration backups
     match /backups/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;

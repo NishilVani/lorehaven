@@ -27,6 +27,7 @@ tauri-plugin-oauth = "2.0.0"
 tauri-plugin-shell = "2.3.5"
 tauri-plugin-http = "2"
 tauri-plugin-fs = "2"
+tauri-plugin-deep-link = "2"
 
 # Android only. tauri-plugin-fs cannot reach shared storage on Android: every
 # BaseDirectory it offers resolves through getExternalFilesDir(), i.e.
@@ -38,3 +39,6 @@ tauri-plugin-fs = "2"
 # (tauri-plugin-android-fs-api) must match version-for-version.
 [target.'cfg(target_os = "android")'.dependencies]
 tauri-plugin-android-fs = "=29.0.0"
+
+[target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }

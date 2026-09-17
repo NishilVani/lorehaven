@@ -217,6 +217,54 @@ of the origins in `DEFAULT_RETURN_ORIGINS`; set `STEAM_RETURN_ORIGINS`
 `node functions/steam.test.mjs` covers all four with Steam stubbed, so it needs
 no key and no network.
 
+## Signing in with Steam
+
+`auth.js` adds four POST routes under `/auth/steam/`, the account side of the
+same sign-in:
+
+| Route | Takes | Answers |
+|---|---|---|
+| `signin` | the OpenID assertion, and an app's `verifier` | a Firebase custom token when that Steam account is linked, otherwise a ten-minute ticket and the Steam name |
+| `create` | a ticket | a new LoreHaven account linked to it, and a custom token |
+| `link` | a ticket, plus `Authorization: Bearer <Firebase ID token>` | that Steam account added to the signed-in account, and every Steam account it now holds |
+| `unlink` | `{ steamid }` and that header | the named link removed, refused only when it is the last way into the account |
+| `accounts` | that header | the Steam accounts this LoreHaven account holds, with the names Steam gave them |
+
+Which LoreHaven account an external account signs in to lives in Firestore as
+`account_links/{provider}_{externalId}` -- `account_links/steam_7656...` today,
+and the same shape for another store later. Keyed by the external account, so
+one Steam account can never sign in to two LoreHaven accounts, while a LoreHaven
+account may hold as many as its owner has: a main Steam account and a family one
+are an ordinary case, not a conflict.
+
+Only this code writes that table, with the service-account key;
+`firestore.rules` denies every client read and write. Each account also carries
+a `links` custom claim -- `{ "links": { "steam": ["7656...", "7656..."] } }` --
+so the app can show what is linked from its own token without reading Firestore.
+Custom claims are capped at 1000 bytes, so the claim holds the first twenty per
+service and the table stays the authority.
+
+Two more secrets, set the same way and never written to disk:
+
+```bash
+npx wrangler secret put FIREBASE_SERVICE_ACCOUNT
+npx wrangler secret put STEAM_TICKET_SECRET
+npx wrangler deploy
+```
+
+The first is the Firebase service-account JSON (Project settings, Service
+accounts, Generate new private key); the second is any long random string, and
+signs the tickets. Without either, all four routes answer
+`503 { error: 'steam sign-in is not configured' }`.
+
+Tokens are signed and checked with `jose`, the Worker's one dependency: a
+Firebase custom token is RS256 signed with the service-account key, and an ID
+token is checked against Google's published keys for this project.
+
+`node functions/auth.test.mjs` covers the four routes with Steam, Google and
+Firestore stubbed and a throwaway key generated in the test, so it needs no
+service account, no Firebase project and no network.
+
 ## Adding an endpoint
 
 `ALLOWED` in `proxy.js` lists the IGDB endpoints the app calls. The proxy

@@ -32,6 +32,7 @@ const good = {
   'openid.signed': 'signed,op_endpoint,claimed_id,identity,return_to,response_nonce,assoc_handle',
   'openid.sig': 'c2lnbmF0dXJl',
 };
+assert.ok(DEFAULT_RETURN_ORIGINS.includes('https://lorehaven.app'));
 assert.ok(DEFAULT_RETURN_ORIGINS.includes('https://lorehaven.web.app'));
 assert.strictEqual(openIdAssertionProblem(good, DEFAULT_RETURN_ORIGINS), null);
 assert.ok(openIdAssertionProblem({ ...good, 'openid.op_endpoint': 'https://evil.example/openid/login' }, DEFAULT_RETURN_ORIGINS),

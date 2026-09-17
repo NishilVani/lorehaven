@@ -33,7 +33,10 @@ const igdbProxy = () => ({
     console.log(`  ➜  IGDB proxy:  in-process (credentials: ${configured ? 'loaded' : 'MISSING'})`);
 
     vite.middlewares.use(async (req, res, next) => {
-      if (!/^\/(api|wdqs|steam)\//.test(req.url || '')) return next();
+      /* The Worker's own paths only. /auth/steam is a page in this app, and
+         /auth/steam/signin and its siblings are the Worker's, so the deeper
+         path is what this may answer. */
+      if (!/^\/(api|wdqs|steam)\//.test(req.url || '') && !/^\/auth\/steam\/\w/.test(req.url || '')) return next();
       req.on('error', () => {});
       res.on('error', () => {});
       try {

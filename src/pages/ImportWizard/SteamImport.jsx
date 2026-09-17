@@ -1,20 +1,24 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Check, ChevronDown, ImageOff, RotateCcw, Search } from 'lucide-react';
+import { Check, ChevronDown, ImageOff, RotateCcw, Search, X } from 'lucide-react';
 import PageHeader from '../../components/ui/PageHeader';
 import Checkbox from '../../components/ui/Checkbox';
 import DropdownMenu from '../../components/ui/DropdownMenu';
 import ExternalLink from '../../components/ui/ExternalLink';
 import { toast } from '../../components/ui/toastBus';
 import { getLibrary, saveManyToLibrary, saveLibrary, addUserCustomPlatform } from '../../services/db';
-import { matchSteamApps } from '../../services/igdb';
+import { matchSteamApps, searchGames } from '../../services/igdb';
 import {
   verifySteamSignIn, resolveSteamProfile, getSteamOwnedGames, getSteamWishlist,
-  steamSignInUrl, openIdParamsFrom,
+  openIdParamsFrom,
 } from '../../services/steam';
 import { parseProfileInput } from '../../services/steamProfile';
-import { STEAM_STORE, buildSteamRows, rowReady, planSteamImport, importUndo } from '../../services/steamImport';
+import {
+  STEAM_STORE, buildSteamRows, rowReady, planSteamImport, importUndo,
+  linkRowToIgdb, unlinkRowFromIgdb,
+} from '../../services/steamImport';
 import { statusColor } from '../../constants/stateColors';
+import { startSteamSignIn, steamAccounts } from '../../services/steamAuth';
 import { isTauri } from '../../services/openExternal';
 import { PlatformLogo } from '../../components/platforms/PlatformLogo';
 
@@ -69,6 +73,7 @@ export default function SteamImport() {
   const [query, setQuery] = useState('');
   const [result, setResult] = useState(null);
   const [steamid, setSteamid] = useState(null);
+  const [linked, setLinked] = useState([]);
   const undone = useRef(false);
   const inApp = isTauri();
 
@@ -145,6 +150,30 @@ export default function SteamImport() {
     return () => { live = false; };
   }, [openid, navigate, load]);
 
+  /* The Steam accounts this LoreHaven account signs in with, for the import
+     prompt that follows a Steam sign-in: nothing to type, nothing to confirm.
+     One goes straight to the review; several are offered as a choice, because
+     guessing which of somebody's Steam accounts they meant would be worse than
+     asking. */
+  useEffect(() => {
+    if (openid || phase !== 'connect') return undefined;
+    let live = true;
+    (async () => {
+      await Promise.resolve();
+      const accounts = await steamAccounts().catch(() => []);
+      if (!live || accounts.length === 0) return;
+      if (accounts.length === 1) {
+        setPhase('loading');
+        load(accounts[0].steamid);
+        return;
+      }
+      setLinked(accounts);
+    })();
+    return () => { live = false; };
+    /* Only on arrival: Start Over must be able to get back to the form. */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const submitProfile = async (e) => {
     e.preventDefault();
     const parsed = parseProfileInput(profile);
@@ -166,7 +195,9 @@ export default function SteamImport() {
   };
 
   const signIn = () => {
-    window.location.assign(steamSignInUrl(`${window.location.origin}/import/steam`));
+    /* Steam returns to lorehaven.app, and the page there sends the result
+       back here: this site, or the app through a lorehaven:// link. */
+    startSteamSignIn({ target: 'import' });
   };
 
   const startOver = () => {
@@ -191,6 +222,29 @@ export default function SteamImport() {
   /* ── Review state ── */
   const setRow = useCallback((key, patch) => {
     setRows(rs => rs.map(r => (r.key === key ? { ...r, ...patch } : r)));
+  }, []);
+
+  /* Read through a ref so the two callbacks below never change identity: a new
+     onLink on every keystroke would re-render all thousand memoised rows. The
+     ref is written after each commit, which is the only place a ref may be
+     written, and the callbacks only read it from a click. */
+  const rowsRef = useRef(rows);
+  useEffect(() => { rowsRef.current = rows; }, [rows]);
+
+  /* A Steam item matched to an IGDB game by hand. Refused when that game is
+     already a row of its own, because two rows writing one game would import it
+     twice and the second write would win. */
+  const onLink = useCallback((key, game) => {
+    if (rowsRef.current.some(r => r.key === `igdb:${game.id}`)) {
+      toast(`${game.name} is already on this list`, 'error');
+      return;
+    }
+    setRows(rs => rs.map(r => (r.key === key ? linkRowToIgdb(r, game, getLibrary()) : r)));
+    toast(`Matched to ${game.name}`);
+  }, []);
+
+  const onUnlink = useCallback((key) => {
+    setRows(rs => rs.map(r => (r.key === key ? unlinkRowFromIgdb(r, getLibrary()) : r)));
   }, []);
 
   const counts = useMemo(() => Object.fromEntries(FILTERS.map(f => [f.id, rows.filter(f.test).length])), [rows]);
@@ -296,6 +350,8 @@ export default function SteamImport() {
             profileError={profileError}
             onSubmit={submitProfile}
             onSignIn={signIn}
+            linked={linked}
+            onPickLinked={(id) => { setPhase('loading'); load(id); }}
           />
         )}
 
@@ -418,7 +474,7 @@ export default function SteamImport() {
               </p>
             ) : (
               <ul aria-label="Steam games" className="m-0 p-0 list-none">
-                {shown.map(row => <Row key={row.key} row={row} setRow={setRow} />)}
+                {shown.map(row => <Row key={row.key} row={row} setRow={setRow} onLink={onLink} onUnlink={onUnlink} />)}
               </ul>
             )}
 
@@ -487,9 +543,33 @@ export default function SteamImport() {
   );
 }
 
-function Connect({ inApp, profile, setProfile, profileError, onSubmit, onSignIn }) {
+function Connect({ inApp, profile, setProfile, profileError, onSubmit, onSignIn, linked = [], onPickLinked }) {
   return (
     <div className="max-w-4xl">
+      {/* Already linked, and more than one: reading either is a single tap, and
+          the two ways in below still stand for any other account. */}
+      {linked.length > 1 && (
+        <section aria-labelledby="linked-steam-title" className="border border-white/15 p-6 mb-6">
+          <h2 id="linked-steam-title" className="lh-display text-xl text-white m-0">Your Steam Accounts</h2>
+          <p className="text-[13px] text-white/60 mt-2 mb-5">
+            These sign in to your LoreHaven account. Read the library of whichever one you mean.
+          </p>
+          <ul className="list-none p-0 m-0 flex flex-wrap gap-3">
+            {linked.map(account => (
+              <li key={account.steamid}>
+                <button
+                  type="button"
+                  onClick={() => onPickLinked(account.steamid)}
+                  className="tap-block lh-label inline-flex items-center gap-2 px-4 py-3 border border-white/20 text-white hover:border-white hover:bg-white hover:text-black transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white"
+                >
+                  {account.name || `Account ending ${String(account.steamid).slice(-4)}`}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {/* Two equal ways in, side by side, ruled rather than carded. */}
       <div className="grid md:grid-cols-2 border border-white/15">
         <section aria-labelledby="steam-signin-title" className="p-6 flex flex-col gap-4 border-b md:border-b-0 md:border-r border-white/15">
@@ -502,17 +582,16 @@ function Connect({ inApp, profile, setProfile, profileError, onSubmit, onSignIn 
           <p className="text-[13px] text-white/60 m-0 max-w-[45ch]">
             Opens Steam&apos;s own sign-in page. LoreHaven never sees your password, only the public id of the account you sign in with.
           </p>
-          {inApp ? (
-            <p className="text-[13px] text-white/70 m-0 mt-auto border-t border-white/15 pt-4">
-              Signing in with Steam comes to the desktop and Android apps in the next update. Use your profile link for now.
+          <button
+            onClick={onSignIn}
+            className="mt-auto self-start tap lh-label px-5 py-2.5 border border-white bg-white text-black hover:bg-neutral-200 active:scale-[0.97] transition-[transform,background-color] duration-150 ease-out motion-reduce:transition-none cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+          >
+            Sign In With Steam
+          </button>
+          {inApp && (
+            <p className="text-[13px] text-white/60 m-0">
+              Steam opens in your browser, then brings you back here.
             </p>
-          ) : (
-            <button
-              onClick={onSignIn}
-              className="mt-auto self-start tap lh-label px-5 py-2.5 border border-white bg-white text-black hover:bg-neutral-200 active:scale-[0.97] transition-[transform,background-color] duration-150 ease-out motion-reduce:transition-none cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-            >
-              Sign In With Steam
-            </button>
           )}
         </section>
 
@@ -584,17 +663,128 @@ function Progress({ steps }) {
   );
 }
 
+const gameYear = (g) => (g?.first_release_date ? new Date(g.first_release_date * 1000).getUTCFullYear() : null);
+const gameMeta = (g) => [gameYear(g), TYPE_LABEL[g?.game_type]].filter(Boolean).join(' · ');
+const rowName = (row) => row.igdb?.name || row.steamName || `Steam app ${row.appids[0]}`;
+
+/* The IGDB search for one Steam item, drawn from state the row owns: what it
+   found, what it is still looking for, and what the owner typed. */
+function LinkPanel({ row, search, onQuery, onRun, onPick, onClose }) {
+  const { query, results, busy } = search;
+  return (
+    <div className="border border-white/15 mt-3 mb-1">
+      <div className="flex border-b border-white/15">
+        <div className="relative flex-1 min-w-0">
+          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-white/50 pointer-events-none" aria-hidden="true" />
+          <input
+            type="text"
+            autoFocus
+            value={query}
+            onChange={(e) => onQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') onRun(query); }}
+            aria-label={`Search IGDB for ${rowName(row)}`}
+            placeholder="Search IGDB"
+            className="tap-block w-full h-11 pl-9 pr-3 bg-black lh-label text-white outline-none placeholder:text-white/50 focus-visible:ring-1 focus-visible:ring-white focus-visible:ring-inset"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => onRun(query)}
+          aria-disabled={busy || undefined}
+          className="tap lh-label px-4 border-l border-white/15 text-white/70 hover:bg-white hover:text-black transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white focus-visible:ring-inset"
+        >
+          {busy ? 'Searching' : 'Search'}
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label={`Close the IGDB search for ${rowName(row)}`}
+          className="tap px-3 border-l border-white/15 text-white/60 hover:bg-white hover:text-black transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white focus-visible:ring-inset"
+        >
+          <X className="w-3.5 h-3.5" aria-hidden="true" />
+        </button>
+      </div>
+
+      <div className="max-h-72 overflow-y-auto custom-scrollbar" aria-busy={busy || undefined}>
+        {busy || results === null
+          ? <p className="lh-label text-white/60 px-4 py-5 m-0">Searching IGDB</p>
+          : results.length === 0
+            ? <p className="lh-label text-white/60 px-4 py-5 m-0">No match on IGDB. Try another name, or leave it as a custom entry.</p>
+            : results.map(g => (
+              <button
+                key={g.id}
+                type="button"
+                onClick={() => onPick(g)}
+                aria-label={`Match ${rowName(row)} to ${g.name}`}
+                className="tap-block group w-full flex items-center gap-3 p-3 text-left border-b border-white/10 last:border-b-0 text-white hover:bg-white hover:text-black transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white focus-visible:ring-inset"
+              >
+                <span className="w-8 h-11 shrink-0 bg-neutral-900 border border-white/10 overflow-hidden flex items-center justify-center">
+                  {g.cover?.image_id
+                    ? <img src={`https://images.igdb.com/igdb/image/upload/t_cover_small/${g.cover.image_id}.jpg`} alt="" loading="lazy" className="w-full h-full object-cover" />
+                    : <ImageOff className="w-3.5 h-3.5 text-white/50 group-hover:text-black/50" aria-hidden="true" />}
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[15px] leading-snug truncate">{g.name}</span>
+                  <span className="block lh-label text-white/60 group-hover:text-black/60 truncate">{gameMeta(g) || 'Game'}</span>
+                </span>
+              </button>
+            ))}
+      </div>
+    </div>
+  );
+}
+
 /* Memoised on the row object: setRow replaces only the row that changed, so a
-   status picked on one game re-renders one row, not a thousand. */
-const Row = memo(function Row({ row, setRow }) {
-  const name = row.igdb?.name || row.steamName || `Steam app ${row.appids[0]}`;
+   status picked on one game re-renders one row, not a thousand. onLink and
+   onUnlink are stable for the same reason. */
+const Row = memo(function Row({ row, setRow, onLink, onUnlink }) {
+  /* null while the panel is closed, so no row holds search results it is not
+     showing. The search runs from the click that opens the panel, never from an
+     effect. */
+  const [search, setSearch] = useState(null);
+
+  const runSearch = async (text) => {
+    const q = (text ?? '').trim();
+    if (q.length < 2) { setSearch(s => (s ? { ...s, query: q, results: [], busy: false } : s)); return; }
+    setSearch(s => (s ? { ...s, query: q, busy: true } : s));
+    let found = [];
+    try { found = await searchGames(q); } catch { found = []; }
+    setSearch(s => (s ? { ...s, results: found, busy: false } : s));
+  };
+
+  /* The Steam name is the obvious first search, so opening the panel runs it. */
+  const openSearch = () => {
+    const q = row.steamName || '';
+    setSearch({ query: q, results: null, busy: true });
+    runSearch(q);
+  };
+
+  const name = rowName(row);
   const cover = row.igdb?.cover?.image_id;
-  const year = row.igdb?.first_release_date ? new Date(row.igdb.first_release_date * 1000).getUTCFullYear() : null;
   const meta = row.igdb
-    ? [year, TYPE_LABEL[row.igdb.game_type]].filter(Boolean).join(' · ')
+    ? gameMeta(row.igdb)
     : row.selected ? 'Not on IGDB, imported as a custom entry' : 'Not on IGDB. Tick to add it as a custom entry';
-  const value = row.status || '';
   const shownStatus = row.status || row.existing?.status || null;
+  /* What the control says when the row carries no status of its own: a game
+     already in the library keeps the one it has, a new one has none yet. */
+  const restLabel = row.existing ? `Keep ${row.existing.status || 'As Is'}` : 'Choose Status';
+  const statusOptions = [
+    ...STATUSES.map(s => ({
+      label: s,
+      color: statusColor(s),
+      isActive: row.status === s,
+      onClick: () => setRow(row.key, { status: s, selected: true }),
+    })),
+    ...(row.status ? [{
+      /* Clearing it: a library game goes back to the status it already has, a
+         new one back to none. "Choose Status" is the trigger's own resting
+         label and would only truncate in a menu this width. */
+      label: row.existing ? restLabel : 'No Status',
+      dividerAbove: true,
+      isActive: false,
+      onClick: () => setRow(row.key, { status: null }),
+    }] : []),
+  ];
 
   return (
     /* content-visibility lets the browser skip laying out rows far off screen,
@@ -622,34 +812,69 @@ const Row = memo(function Row({ row, setRow }) {
           {row.existing ? `In your library as ${row.existing.status || 'no status'}` : meta}
         </p>
         <p className="text-[13px] text-white/60 mt-0.5 mb-0 truncate">{playLine(row)}</p>
+
+        {/* A game IGDB's Steam records miss can still be found by name, the way
+            the CSV import's review does it. Ticking it without searching still
+            imports it as a custom entry. */}
+        {!row.igdb && (
+          <button
+            type="button"
+            onClick={() => (search ? setSearch(null) : openSearch())}
+            aria-expanded={!!search}
+            className="tap lh-label inline-flex items-center min-h-6 gap-1.5 mt-1.5 text-white/70 underline underline-offset-4 decoration-white/30 hover:text-white hover:decoration-white transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white"
+          >
+            <Search className="w-3.5 h-3.5" aria-hidden="true" />
+            {search ? 'Close Search' : 'Find It on IGDB'}
+          </button>
+        )}
+        {row.linkedByHand && (
+          <span className="lh-label text-white/60 inline-flex flex-wrap items-center gap-2 mt-1.5">
+            Matched by hand
+            <button
+              type="button"
+              onClick={() => onUnlink(row.key)}
+              className="tap inline-flex items-center min-h-6 gap-1.5 text-white/70 underline underline-offset-4 decoration-white/30 hover:text-white hover:decoration-white transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white"
+            >
+              <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
+              Undo Match
+            </button>
+          </span>
+        )}
       </div>
 
-      {/* A native select: a thousand of them cost nothing, and every platform
-          gives it a keyboard and screen reader behaviour people already know.
-          The swatch beside it carries the status colour, as a state row does. */}
+      {/* The state cell: once a game has a status the control fills with that
+          status's colour and its label turns black (DESIGN.md, the three
+          shapes). No amber on arrival: most rows start ticked with no status
+          because the page ticked them, which is not a problem to flag; the
+          import bar's count says how many are waiting. */}
       <div className="col-span-3 sm:col-span-1 flex items-center gap-2 pl-[calc(1.5rem+2.25rem+2rem)] sm:pl-0">
-        {/* The state cell: once a game has a status the control fills with that
-            status's colour and its label turns black (DESIGN.md, the three
-            shapes). No amber on arrival: most rows start ticked with no status
-            because the page ticked them, which is not a problem to flag; the
-            import bar's count says how many are waiting. The options get their
-            own black ground so the open list does not inherit the fill. */}
-        <div className="relative flex-1 min-w-0">
-          <select
-            value={value}
-            onChange={(e) => setRow(row.key, { status: e.target.value || null, selected: e.target.value ? true : row.selected })}
+        <DropdownMenu align="left" matchAnchorWidth options={statusOptions}>
+          <button
+            type="button"
             aria-label={`Status for ${name}`}
             style={shownStatus ? { backgroundColor: statusColor(shownStatus), borderColor: statusColor(shownStatus) } : undefined}
-            className={`tap-block w-full h-9 appearance-none border pl-3 pr-8 lh-label cursor-pointer outline-none transition-colors focus-visible:ring-1 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black [&>option]:bg-black [&>option]:text-white ${
+            className={`tap-block w-full h-9 flex items-center justify-between gap-2 border pl-3 pr-2.5 lh-label cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
               shownStatus ? 'text-black' : 'bg-black border-white/20 text-white/80 hover:border-white/70'
             }`}
           >
-            <option value="">{row.existing ? `Keep ${row.existing.status || 'as is'}` : 'Choose Status'}</option>
-            {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <ChevronDown className={`w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none ${shownStatus ? 'text-black' : 'text-white/60'}`} aria-hidden="true" />
-        </div>
+            <span className="truncate">{row.status || restLabel}</span>
+            <ChevronDown className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+          </button>
+        </DropdownMenu>
       </div>
+
+      {search && !row.igdb && (
+        <div className="col-span-3 sm:col-span-4">
+          <LinkPanel
+            row={row}
+            search={search}
+            onQuery={(v) => setSearch(s => (s ? { ...s, query: v } : s))}
+            onRun={runSearch}
+            onPick={(g) => { onLink(row.key, g); setSearch(null); }}
+            onClose={() => setSearch(null)}
+          />
+        </div>
+      )}
     </li>
   );
 });
