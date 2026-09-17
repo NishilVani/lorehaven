@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 // App shell — always on screen, so it stays in the main chunk.
 import Navbar from './components/layout/Navbar';
 import ScrollToTop from './components/layout/ScrollToTop';
+import AppLinks from './components/layout/AppLinks';
 import { ToastContainer } from './components/ui/Toast';
 import ApiErrorBanner from './components/ui/ApiErrorBanner';
 
@@ -21,6 +22,7 @@ const Library = lazy(() => import('./pages/library/Library'));
 const Duplicates = lazy(() => import('./pages/library/Duplicates'));
 const ImportWizardV2 = lazy(() => import('./pages/ImportWizard/ImportWizard'));
 const SteamImport = lazy(() => import('./pages/ImportWizard/SteamImport'));
+const SteamAuth = lazy(() => import('./pages/auth/SteamAuth'));
 const FranchisePage = lazy(() => import('./pages/franchises/FranchisePage'));
 const Collections = lazy(() => import('./pages/collections/Collections'));
 const CollectionDetail = lazy(() => import('./pages/collections/CollectionDetail'));
@@ -104,6 +106,7 @@ function App() {
   return (
     <BrowserRouter>
       <ScrollToTop />
+      <AppLinks />
       <ToastContainer />
       <div className="min-h-screen text-white flex flex-col">
         {/* Skip link — visually hidden until focused, then pinned top-left ABOVE the rail.
@@ -149,6 +152,8 @@ function App() {
             <Route path="/library/:status" element={<Library />} />
             <Route path="/import" element={<ImportWizardV2 />} />
             <Route path="/import/steam" element={<SteamImport />} />
+            {/* Where Steam returns every sign-in; see services/steamAuth.js. */}
+            <Route path="/auth/steam" element={<SteamAuth />} />
             <Route path="/franchise/:franchiseId" element={<KeyedRoute component={FranchisePage} />} />
             <Route path="/collections" element={<Collections />} />
             {/* The hub page is gone: the sidebar submenu is the way in now, and

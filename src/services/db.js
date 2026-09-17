@@ -1330,7 +1330,7 @@ const PREFS_KEY = 'moctale_prefs';
 
 /** tasteBias: -1 comfort (more like your favourites) … +1 novelty (unlike what
  *  you have beaten). releaseEra: which era to favour, or 'any' to ignore. */
-export const DEFAULT_PREFS = { tasteBias: 0, releaseEra: 'any' };
+export const DEFAULT_PREFS = { tasteBias: 0, releaseEra: 'any', steamImportAsked: {} };
 
 const ERAS = new Set(['any', 'new', 'neutral', 'old']);
 
@@ -1342,6 +1342,12 @@ export const getPrefs = () => {
       // Clamped, not trusted: this is user-editable storage.
       tasteBias: Number.isFinite(bias) ? Math.max(-1, Math.min(1, bias)) : 0,
       releaseEra: ERAS.has(parsed?.releaseEra) ? parsed.releaseEra : 'any',
+      /* Which Steam accounts have already been asked about importing. Kept as
+         plain true flags, because this is user-editable storage like the rest. */
+      steamImportAsked: Object.fromEntries(
+        Object.entries(parsed?.steamImportAsked || {})
+          .filter(([k, v]) => typeof k === 'string' && v === true),
+      ),
     };
   } catch {
     return { ...DEFAULT_PREFS };

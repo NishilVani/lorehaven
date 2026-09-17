@@ -126,6 +126,18 @@ export default function DropdownMenu({
     });
   }, [reposition, onOpenChange]);
 
+  /* When the page scrolls under an open menu it closes, because a menu pinned
+     to a control that has moved away is worse than no menu. But a page can
+     scroll on its own in the first frames after one opens: the Steam import
+     review draws a thousand rows with content-visibility, and the paint that
+     follows the menu opening changes the page height, which the browser answers
+     with a scroll of its own. Measured at 3 to 5ms after the click, it shut the
+     menu that click had just opened, so the control took two clicks. Scrolls in
+     that window move the menu back onto its control instead of closing it;
+     nobody begins a deliberate scroll five milliseconds after clicking. */
+  const openedAt = useRef(0);
+  useEffect(() => { if (open) openedAt.current = performance.now(); }, [open]);
+
   useEffect(() => {
     if (!open) return;
 
@@ -148,6 +160,7 @@ export default function DropdownMenu({
       if (menuRef.current && menuRef.current.contains(e.target)) {
         return;
       }
+      if (performance.now() - openedAt.current < 250) { reposition(); return; }
       setOpen(false);
       if (onOpenChange) onOpenChange(false);
     };
@@ -179,7 +192,13 @@ export default function DropdownMenu({
     if (open) {
       hasBeenOpened.current = true;
       const first = menuRef.current?.querySelector('[role="menuitem"],[role="menuitemradio"]');
-      first?.focus();
+      /* preventScroll, because this menu closes on any page scroll: a menu that
+         opened near the bottom of the window would otherwise have focus scroll
+         the page to reveal it, and that scroll shut it again on the click that
+         opened it. Measured on the Steam import review, where every row carries
+         one of these. The item is in a fixed portal that reposition() has
+         already fitted to the viewport, so nothing needs scrolling. */
+      first?.focus({ preventScroll: true });
       return;
     }
     /* Restore ONLY after a real close. On first mount `open` is already false and

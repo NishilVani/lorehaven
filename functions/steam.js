@@ -24,6 +24,7 @@ const STEAM_ID = /^7656119\d{10}$/;
    cannot be replayed here. STEAM_RETURN_ORIGINS, comma-separated, replaces the
    list for a preview deployment. */
 export const DEFAULT_RETURN_ORIGINS = [
+  'https://lorehaven.app',
   'https://lorehaven.web.app',
   'https://moctalegames.web.app',
   'http://localhost:5173',

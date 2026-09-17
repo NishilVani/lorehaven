@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import SteamAccount from './SteamAccount';
 import { Check, X, Pencil } from 'lucide-react';
 import { auth } from '../../services/firebase';
 import { signOut, onAuthStateChanged } from 'firebase/auth';
@@ -249,6 +250,8 @@ export default function Profile() {
               <p className="text-sm text-white/60 mt-3 m-0 break-words">
                 {user?.email || 'Not signed in'}
               </p>
+
+              <SteamAccount user={user} />
 
               <p className={`flex items-center gap-2 text-[13px] mt-2 m-0 ${syncing.tone}`}>
                 <span aria-hidden="true" className="w-[7px] h-[7px] shrink-0 block" style={{ background: syncing.dot }} />

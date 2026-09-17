@@ -157,7 +157,7 @@ The web app deploys itself. Every push to `main` runs
 [`ci.yml`](../.github/workflows/ci.yml) (lint, unit tests, build) and, only if
 that is green, calls
 [`firebase-hosting.yml`](../.github/workflows/firebase-hosting.yml) to build and
-deploy to the live Firebase Hosting channel at https://lorehaven.web.app. A red
+deploy to the live Firebase Hosting channel at https://lorehaven.app. A red
 lint or a red test stops the deploy. The deploy workflow no longer runs the tests
 itself; that copy drifted from `ci.yml` and was removed.
 
@@ -174,13 +174,13 @@ The `moctalegames` project has two Hosting sites, mapped as deploy targets in
 
 | Target | Site | Serves |
 |---|---|---|
-| `app` | `lorehaven`, https://lorehaven.web.app | The app |
-| `legacy` | `moctalegames`, https://moctalegames.web.app | A permanent redirect to the same path on lorehaven.web.app |
+| `app` | `lorehaven`, https://lorehaven.app and https://lorehaven.web.app | The app |
+| `legacy` | `moctalegames`, https://moctalegames.web.app | A permanent redirect to the same path on lorehaven.app |
 
 `moctalegames` is the project ID, so it is also the project's default site, and
 Firebase does not allow deleting that. The workflow deploys `app` first and
 `legacy` only after it, so the redirect never points at a failed deploy.
-The rule is a regex, `^/(.*)$` to `https://lorehaven.web.app/:1`, and not the
+The rule is a regex, `^/(.*)$` to `https://lorehaven.app/:1`, and not the
 shorter glob `/:path*` shown in Firebase's docs. Tested in the Hosting emulator on
 2026-09-12, the glob and a plain `**` never matched any path, while the regex
 redirected every path with its query string intact. The bare root `/` was the one
@@ -189,8 +189,14 @@ than a placeholder: it forwards `/` with a meta refresh and a link. Reserved URL
 redirects, so Firebase Auth's email action links keep working on both domains.
 
 The `lorehaven` site has to exist before its first deploy: in the Firebase console,
-**Hosting → Add another site**. `lorehaven.web.app` also belongs under
-**Authentication → Settings → Authorized domains**.
+**Hosting → Add another site**. `lorehaven.app` and `lorehaven.web.app` also
+belong under **Authentication → Settings → Authorized domains**.
+
+**Addresses.** `lorehaven.app` is production: the address to share, and where
+Steam returns every sign-in. `lorehaven.web.app` is kept for testing. Both belong
+to the same site today, so they always serve the same build; a separate testing
+site with a promotion step is deferred until it is needed. `www.lorehaven.app`
+redirects to `lorehaven.app` (a CNAME to `lorehaven.web.app` at Name.com).
 
 Every pull request gets its own preview channel on the `lorehaven` site, with a URL
 commented on the PR, expiring after seven days.

@@ -21,6 +21,7 @@
  */
 
 import { steamRoute } from './steam.js';
+import { authRoute } from './auth.js';
 
 const IGDB = 'https://api.igdb.com/v4';
 const TWITCH = 'https://id.twitch.tv/oauth2/token';
@@ -157,7 +158,7 @@ const json = (status, body) =>
 const cors = (h = {}) => ({
   ...h,
   'access-control-allow-origin': '*',
-  'access-control-allow-headers': 'content-type',
+  'access-control-allow-headers': 'content-type, authorization',
   'access-control-allow-methods': 'POST, OPTIONS',
 });
 
@@ -283,6 +284,16 @@ export async function handle(req, env, ctx) {
   /* Steam before the IGDB credential check: its routes need their own key or
      none at all, and a Steam sign-in should not fail because IGDB is
      misconfigured. Never through the edge cache; see steam.js. */
+  /* Sign-in before everything else, for the same reason, and because a failure
+     here must say so rather than fall through to IGDB's "not configured". */
+  if (/^\/+auth\//.test(pathname)) {
+    try {
+      return await authRoute(pathname.replace(/^\/+auth\//, ''), req, env, json);
+    } catch {
+      return json(502, { error: 'the sign-in could not be completed' });
+    }
+  }
+
   if (/^\/+steam\//.test(pathname)) {
     try {
       return await steamRoute(pathname.replace(/^\/+steam\//, ''), req, env, json);

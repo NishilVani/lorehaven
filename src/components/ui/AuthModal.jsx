@@ -1,4 +1,7 @@
-import { useRef, useState } from 'react';
+import { useRef, useState } from 'react';
+import { PlatformLogo } from '../platforms/PlatformLogo';
+import { STEAM_STORE } from '../../services/steamImport';
+import { startSteamSignIn } from '../../services/steamAuth';
 import { X, Mail, Lock, Loader2 } from 'lucide-react';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../../services/firebase';
@@ -132,6 +135,24 @@ export default function AuthModal({ isOpen, onClose }) {
             {isForgotPassword ? 'Enter your email to receive a reset link.' : isSignUp ? 'Sign up to sync your game library.' : 'Sign in to access your game library.'}
           </p>
         </div>
+
+        {!isForgotPassword && (
+          <div className="mb-6">
+            <button
+              type="button"
+              onClick={() => startSteamSignIn({ from: window.location.pathname + window.location.search })}
+              className="tap-block w-full lh-label px-4 py-3 border border-white/20 text-white hover:border-white hover:bg-white hover:text-black transition-colors cursor-pointer flex items-center justify-center gap-3 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white"
+            >
+              <PlatformLogo platform={STEAM_STORE} className="w-6 h-6 p-1" disableTooltip />
+              Sign In With Steam
+            </button>
+            <div className="flex items-center gap-3 mt-6" aria-hidden="true">
+              <span className="flex-1 h-px bg-white/15" />
+              <span className="lh-label text-white/40">or with email</span>
+              <span className="flex-1 h-px bg-white/15" />
+            </div>
+          </div>
+        )}
 
         {/* The double-submit guard lives here rather than on the button: with
             aria-disabled the button still submits the form. */}

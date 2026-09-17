@@ -66,6 +66,17 @@
           Square71x71Logo="Assets\Square71x71Logo.png"
           ShortName="LoreHaven" />
       </uap:VisualElements>
+      <!-- lorehaven:// links. A Steam sign-in finished in the browser comes back
+           to the app through one; Tauri registers the scheme for the MSI and
+           NSIS installers, and this is the same registration for the Store
+           package. -->
+      <Extensions>
+        <uap:Extension Category="windows.protocol">
+          <uap:Protocol Name="lorehaven">
+            <uap:DisplayName>LoreHaven</uap:DisplayName>
+          </uap:Protocol>
+        </uap:Extension>
+      </Extensions>
     </Application>
   </Applications>
 

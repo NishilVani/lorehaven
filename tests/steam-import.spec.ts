@@ -26,6 +26,8 @@ const MATCHES = [
   { uid: '1091500', game: game(1877, 'Cyberpunk 2077') },
 ];
 const LIBRARY = [{ id: 71, name: 'Portal', status: 'Beaten', user_platforms: [{ id: 6, name: 'PC (Windows)', category: 'hardware' }] }];
+/* What IGDB's name search answers for a Steam item its app-id records miss. */
+const SEARCH = [{ id: 4242, name: 'Wallpaper Engine', cover: { image_id: 'wp1' }, first_release_date: 1478000000, game_type: 0 }];
 
 async function stub(page: Page, { privateLibrary = false } = {}) {
   const steamCalls: string[] = [];
@@ -46,13 +48,22 @@ async function stub(page: Page, { privateLibrary = false } = {}) {
   });
   await page.route('**/api/**', r => {
     const body = r.request().postData() || '';
-    const rows = body.includes('external_game_source = 1') ? MATCHES : [];
+    const rows = body.includes('external_game_source = 1') ? MATCHES
+      : body.includes('search "') ? SEARCH
+        : [];
     return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(rows) });
   });
   return steamCalls;
 }
 
 const library = (page: Page) => page.evaluate(k => JSON.parse(localStorage.getItem(k) || '[]'), KEYS.library);
+
+/* The status control is the app's own menu, not a native select, so a status is
+   picked the way a person picks one: open the row's control, choose the status. */
+async function setStatus(page: Page, game: string, status: string) {
+  await page.getByRole('button', { name: `Status for ${game}` }).click();
+  await page.getByRole('menuitemradio', { name: status, exact: true }).click();
+}
 
 async function readByProfile(page: Page) {
   await page.goto('/import/steam');
@@ -78,8 +89,8 @@ test.describe('/import/steam', () => {
     await expect(page.getByText('2 ticked games need a status', { exact: false })).toBeVisible();
     await expect(page.getByRole('checkbox', { name: 'Import Wallpaper Engine' })).not.toBeChecked();
 
-    await page.getByRole('combobox', { name: 'Status for Portal 2' }).selectOption('Backlog');
-    await page.getByRole('combobox', { name: 'Status for The Witcher 3: Wild Hunt' }).selectOption('Beaten');
+    await setStatus(page, 'Portal 2', 'Backlog');
+    await setStatus(page, 'The Witcher 3: Wild Hunt', 'Beaten');
     await expect(importButton).toHaveText('Import 4 Games');
 
     await importButton.click();
@@ -129,6 +140,27 @@ test.describe('/import/steam', () => {
     await page.getByRole('button', { name: 'Import 5 Games' }).click();
     const saved = await library(page);
     expect(saved.find((g: Row) => g.id === 'custom_steam_431960')).toMatchObject({ name: 'Wallpaper Engine', status: 'Playing', is_custom: true });
+  });
+
+  test('a game IGDB has no Steam record for can be found by name and imported as that game', async ({ page }) => {
+    await stub(page);
+    await seed(page, { [KEYS.library]: [] });
+    await readByProfile(page);
+
+    const row = page.getByRole('listitem').filter({ hasText: 'Wallpaper Engine' });
+    await expect(row.getByText('Not on IGDB. Tick to add it as a custom entry')).toBeVisible();
+    await row.getByRole('button', { name: 'Find It on IGDB' }).click();
+
+    /* The panel searches for the Steam name on open, so the match is one click. */
+    await row.getByRole('button', { name: 'Match Wallpaper Engine to Wallpaper Engine' }).click();
+    await expect(row.getByText('Matched by hand')).toBeVisible();
+    await setStatus(page, 'Wallpaper Engine', 'Playing');
+
+    await page.getByRole('button', { name: /^Import \d+ Games?$/ }).click();
+    await expect(page.getByRole('heading', { name: /Imported$/ })).toBeVisible();
+    const saved = await library(page);
+    expect(saved.find((g: Row) => g.id === 4242)).toMatchObject({ name: 'Wallpaper Engine', status: 'Playing', is_custom: false });
+    expect(saved.find((g: Row) => String(g.id) === 'custom_steam_431960')).toBeUndefined();
   });
 
   test('a private library says how to fix it, with a link to Steam privacy settings', async ({ page }) => {

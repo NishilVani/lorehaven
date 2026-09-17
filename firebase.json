@@ -41,7 +41,7 @@
       "redirects": [
         {
           "regex": "^/(.*)$",
-          "destination": "https://lorehaven.web.app/:1",
+          "destination": "https://lorehaven.app/:1",
           "type": 301
         }
       ]

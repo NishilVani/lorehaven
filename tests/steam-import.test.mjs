@@ -5,6 +5,7 @@ import assert from 'node:assert';
 import { parseProfileInput } from '../src/services/steamProfile.js';
 import {
   STEAM_PLATFORM, buildSteamRows, rowReady, planSteamImport, importUndo,
+  linkRowToIgdb, unlinkRowFromIgdb,
 } from '../src/services/steamImport.js';
 
 /* ── Profile links ── */
@@ -123,6 +124,62 @@ const picked = rows.map(r => {
   const undo = importUndo([{ id: 71, user_platforms: [STEAM_PLATFORM], status: 'Playing' }], lib);
   assert.deepStrictEqual(undo.restore, [{ id: 71, user_platforms: null, status: 'Beaten' }],
     'null for a key the game never had, since saving merges');
+}
+
+/* ── Matched by hand ── */
+{
+  const rows = buildSteamRows({ owned, wishlist, matches, library: [] }).rows;
+  const wallpaper = rows.find(r => r.key === 'steam:431960');
+  assert.ok(wallpaper && !wallpaper.igdb, 'the unmatched Steam item is where the owner starts');
+
+  const found = { id: 4242, name: 'Wallpaper Engine', cover: { image_id: 'wp1' }, first_release_date: 1478000000, game_type: 0 };
+  const linked = linkRowToIgdb(wallpaper, found, []);
+  assert.strictEqual(linked.key, 'igdb:4242', 'the row moves to the game it was matched to');
+  assert.strictEqual(linked.igdb.name, 'Wallpaper Engine');
+  assert.strictEqual(linked.igdb.cover.image_id, 'wp1', 'the cover comes along, so the review shows it');
+  assert.strictEqual(linked.linkedByHand, true, 'the row says it was matched by hand, so Undo Match can be offered');
+  assert.strictEqual(linked.selected, true, 'matching a game by hand ticks it');
+  assert.deepStrictEqual(linked.appids, [431960], 'it keeps its Steam app id');
+  assert.strictEqual(linked.playtimeMinutes, 30, 'and its playtime');
+  assert.strictEqual(linked.existing, null, 'nothing in an empty library to find');
+
+  const { entries } = planSteamImport([{ ...linked, status: 'Backlog' }]);
+  assert.deepStrictEqual(entries, [{
+    id: 4242, name: 'Wallpaper Engine', cover_id: 'wp1', status: 'Backlog',
+    user_platforms: [STEAM_PLATFORM], is_custom: false,
+  }], 'a matched row imports the real IGDB game, never a custom entry');
+
+  const back = unlinkRowFromIgdb(linked, []);
+  assert.strictEqual(back.key, 'steam:431960', 'undoing the match returns the row to its Steam key');
+  assert.strictEqual(back.igdb, null);
+  assert.strictEqual(back.linkedByHand, false);
+  assert.strictEqual(back.playtimeMinutes, 30, 'and still keeps its playtime');
+  const { entries: asCustom } = planSteamImport([{ ...back, status: 'Backlog' }]);
+  assert.strictEqual(asCustom[0].id, 'custom_steam_431960', 'so it imports as a custom entry again');
+}
+
+{
+  /* The game matched by hand is already in the library: the row must pick that
+     up, or the import would write a second copy of it instead of adding Steam. */
+  const rows = buildSteamRows({ owned, wishlist, matches, library: [] }).rows;
+  const wallpaper = rows.find(r => r.key === 'steam:431960');
+  const lib = [{ id: 4242, name: 'Wallpaper Engine', status: 'Playing', user_platforms: [] }];
+  const linked = linkRowToIgdb(wallpaper, { id: 4242, name: 'Wallpaper Engine' }, lib);
+  assert.strictEqual(linked.existing?.status, 'Playing', 'the library entry is found by the game id');
+  const { entries } = planSteamImport([linked]);
+  assert.deepStrictEqual(entries, [{ id: 4242, user_platforms: [STEAM_PLATFORM] }],
+    'so the import only marks Steam on the game already there');
+}
+
+{
+  /* Undoing a match on a Steam item already imported as a custom entry finds
+     that entry again, so the row reads "In your library" rather than new. */
+  const rows = buildSteamRows({ owned, wishlist, matches, library: [] }).rows;
+  const wallpaper = rows.find(r => r.key === 'steam:431960');
+  const linked = linkRowToIgdb(wallpaper, { id: 4242, name: 'Wallpaper Engine' }, []);
+  const lib = [{ id: 'custom_steam_431960', name: 'Wallpaper Engine', status: 'Backlog' }];
+  const back = unlinkRowFromIgdb(linked, lib);
+  assert.strictEqual(back.existing?.id, 'custom_steam_431960');
 }
 
 console.log('steam import: all assertions passed');

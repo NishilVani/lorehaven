@@ -142,3 +142,42 @@ export function importUndo(entries, library) {
   }
   return { restore, removeIds };
 }
+
+/**
+ * A Steam item IGDB's app-id record does not cover, filed by hand under the
+ * game the owner found by searching. The row keeps its app id, playtime and
+ * status and moves to that game's key, so the import writes the real game
+ * instead of a custom entry -- and picks up the library entry when the game is
+ * already there.
+ */
+export function linkRowToIgdb(row, game, library = []) {
+  const byId = new Map(library.map(g => [String(g.id), g]));
+  const igdb = {
+    id: game.id,
+    name: game.name,
+    cover: game.cover?.image_id ? { image_id: game.cover.image_id } : null,
+    first_release_date: game.first_release_date ?? null,
+    game_type: game.game_type ?? 0,
+  };
+  return {
+    ...row,
+    key: `igdb:${game.id}`,
+    igdb,
+    linkedByHand: true,
+    existing: byId.get(String(game.id)) || null,
+    selected: true,
+  };
+}
+
+/** The same row back as a custom entry, with everything else left alone. */
+export function unlinkRowFromIgdb(row, library = []) {
+  const appid = row.appids[0];
+  const byId = new Map(library.map(g => [String(g.id), g]));
+  return {
+    ...row,
+    key: `steam:${appid}`,
+    igdb: null,
+    linkedByHand: false,
+    existing: byId.get(`custom_steam_${appid}`) || null,
+  };
+}
