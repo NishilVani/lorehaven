@@ -47,9 +47,10 @@ const openid = (returnTo: string) => new URLSearchParams({
 }).toString();
 
 type Account = { steamid: string; name: string | null };
+type Refusal = { status: number; error: string };
 type Stub = { authCalls: string[]; linked: boolean; accounts: Account[] };
 
-async function stub(page: Page, { linked = false, accounts = [] as Account[] } = {}) {
+async function stub(page: Page, { linked = false, accounts = [] as Account[], refuses = null as Refusal | null } = {}) {
   const state: Stub = { authCalls: [], linked, accounts };
   const json = (r: Parameters<Parameters<Page['route']>[1]>[0], status: number, body: unknown) =>
     r.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
@@ -96,6 +97,7 @@ async function stub(page: Page, { linked = false, accounts = [] as Account[] } =
     const action = new URL(r.request().url()).pathname.replace(/^\/auth\//, '');
     state.authCalls.push(action);
     if (action === 'steam/signin') {
+      if (refuses) return json(r, refuses.status, { error: refuses.error });
       return state.linked
         ? json(r, 200, { status: 'signed-in', steamid: STEAMID, token: 'custom-token' })
         : json(r, 200, { status: 'unlinked', steamid: STEAMID, personaName: 'GabeN', ticket: 'a-ticket' });
@@ -149,6 +151,26 @@ test.describe('/auth/steam', () => {
     expect((await prefs(page)).steamImportAsked).toMatchObject({ [`steam:${STEAMID}`]: true });
   });
 
+  /* What signing in does next is pull the account's library, and a pull that
+     changes anything fires moctale_sync_update, which remounts every route. It
+     remounted this page in the middle of its own sign-in and sent Steam the
+     assertion a second time -- and Steam accepts one exactly once, so the reply
+     was a refusal and the person watched a sign-in that had worked turn into a
+     failure. Seen live on 2026-09-17: signin 200, then signin 401. */
+  test('the data pull that follows a sign-in does not send Steam the same sign-in again', async ({ page }) => {
+    const state = await stub(page, { linked: true, accounts: [{ steamid: STEAMID, name: 'GabeN' }] });
+    await seed(page, { [KEYS.library]: [] });
+    await page.goto(`/auth/steam?${openid(here())}`);
+    await expect(page.getByRole('heading', { name: 'Bring Your Steam Library Over?' })).toBeVisible({ timeout: 20000 });
+
+    await page.evaluate(() => window.dispatchEvent(new Event('moctale_sync_update')));
+    await page.waitForTimeout(1000);
+
+    await expect(page.getByRole('heading', { name: 'Bring Your Steam Library Over?' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Steam Sign-In Did Not Finish|Steam Did Not Confirm/ })).toHaveCount(0);
+    expect(state.authCalls).toEqual(['steam/signin']);
+  });
+
   test('a sign-in meant for somewhere else is handed on, openid fields and all', async ({ page }) => {
     await stub(page);
     await page.goto(`/auth/steam?next=${encodeURIComponent(here('/import/steam'))}&${openid(here())}`);
@@ -177,6 +199,19 @@ test.describe('/auth/steam', () => {
     await expect(page.getByRole('alert').getByRole('heading', { name: 'That Return Address Is Not Ours' })).toBeVisible({ timeout: 20000 });
     expect(state.authCalls).toEqual([]);
     expect(page.url()).toContain('/auth/steam');
+  });
+
+  /* The Worker answers a refused sign-in with a status and a sentence, and both
+     used to be thrown away before this page saw them: every failure read "Steam
+     Sign-In Did Not Finish. Check your connection", which was neither true nor
+     actionable. */
+  test('a sign-in the Worker refuses says what went wrong, not that the connection failed', async ({ page }) => {
+    const state = await stub(page, { refuses: { status: 401, error: 'Steam could not confirm this sign-in' } });
+    await page.goto(`/auth/steam?${openid(here())}`);
+
+    await expect(page.getByRole('alert').getByRole('heading', { name: 'Steam Did Not Confirm That Sign-In' })).toBeVisible({ timeout: 20000 });
+    await expect(page.getByRole('heading', { name: 'Steam Sign-In Did Not Finish' })).toHaveCount(0);
+    expect(state.authCalls).toEqual(['steam/signin']);
   });
 
   test('a cancelled sign-in says so and changes nothing', async ({ page }) => {
