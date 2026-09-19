@@ -35,6 +35,14 @@ const ENV = {
 
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
+/* A ticket as the Worker signs one: which service, which account there, and
+   what it is called. Hand-made here so a test can present one the Worker never
+   issued -- for an account somebody else holds, say. */
+const ticketFor = (externalId, label = null, provider = 'steam') =>
+  new SignJWT({ provider, externalId, label })
+    .setProtectedHeader({ alg: 'HS256' }).setIssuer('lorehaven').setAudience('account-link')
+    .setIssuedAt().setExpirationTime('10m').sign(new TextEncoder().encode(SECRET));
+
 const assertion = (overrides = {}) => ({
   'openid.ns': 'http://specs.openid.net/auth/2.0',
   'openid.mode': 'id_res',
@@ -167,8 +175,9 @@ assert.strictEqual(await verifierMatches(undefined, 'LPJNul-wow4m6DsqxbninhsWHlw
   assert.strictEqual(body.status, 'unlinked', 'a Steam account nobody has linked cannot sign anybody in');
   assert.strictEqual(body.steamid, STEAMID);
   assert.strictEqual(body.personaName, 'GabeN', 'the Steam name comes back, for the new account to start with');
-  const { payload } = await jwtVerify(body.ticket, new TextEncoder().encode(SECRET), { issuer: 'lorehaven', audience: 'steam-link' });
-  assert.strictEqual(payload.steamid, STEAMID, 'the ticket carries the Steam account through the choice screen');
+  const { payload } = await jwtVerify(body.ticket, new TextEncoder().encode(SECRET), { issuer: 'lorehaven', audience: 'account-link' });
+  assert.strictEqual(payload.externalId, STEAMID, 'the ticket carries the Steam account through the choice screen');
+  assert.strictEqual(payload.provider, 'steam', 'and says which service it came from');
   assert.ok(!body.token, 'and no sign-in token is handed out');
 }
 
@@ -229,9 +238,7 @@ assert.strictEqual(await verifierMatches(undefined, 'LPJNul-wow4m6DsqxbninhsWHlw
 
 {
   reset({ links: { [doc(STEAMID)]: 'somebody_else' } });
-  const ticket = await new SignJWT({ steamid: STEAMID, personaName: 'GabeN' })
-    .setProtectedHeader({ alg: 'HS256' }).setIssuer('lorehaven').setAudience('steam-link')
-    .setIssuedAt().setExpirationTime('10m').sign(new TextEncoder().encode(SECRET));
+  const ticket = await ticketFor(STEAMID, 'GabeN');
   const { status, body } = await read(await call('steam/create', { ticket }));
   assert.strictEqual(status, 409, 'a Steam account already linked cannot start a second account');
   assert.match(body.error, /already linked/);
@@ -287,9 +294,7 @@ assert.strictEqual(await verifierMatches(undefined, 'LPJNul-wow4m6DsqxbninhsWHlw
   /* Two Steam accounts on one LoreHaven account -- a main and a family one --
      is an ordinary thing to want, not a conflict. */
   reset({ links: { [doc(STEAMID)]: UID } });
-  const second = await new SignJWT({ steamid: OTHER_STEAMID, personaName: 'Second' })
-    .setProtectedHeader({ alg: 'HS256' }).setIssuer('lorehaven').setAudience('steam-link')
-    .setIssuedAt().setExpirationTime('10m').sign(new TextEncoder().encode(SECRET));
+  const second = await ticketFor(OTHER_STEAMID, 'Second');
   const { status, body } = await read(await call('steam/link', { ticket: second }, { authorization: `Bearer ${await idToken()}` }));
   assert.strictEqual(status, 200);
   assert.strictEqual(world.links[doc(OTHER_STEAMID)], UID, 'the second Steam account is linked too');
@@ -316,9 +321,7 @@ assert.strictEqual(await verifierMatches(undefined, 'LPJNul-wow4m6DsqxbninhsWHlw
 
 {
   reset({ links: { [doc(STEAMID)]: 'another_account' } });
-  const ticket = await new SignJWT({ steamid: STEAMID })
-    .setProtectedHeader({ alg: 'HS256' }).setIssuer('lorehaven').setAudience('steam-link')
-    .setIssuedAt().setExpirationTime('10m').sign(new TextEncoder().encode(SECRET));
+  const ticket = await ticketFor(STEAMID);
   const { status, body } = await read(await call('steam/link', { ticket }, { authorization: `Bearer ${await idToken()}` }));
   assert.strictEqual(status, 409, 'one Steam account, one LoreHaven account');
   assert.match(body.error, /another LoreHaven account/);
@@ -327,9 +330,7 @@ assert.strictEqual(await verifierMatches(undefined, 'LPJNul-wow4m6DsqxbninhsWHlw
 
 {
   reset({ links: { [doc(STEAMID)]: UID } });
-  const again = await new SignJWT({ steamid: STEAMID, personaName: 'GabeN' })
-    .setProtectedHeader({ alg: 'HS256' }).setIssuer('lorehaven').setAudience('steam-link')
-    .setIssuedAt().setExpirationTime('10m').sign(new TextEncoder().encode(SECRET));
+  const again = await ticketFor(STEAMID, 'GabeN');
   const { status, body } = await read(await call('steam/link', { ticket: again }, { authorization: `Bearer ${await idToken()}` }));
   assert.strictEqual(status, 200, 'linking the same Steam account again changes nothing and says so');
   assert.deepStrictEqual(body.steamids, [STEAMID]);

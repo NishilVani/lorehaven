@@ -103,8 +103,28 @@ const currentIdToken = async () => {
   return user.getIdToken();
 };
 
-export const steamSignIn = (params, verifier = null) =>
-  post('steam/signin', { params, ...(verifier ? { verifier } : {}) });
+/* Steam confirms a sign-in exactly once: the nonce inside it is spent by the
+   first check_authentication and every later one is answered "not valid". So a
+   second call for the same assertion cannot succeed, and making it would throw
+   away a sign-in that already had. It happened in the ordinary case -- signing
+   in pulls the account's data, which remounts the routes, which mounted this
+   page again on the same address -- and the person saw a failure after a
+   success. The first call's answer stands for all of them. A call that never
+   got an answer is forgotten again, because then nothing was spent. */
+const confirmations = new Map();
+
+export const steamSignIn = (params, verifier = null) => {
+  const nonce = params?.['openid.response_nonce'];
+  const key = nonce ? String(nonce) : null;
+  if (key && confirmations.has(key)) return confirmations.get(key);
+  const call = post('steam/signin', { params, ...(verifier ? { verifier } : {}) })
+    .catch((err) => {
+      if (key && !err?.status) confirmations.delete(key);
+      throw err;
+    });
+  if (key) confirmations.set(key, call);
+  return call;
+};
 
 export const steamCreateAccount = (ticket) => post('steam/create', { ticket });
 

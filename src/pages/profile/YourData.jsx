@@ -185,6 +185,12 @@ export default function YourData({ stats: s }) {
             onClick={() => navigate('/import/steam')}
           />
           <Action
+            icon={Gamepad2}
+            label="Import from Xbox"
+            detail="The games your Xbox account has played, matched by their Microsoft Store ids"
+            onClick={() => navigate('/import/xbox')}
+          />
+          <Action
             icon={Download}
             label="Export as CSV"
             detail={exporting
