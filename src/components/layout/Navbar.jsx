@@ -443,7 +443,10 @@ export default function Navbar() {
                                 <Menu className="w-[18px] h-[18px]" />
                             </button>
                             <Link to="/" className="flex items-center gap-2 group ml-1.5" data-tauri-drag-region="false">
-                                <LogoMark className="w-4 h-4 flex-shrink-0 text-white/90 group-hover:text-white transition-colors" />
+                                {/* The mark stands as tall as the word beside it and no
+                                    taller: Bytesized draws 12px of ink at 24px, and the
+                                    artwork is 82:81, so 12.2 by 12. */}
+                                <LogoMark className="w-[12.2px] h-[12px] flex-shrink-0 text-white" />
                                 <span className="lh-brand text-[24px] leading-none text-white tracking-wide">LoreHaven</span>
                             </Link>
                         </div>
@@ -591,14 +594,15 @@ export default function Navbar() {
 
                         40px is not an arbitrary size. Only multiples of 8 keep one glyph
                         pixel on one device pixel; 32 could not reach the dashes and 48
-                        overruns the rail's 172px. The mark follows the wordmark's
-                        two-line ink height -- 42.4px -- and a 43px square box letterboxes
-                        the 76:75 artwork to exactly that. -mr-[4px] pulls the wordmark's
+                        overruns the rail's 172px. The mark is the wordmark's two-line
+                        ink height exactly -- 42.4px, which is 15px of ascent, a 22.4px
+                        line and 5px of descent -- and 42.9 wide for the artwork's 82:81.
+                        -mr-[4px] pulls the wordmark's
                         trailing advance off the row so its ink, not its box, sets the
                         right edge. */}
                     <div className="w-fit">
                         <div className="flex items-center gap-5">
-                            <LogoMark className="w-[43px] h-[43px] flex-shrink-0 text-white/90 group-hover:text-white transition-colors" />
+                            <LogoMark className="w-[42.9px] h-[42.4px] flex-shrink-0 text-white" />
                             <span className="lh-brand block text-[40px] leading-[0.56] text-white -mr-[4px]">
                                 Lore<br />Haven
                             </span>
@@ -930,8 +934,17 @@ export default function Navbar() {
                                     <Menu className="w-[18px] h-[18px]" />
                                 </button>
                                 <Link to="/" className="flex items-center gap-2 group py-1 min-w-0">
-                                    <LogoMark className="w-5 h-5 flex-shrink-0 text-white/90 group-hover:text-white transition-colors" />
-                                    <span className="lh-brand text-xl leading-none text-white truncate">LoreHaven</span>
+                                    {/* 32px, not 20: a multiple of 8 keeps one glyph pixel on
+                                        one device pixel, and it draws 16px of ink in a 56px
+                                        bar. The mark is that same 16px, so the two stand the
+                                        same height.
+
+                                        It needs 144px and the row only clears that from about
+                                        327px of viewport, so below 360 the pair drop back to
+                                        the size they were -- the name truncating to "LOREH.."
+                                        on a narrow phone is worse than a smaller name. */}
+                                    <LogoMark className="w-[11.1px] h-[11px] min-[360px]:w-[16.2px] min-[360px]:h-[16px] flex-shrink-0 text-white" />
+                                    <span className="lh-brand text-xl min-[360px]:text-[32px] leading-none text-white truncate">LoreHaven</span>
                                 </Link>
                             </div>
 
