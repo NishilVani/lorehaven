@@ -1,5 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+
 import SteamAccount from './SteamAccount';
+import XboxAccount from './XboxAccount';
 import { Check, X, Pencil } from 'lucide-react';
 import { auth } from '../../services/firebase';
 import { signOut, onAuthStateChanged } from 'firebase/auth';
@@ -51,6 +53,10 @@ function Count({ n, label }) {
 
 export default function Profile() {
   const [user, setUser] = useState(() => auth.currentUser);
+  /* How many accounts each service has linked, so neither list mistakes its own
+     last row for the last way into the account. */
+  const [steamLinks, setSteamLinks] = useState(0);
+  const [xboxLinks, setXboxLinks] = useState(0);
   const [authOpen, setAuthOpen] = useState(false);
   const [sync, setSync] = useState(getSyncState);
 
@@ -251,7 +257,12 @@ export default function Profile() {
                 {user?.email || 'Not signed in'}
               </p>
 
-              <SteamAccount user={user} />
+              {/* Each list refuses to unlink the last way into the account, so
+                  each has to know how many the other holds -- otherwise Steam
+                  would call its one account the last way in while an Xbox
+                  account signed the same person in perfectly well. */}
+              <SteamAccount user={user} otherLinks={xboxLinks} onCountChange={setSteamLinks} />
+              <XboxAccount user={user} otherLinks={steamLinks} onCountChange={setXboxLinks} />
 
               <p className={`flex items-center gap-2 text-[13px] mt-2 m-0 ${syncing.tone}`}>
                 <span aria-hidden="true" className="w-[7px] h-[7px] shrink-0 block" style={{ background: syncing.dot }} />

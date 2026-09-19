@@ -35,6 +35,20 @@ export default function StepUpload({
                 <ChevronRight className="w-4 h-4 shrink-0 text-white/60 group-hover:text-white transition-colors" aria-hidden="true" />
             </Link>
 
+            {/* Xbox next, and second on purpose: it reads what an account has
+                PLAYED, which is the closest thing Microsoft offers to a library,
+                and it needs a sign-in every time because nothing is kept. */}
+            <Link
+                to="/import/xbox"
+                className="group flex items-center justify-between gap-4 border border-white/15 px-5 py-4 mb-6 hover:border-white/70 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white"
+            >
+                <span className="min-w-0">
+                    <span className="block lh-label text-white">Import From Xbox</span>
+                    <span className="block text-[13px] text-white/60 mt-1">Read the games your Xbox account has played, matched by their Microsoft Store ids.</span>
+                </span>
+                <ChevronRight className="w-4 h-4 shrink-0 text-white/60 group-hover:text-white transition-colors" aria-hidden="true" />
+            </Link>
+
             {/* Dropzone — a bordered plate, nothing more */}
             <div
                 onDragOver={handleDragOver}

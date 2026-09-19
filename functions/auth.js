@@ -1,10 +1,22 @@
-/* Sign in to LoreHaven with Steam.
+/* Sign in to LoreHaven with an account somebody already has: Steam, or Xbox.
  *
  *   POST /auth/steam/signin   { params, verifier? }        -> { status, token | ticket }
- *   POST /auth/steam/create   { ticket }                   -> { token, uid }
- *   POST /auth/steam/link     { ticket }  + Bearer idToken -> { steamid, steamids }
- *   POST /auth/steam/unlink   { steamid } + Bearer idToken -> { unlinked, steamids }
- *   POST /auth/steam/accounts             + Bearer idToken -> { accounts }
+ *   POST /auth/xbox/signin    { code, verifier, redirectUri }
+ *                                                          -> { status, token | ticket }
+ *   POST /auth/xbox/library   { code, verifier, redirectUri }
+ *                                                          -> { xuid, gamertag, titles }
+ *
+ * and, the same for either service, with the provider naming which:
+ *
+ *   POST /auth/<provider>/create   { ticket }              -> { token, uid }
+ *   POST /auth/<provider>/link     { ticket }  + Bearer id -> { <id>, <ids> }
+ *   POST /auth/<provider>/unlink   { <id> }    + Bearer id -> { unlinked, <ids> }
+ *   POST /auth/<provider>/accounts             + Bearer id -> { accounts }
+ *
+ * Only the sign-in differs between services, because only the sign-in is
+ * theirs: Steam signs an OpenID assertion, Microsoft hands back a code to
+ * redeem. Everything after "this is who it is" -- the link table, the account,
+ * the claim, the last-way-in rule -- is one implementation taking a provider.
  *
  * Why the Worker and not the client: minting a Firebase sign-in token needs the
  * service-account key, and deciding which LoreHaven account a Steam account
@@ -24,6 +36,9 @@ import {
   STEAM_API, STEAM_OPENID_LOGIN, DEFAULT_RETURN_ORIGINS,
   openIdAssertionProblem, openIdCheckBody, isValidCheckResponse, steamIdFromClaimedId,
 } from './steam.js';
+import {
+  DEFAULT_REDIRECT_URIS, isAllowedRedirect, XboxError, authorizeUrl, xboxIdentity, titleHistory, shapeTitles,
+} from './xbox.js';
 
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const IDENTITY_AUD = 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit';
@@ -243,28 +258,42 @@ export const createUser = async (sa, uid, displayName) => {
 
 /* ── The ticket ──
  *
- * Steam confirms a sign-in once and only once, so the choice screen -- link
- * this to my account, or start a new one -- cannot hand the assertion back for
- * a second check. It carries this instead: the Steam id, signed by the Worker,
- * good for ten minutes.
+ * A store confirms a sign-in once and only once -- Steam spends its nonce,
+ * Microsoft spends its code -- so the choice screen, link this to my account or
+ * start a new one, cannot hand the sign-in back for a second check. It carries
+ * this instead: which service, which account there, and what that account is
+ * called, signed by the Worker and good for ten minutes.
+ *
+ * The audience names the shape rather than the service, so a ticket cannot be
+ * presented to the wrong provider's route: the provider inside it is checked
+ * against the route that reads it. A ticket signed before this carried a
+ * provider is refused, which costs nothing -- it was already ten minutes from
+ * expiring when this shipped.
+ *
+ * The key is STEAM_TICKET_SECRET, whatever the name says. It was set before
+ * there was a second service, and renaming a secret means the owner setting it
+ * again on a live Worker for no gain.
  */
 const ticketKey = (secret) => new TextEncoder().encode(clean(secret));
 
-export async function signTicket(secret, { steamid, personaName }) {
+export async function signTicket(secret, { provider, externalId, label = null }) {
   const now = Math.floor(Date.now() / 1000);
-  return new SignJWT({ steamid, personaName: personaName || null })
+  return new SignJWT({ provider, externalId: String(externalId), label: label || null })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuer('lorehaven')
-    .setAudience('steam-link')
+    .setAudience('account-link')
     .setIssuedAt(now)
     .setExpirationTime(now + TICKET_MINUTES * 60)
     .sign(ticketKey(secret));
 }
 
-export async function readTicket(secret, ticket) {
-  const { payload } = await jwtVerify(String(ticket ?? ''), ticketKey(secret), { issuer: 'lorehaven', audience: 'steam-link' });
-  if (!/^7656119\d{10}$/.test(String(payload.steamid || ''))) throw new Error('the ticket carries no Steam account');
-  return { steamid: String(payload.steamid), personaName: payload.personaName || null };
+export async function readTicket(secret, ticket, provider = null) {
+  const { payload } = await jwtVerify(String(ticket ?? ''), ticketKey(secret), { issuer: 'lorehaven', audience: 'account-link' });
+  const spec = PROVIDERS[String(payload.provider || '')];
+  const externalId = String(payload.externalId || '');
+  if (!spec || !spec.validId(externalId)) throw new Error('the ticket carries no account');
+  if (provider && payload.provider !== provider) throw new Error('that ticket is for another service');
+  return { provider: String(payload.provider), externalId, label: payload.label || null };
 }
 
 /* ── The signed-in person, from their Firebase ID token ── */
@@ -338,12 +367,41 @@ export async function confirmSteamSignIn(body, origins) {
   return { steamid: steamIdFromClaimedId(body.params['openid.claimed_id']) };
 }
 
-const newUid = () => `steam_${crypto.randomUUID().replace(/-/g, '')}`;
+const newUid = (provider) => `${provider}_${crypto.randomUUID().replace(/-/g, '')}`;
+
+/* What differs between one service and the next, after the sign-in itself is
+   done: what an answer calls its account id, and what a real one looks like.
+   Everything else -- claiming the link, the claim on the token, the refusal to
+   remove the last way in -- is the same for all of them, so it is written once
+   below and takes one of these.
+
+   The keys are the ones the app already reads, which is why they are per
+   provider rather than a tidy `externalId` everywhere: a Worker deploy lands
+   before the site does, and an answer the running app cannot read is an outage
+   for however long that gap is. */
+const PROVIDERS = {
+  steam: {
+    name: 'Steam',
+    idKey: 'steamid',
+    idsKey: 'steamids',
+    labelKey: 'personaName',
+    validId: (id) => /^7656119\d{10}$/.test(id),
+  },
+  xbox: {
+    name: 'Xbox',
+    idKey: 'xuid',
+    idsKey: 'xuids',
+    labelKey: 'gamertag',
+    /* An XUID is a decimal number Microsoft has been handing out since 2005 and
+       has never promised a width for, so this checks the shape, not a size. */
+    validId: (id) => /^\d{10,20}$/.test(id),
+  },
+};
 
 /**
- * @param {string} action   the path after /auth/
+ * @param {string} action   the path after /auth/, as <provider>/<verb>
  * @param {Request} req
- * @param {{FIREBASE_SERVICE_ACCOUNT?: string, STEAM_TICKET_SECRET?: string, STEAM_API_KEY?: string, STEAM_RETURN_ORIGINS?: string}} env
+ * @param {{FIREBASE_SERVICE_ACCOUNT?: string, STEAM_TICKET_SECRET?: string, STEAM_API_KEY?: string, STEAM_RETURN_ORIGINS?: string, XBOX_CLIENT_ID?: string, XBOX_CLIENT_SECRET?: string, XBOX_REDIRECT_URIS?: string}} env
  * @param {(status: number, body: object) => Response} json  the proxy's responder, CORS included
  */
 export async function authRoute(action, req, env, json) {
@@ -352,121 +410,241 @@ export async function authRoute(action, req, env, json) {
     res.headers.set('cache-control', 'no-store');
     return res;
   };
+
+  const [providerName, verb] = String(action ?? '').split('/');
+  const provider = PROVIDERS[providerName];
+  if (!provider || !verb) return send(404, { error: 'unknown auth route' });
+
   if (!env.FIREBASE_SERVICE_ACCOUNT || !env.STEAM_TICKET_SECRET) {
-    return send(503, { error: 'steam sign-in is not configured' });
+    return send(503, { error: `${providerName} sign-in is not configured` });
   }
   let sa;
   try { sa = parseServiceAccount(env.FIREBASE_SERVICE_ACCOUNT); }
-  catch { return send(503, { error: 'steam sign-in is not configured' }); }
+  catch { return send(503, { error: `${providerName} sign-in is not configured` }); }
 
   const secret = env.STEAM_TICKET_SECRET;
   const body = await req.json().catch(() => null) || {};
-  const origins = env.STEAM_RETURN_ORIGINS
-    ? String(env.STEAM_RETURN_ORIGINS).split(',').map(s => s.trim()).filter(Boolean)
-    : DEFAULT_RETURN_ORIGINS;
 
-  switch (action) {
-    /* Steam says who they are. If that Steam account is already linked, they are
-       signed in; if it is not, the choice screen takes over with a ticket. */
-    case 'steam/signin': {
-      const confirmed = await confirmSteamSignIn(body, origins);
-      if (confirmed.error) return send(confirmed.status, { error: confirmed.error });
-      const { steamid } = confirmed;
-      const link = await readLink(sa, 'steam', steamid);
-      if (link) {
-        return send(200, { status: 'signed-in', steamid, token: await mintCustomToken(sa, link.uid, { steamid }) });
-      }
-      const name = await personaName(env.STEAM_API_KEY, steamid);
-      return send(200, { status: 'unlinked', steamid, personaName: name, ticket: await signTicket(secret, { steamid, personaName: name }) });
+  /* The signed-in person, where a route needs one. Null means no usable token,
+     and every caller answers that the same way. */
+  const signedInUid = async () => {
+    try { return await uidFromIdToken(sa, req.headers.get('authorization')); }
+    catch { return null; }
+  };
+
+  /* ── The half that is the same for every service ── */
+
+  /** A LoreHaven account of their own, made from a store sign-in. */
+  const create = async () => {
+    let ticket;
+    try { ticket = await readTicket(secret, body.ticket, providerName); }
+    catch { return send(400, { error: `that ${provider.name} sign-in has expired` }); }
+    const existing = await readLink(sa, providerName, ticket.externalId);
+    if (existing) return send(409, { error: `that ${provider.name} account is already linked to a LoreHaven account` });
+
+    const uid = newUid(providerName);
+    if (!await claimLink(sa, providerName, ticket.externalId, uid, ticket.label)) {
+      return send(409, { error: `that ${provider.name} account is already linked to a LoreHaven account` });
+    }
+    try {
+      await createUser(sa, uid, ticket.label);
+      await refreshLinkClaims(sa, uid);
+    } catch (err) {
+      /* No account to reach the link by, so the store account must not stay
+         claimed: it would lock its owner out of ever signing in. */
+      await deleteLink(sa, providerName, ticket.externalId).catch(() => {});
+      throw err;
+    }
+    return send(200, {
+      uid,
+      [provider.idKey]: ticket.externalId,
+      [provider.labelKey]: ticket.label,
+      token: await mintCustomToken(sa, uid, { [provider.idKey]: ticket.externalId }),
+    });
+  };
+
+  /** Their store account, onto the LoreHaven account they are signed in to. */
+  const link = async () => {
+    const uid = await signedInUid();
+    if (!uid) return send(401, { error: 'sign in to LoreHaven first' });
+    let ticket;
+    try { ticket = await readTicket(secret, body.ticket, providerName); }
+    catch { return send(400, { error: `that ${provider.name} sign-in has expired` }); }
+
+    /* An account may hold several accounts of one service -- a main and a
+       family one, say -- so the only refusal here is an account that belongs to
+       somebody else's LoreHaven account. */
+    const existing = await readLink(sa, providerName, ticket.externalId);
+    if (existing && existing.uid !== uid) {
+      return send(409, { error: `that ${provider.name} account is already linked to another LoreHaven account` });
+    }
+    if (!existing && !await claimLink(sa, providerName, ticket.externalId, uid, ticket.label)) {
+      return send(409, { error: `that ${provider.name} account is already linked to another LoreHaven account` });
+    }
+    const links = await refreshLinkClaims(sa, uid);
+    return send(200, {
+      [provider.idKey]: ticket.externalId,
+      [provider.labelKey]: ticket.label,
+      [provider.idsKey]: links[providerName] || [],
+    });
+  };
+
+  /* The accounts of this service that this LoreHaven account holds, under the
+     names the service gave them, because an id tells its owner nothing. */
+  const accounts = async () => {
+    const uid = await signedInUid();
+    if (!uid) return send(401, { error: 'sign in to LoreHaven first' });
+    const mine = await listLinks(sa, uid);
+    return send(200, {
+      accounts: mine
+        .filter(l => l.provider === providerName)
+        .map(l => ({ [provider.idKey]: l.externalId, name: l.label || null })),
+    });
+  };
+
+  /* Unlinking names which account to remove, because there may be several, and
+     is refused only when it would be the last way into the LoreHaven account --
+     counting every service, not just this one. */
+  const unlink = async () => {
+    const uid = await signedInUid();
+    if (!uid) return send(401, { error: 'sign in to LoreHaven first' });
+
+    const user = await lookupUser(sa, uid);
+    const mine = await listLinks(sa, uid);
+    const ours = mine.filter(l => l.provider === providerName);
+    const externalId = String(body[provider.idKey] ?? '') || (ours.length === 1 ? ours[0].externalId : '');
+    if (!externalId) return send(400, { error: `say which ${provider.name} account to unlink` });
+    if (!ours.some(l => l.externalId === externalId)) {
+      return send(400, { error: `that ${provider.name} account is not linked to this account` });
+    }
+    if (!hasPassword(user) && mine.length === 1) {
+      return send(400, { error: 'add an email and password before unlinking your last account, or there would be no way back in' });
     }
 
-    /* A LoreHaven account of their own, made from a Steam sign-in. */
-    case 'steam/create': {
-      let ticket;
-      try { ticket = await readTicket(secret, body.ticket); }
-      catch { return send(400, { error: 'that Steam sign-in has expired' }); }
-      const existing = await readLink(sa, 'steam', ticket.steamid);
-      if (existing) return send(409, { error: 'that Steam account is already linked to a LoreHaven account' });
+    await deleteLink(sa, providerName, externalId);
+    const links = await refreshLinkClaims(sa, uid);
+    return send(200, { unlinked: true, [provider.idKey]: externalId, [provider.idsKey]: links[providerName] || [] });
+  };
 
-      const uid = newUid();
-      if (!await claimLink(sa, 'steam', ticket.steamid, uid, ticket.personaName)) {
-        return send(409, { error: 'that Steam account is already linked to a LoreHaven account' });
-      }
-      try {
-        await createUser(sa, uid, ticket.personaName);
-        await refreshLinkClaims(sa, uid);
-      } catch (err) {
-        /* No account to reach the link by, so the Steam account must not stay
-           claimed: it would lock its owner out of ever signing in. */
-        await deleteLink(sa, 'steam', ticket.steamid).catch(() => {});
-        throw err;
-      }
-      return send(200, { uid, steamid: ticket.steamid, personaName: ticket.personaName, token: await mintCustomToken(sa, uid, { steamid: ticket.steamid }) });
-    }
-
-    /* Their Steam account, onto the LoreHaven account they are signed in to. */
-    case 'steam/link': {
-      let uid;
-      try { uid = await uidFromIdToken(sa, req.headers.get('authorization')); }
-      catch { return send(401, { error: 'sign in to LoreHaven first' }); }
-      let ticket;
-      try { ticket = await readTicket(secret, body.ticket); }
-      catch { return send(400, { error: 'that Steam sign-in has expired' }); }
-
-      /* An account may hold several Steam accounts -- a main and a family one,
-         say -- so the only refusal here is a Steam account that belongs to
-         somebody else's LoreHaven account. */
-      const existing = await readLink(sa, 'steam', ticket.steamid);
-      if (existing && existing.uid !== uid) return send(409, { error: 'that Steam account is already linked to another LoreHaven account' });
-
-      if (!existing && !await claimLink(sa, 'steam', ticket.steamid, uid, ticket.personaName)) {
-        return send(409, { error: 'that Steam account is already linked to another LoreHaven account' });
-      }
-      const links = await refreshLinkClaims(sa, uid);
-      return send(200, { steamid: ticket.steamid, personaName: ticket.personaName, steamids: links.steam || [] });
-    }
-
-    /* The Steam accounts this LoreHaven account holds, with the names Steam
-       gave them, because a seventeen-digit id tells its owner nothing. */
-    case 'steam/accounts': {
-      let uid;
-      try { uid = await uidFromIdToken(sa, req.headers.get('authorization')); }
-      catch { return send(401, { error: 'sign in to LoreHaven first' }); }
-      const mine = await listLinks(sa, uid);
+  /**
+   * The end of every sign-in, whichever service confirmed it: signed in when
+   * that account already reaches a LoreHaven account, and otherwise a ticket
+   * for the choice screen, which is the only thing that outlives the request.
+   */
+  const finishSignIn = async ({ externalId, label }) => {
+    const existing = await readLink(sa, providerName, externalId);
+    if (existing) {
       return send(200, {
-        accounts: mine
-          .filter(l => l.provider === 'steam')
-          .map(l => ({ steamid: l.externalId, name: l.label || null })),
+        status: 'signed-in',
+        [provider.idKey]: externalId,
+        token: await mintCustomToken(sa, existing.uid, { [provider.idKey]: externalId }),
       });
     }
+    return send(200, {
+      status: 'unlinked',
+      [provider.idKey]: externalId,
+      [provider.labelKey]: label,
+      ticket: await signTicket(secret, { provider: providerName, externalId, label }),
+    });
+  };
 
-    /* Unlinking names which Steam account to remove, because there may be
-       several, and is refused only when it would be the last way into the
-       account. */
-    case 'steam/unlink': {
-      let uid;
-      try { uid = await uidFromIdToken(sa, req.headers.get('authorization')); }
-      catch { return send(401, { error: 'sign in to LoreHaven first' }); }
+  /* ── The half each service owns: proving who signed in ── */
 
-      const user = await lookupUser(sa, uid);
-      const mine = await listLinks(sa, uid);
-      const steamid = String(body.steamid ?? '') || (mine.filter(l => l.provider === 'steam').length === 1
-        ? mine.find(l => l.provider === 'steam').externalId
-        : '');
-      if (!steamid) return send(400, { error: 'say which Steam account to unlink' });
-      if (!mine.some(l => l.provider === 'steam' && l.externalId === steamid)) {
-        return send(400, { error: 'that Steam account is not linked to this account' });
-      }
-      if (!hasPassword(user) && mine.length === 1) {
-        return send(400, { error: 'add an email and password before unlinking your last account, or there would be no way back in' });
-      }
+  const steamSignIn = async () => {
+    const origins = env.STEAM_RETURN_ORIGINS
+      ? String(env.STEAM_RETURN_ORIGINS).split(',').map(s => s.trim()).filter(Boolean)
+      : DEFAULT_RETURN_ORIGINS;
+    const confirmed = await confirmSteamSignIn(body, origins);
+    if (confirmed.error) return send(confirmed.status, { error: confirmed.error });
+    return finishSignIn({ externalId: confirmed.steamid, label: await personaName(env.STEAM_API_KEY, confirmed.steamid) });
+  };
 
-      await deleteLink(sa, 'steam', steamid);
-      const links = await refreshLinkClaims(sa, uid);
-      return send(200, { unlinked: true, steamid, steamids: links.steam || [] });
+  /* Microsoft's code, redeemed and walked all the way to a gamertag. The
+     redirect address is checked here, before Microsoft is called at all, so
+     this Worker cannot be borrowed to redeem a code for another site. */
+  const xboxChain = async () => {
+    if (!env.XBOX_CLIENT_ID || !env.XBOX_CLIENT_SECRET) {
+      throw new XboxError('xbox sign-in is not configured', 503);
     }
+    const allowed = env.XBOX_REDIRECT_URIS
+      ? String(env.XBOX_REDIRECT_URIS).split(',').map(s => s.trim()).filter(Boolean)
+      : DEFAULT_REDIRECT_URIS;
+    if (!isAllowedRedirect(body.redirectUri, allowed)) {
+      throw new XboxError('that sign-in was made for another site', 400);
+    }
+    return xboxIdentity({
+      clientId: clean(env.XBOX_CLIENT_ID),
+      clientSecret: clean(env.XBOX_CLIENT_SECRET),
+      code: body.code,
+      verifier: body.verifier,
+      redirectUri: body.redirectUri,
+    });
+  };
 
-    default:
-      return send(404, { error: 'unknown auth route' });
+  /* Where to send somebody to sign in. The challenge is the app's, the state is
+     the app's, and both are checked for shape rather than trusted: this answer
+     becomes a link somebody follows, so nothing that arrives here may write
+     anything else into it. */
+  const xboxStart = async () => {
+    if (!env.XBOX_CLIENT_ID || !env.XBOX_CLIENT_SECRET) return send(503, { error: 'xbox sign-in is not configured' });
+    const allowed = env.XBOX_REDIRECT_URIS
+      ? String(env.XBOX_REDIRECT_URIS).split(',').map(s => s.trim()).filter(Boolean)
+      : DEFAULT_REDIRECT_URIS;
+    if (!isAllowedRedirect(body.redirectUri, allowed)) return send(400, { error: 'that sign-in was made for another site' });
+    const challenge = String(body.challenge ?? '');
+    const state = String(body.state ?? '');
+    if (!/^[A-Za-z0-9_-]{43}$/.test(challenge)) return send(400, { error: 'that sign-in has no challenge' });
+    if (!/^[A-Za-z0-9_-]{1,512}$/.test(state)) return send(400, { error: 'that sign-in has no usable state' });
+    return send(200, {
+      url: authorizeUrl({ clientId: clean(env.XBOX_CLIENT_ID), redirectUri: body.redirectUri, challenge, state }),
+    });
+  };
+
+  const xboxSignIn = async () => {
+    const who = await xboxChain();
+    return finishSignIn({ externalId: who.xuid, label: who.gamertag });
+  };
+
+  /**
+   * What an Xbox account has played. It runs the whole sign-in again rather
+   * than reading a stored token, because no Microsoft or Xbox token is ever
+   * stored: a library read and a sign-in cost exactly the same chain, and the
+   * one thing kept from it is nothing.
+   *
+   * No LoreHaven account is needed. Reading a library proves an Xbox sign-in
+   * and nothing about who is asking, exactly as the Steam import does.
+   */
+  const xboxLibrary = async () => {
+    const who = await xboxChain();
+    const titles = shapeTitles(await titleHistory({ token: who.token, uhs: who.uhs, xuid: who.xuid }));
+    return send(200, { xuid: who.xuid, gamertag: who.gamertag, titles });
+  };
+
+  try {
+    switch (verb) {
+      case 'start':
+        /* Steam needs no such thing: its sign-in address is a plain link the
+           app builds itself, with no client id and nothing to keep. */
+        if (providerName !== 'xbox') return send(404, { error: 'unknown auth route' });
+        return await xboxStart();
+      case 'signin': return providerName === 'steam' ? await steamSignIn() : await xboxSignIn();
+      case 'create': return await create();
+      case 'link': return await link();
+      case 'unlink': return await unlink();
+      case 'accounts': return await accounts();
+      case 'library':
+        /* Steam's library is public and needs no sign-in, so it is read by
+           functions/steam.js instead; only Xbox pays for it with a sign-in. */
+        if (providerName !== 'xbox') return send(404, { error: 'unknown auth route' });
+        return await xboxLibrary();
+      default:
+        return send(404, { error: 'unknown auth route' });
+    }
+  } catch (err) {
+    /* Everything the Xbox chain refuses arrives here already carrying the
+       sentence to show and the status to show it with. Anything else is ours,
+       and the Worker's own catch turns it into a 502. */
+    if (err instanceof XboxError) return send(err.status, { error: err.message });
+    throw err;
   }
 }

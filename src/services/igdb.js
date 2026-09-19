@@ -97,10 +97,14 @@ const fetch = async (url, options) => {
    behind a page plate rethrow it. A stale token is dropped so the next call
    re-authenticates instead of failing the same way. */
 const replayOrThrow = async (url, options, res, again) => {
-    if (!res || res.ok || !url.startsWith('/api')) {
-        if (res && !res.ok && url.startsWith('/auth')) throw new Error(`IGDB ${res.status}`);
-        return res;
-    }
+    /* Everything but /api is handed back whatever its status, /auth above all:
+       the Worker answers a failed sign-in with a status and a sentence -- a
+       child account, an account with no Xbox profile, a sign-in already spent --
+       and the pages turn the pair into the one thing the person can do about
+       it. Throwing here instead swallowed both and left every failure reading
+       "did not finish", which names no cause and suggests checking a connection
+       that was working. */
+    if (!res || res.ok || !url.startsWith('/api')) return res;
     /* One replay on a rate limit, for every fetcher at once, before anything is
        announced: announcing first and retrying second raised the error banner for
        a failure the app then repaired. A 401 is no longer handled here. The token
@@ -613,6 +617,40 @@ export const matchSteamApps = async (appids) => {
             if (!row?.game || typeof row.game !== 'object') continue;
             const uid = String(row.uid);
             const had = out.get(uid);
+            if (!had || (had.game_type !== 0 && row.game.game_type === 0)) out.set(uid, row.game);
+        }
+    }
+    return out;
+};
+
+/**
+ * Microsoft Store product ids -> IGDB games, the same way Steam app ids are
+ * matched, through IGDB's own record of which product each game is.
+ *
+ * Two sources, not one: 11 is the Microsoft Store listing and 54 is the Xbox
+ * cloud one, and a title can be under either or both -- of the five sampled
+ * from a real played list, every one was found, but not all under the same
+ * source. A product id is not a number: it looks like 9PBLMX0KDKQS, so it is
+ * quoted and checked as characters rather than digits.
+ */
+export const matchXboxProducts = async (productIds) => {
+    const ids = [...new Set((productIds || []).map(String).filter(a => /^[A-Za-z0-9]{6,32}$/.test(a)))];
+    const out = new Map();
+    for (let i = 0; i < ids.length; i += 200) {
+        const chunk = ids.slice(i, i + 200);
+        const r = await fetch('/api/external_games', {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: `fields uid, game.id, game.name, game.cover.image_id, game.cover.width, game.cover.height, game.first_release_date, game.game_type; where external_game_source = (11,54) & uid = (${chunk.map(u => `"${u}"`).join(',')}); limit 500;`,
+        });
+        const rows = await r.json();
+        if (!Array.isArray(rows)) throw new Error('IGDB did not return Xbox matches');
+        for (const row of rows) {
+            if (!row?.game || typeof row.game !== 'object') continue;
+            const uid = String(row.uid);
+            const had = out.get(uid);
+            /* A product id can name a bundle and the game inside it; the game
+               itself wins, as it does for Steam. */
             if (!had || (had.game_type !== 0 && row.game.game_type === 0)) out.set(uid, row.game);
         }
     }

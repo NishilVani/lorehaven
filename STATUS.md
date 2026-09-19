@@ -84,6 +84,52 @@ infinite-scroll audit, with the measurement behind every claim.
   15. Not verified: an Android build or a real link on a device; that needs a
   release build. Xbox sign-in is next; a probe on 2026-09-16 showed an ordinary
   Entra app registration can read the gamertag and Xbox user id.
+- **Xbox sign-in and import: built on `feature/xbox-sign-in`, not committed, not
+  deployed.** Brief:
+  `docs/superpowers/specs/2026-09-17-xbox-sign-in-and-import-design.md`.
+  `functions/xbox.js` runs the chain -- Microsoft's code redeemed with PKCE and
+  the client secret, an Xbox user token, XSTS for the XUID and gamertag, and
+  titlehub for what the account has played -- and keeps no token of any kind, so
+  a library read spends a sign-in of its own. `functions/auth.js` now holds ONE
+  implementation of create, link, unlink and accounts that takes a provider;
+  Steam and Xbox differ only in how each proves who signed in. The ticket gained
+  a provider and is refused at the wrong service's route. Routes:
+  `xbox/{start,signin,create,link,unlink,accounts,library}`.
+
+  Web: `/auth/xbox` (sign in, link, or start an import), `/import/xbox` (the
+  review), Xbox in the sign-in modal, in Profile beside Steam, and in both
+  places the app offers an import. The Steam pages' three screens and the whole
+  review table are now shared components (`src/components/auth/StoreSignIn.jsx`,
+  `src/pages/ImportWizard/ImportReview.jsx`), so the second store inherited them
+  rather than copying them.
+
+  Two deliberate departures from the brief, both recorded here because the brief
+  is not being rewritten: a `xbox/start` route, because the brief never said how
+  the app learns the client id and baking it into every shipped binary is worse
+  than asking the Worker; and the store is **Microsoft Store**, the name
+  DEFAULT_CUSTOM_PLATFORMS has always used, not the brief's "Xbox" -- ownership
+  is keyed on the name, so a row called Xbox would never show the store somebody
+  had already marked by hand.
+
+  Verified: `test:xbox` (18 of 18 mutations killed), `test:xboximport` (8 of 8),
+  the whole unit suite, `tests/xbox-signin.spec.ts` 9 of 9 and both Steam specs
+  15 of 15 after the refactor, lint 0 errors, build, no emoji, and the a11y gate
+  CLEAN on `/auth/xbox` and `/import/xbox` at 1280, 375 and in the Tauri shell.
+  Rendered and looked at, at both widths: no horizontal overflow, the console
+  control sits under the status control on a phone. Nothing in any test reaches
+  Microsoft, Xbox, Google, Firestore or IGDB.
+
+  Found and fixed on the way, both of which bit Steam too: a failed `/auth`
+  request had its status and message thrown away in `src/services/igdb.js`, so
+  every sign-in failure read "did not finish" whatever it was; and a data sync
+  remounted the page mid-sign-in (`src/App.jsx` now leaves `/auth` alone), which
+  replayed a code or assertion the store had already spent.
+
+  Owner to do: add a Web platform with the three return addresses to the Entra
+  app registration, deploy the Worker, sign in once live, then switch "Allow
+  public client flows" off. `XBOX_CLIENT_ID` and `XBOX_CLIENT_SECRET` are
+  already set on the Worker. The `lorehaven://auth/xbox` handoff needs a fresh
+  desktop or Android build before it can be tested at all.
 - **Auto Priority and Find Duplicates: committed, awaiting the owner's local
   check.** Branch `feature/auto-priority-and-duplicates`, not yet pushed. Brief: `docs/superpowers/specs/2026-09-12-auto-priority-and-find-duplicates-design.md`.
   Both open from a Tools menu at the end of the library's pill row. Auto Priority

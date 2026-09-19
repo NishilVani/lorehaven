@@ -1,7 +1,10 @@
-import { useRef, useState } from 'react';
+import { useRef, useState } from 'react';
+
 import { PlatformLogo } from '../platforms/PlatformLogo';
 import { STEAM_STORE } from '../../services/steamImport';
+import { XBOX_STORE } from '../../services/xboxImport';
 import { startSteamSignIn } from '../../services/steamAuth';
+import { startXboxSignIn } from '../../services/xboxAuth';
 import { X, Mail, Lock, Loader2 } from 'lucide-react';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../../services/firebase';
@@ -145,6 +148,18 @@ export default function AuthModal({ isOpen, onClose }) {
             >
               <PlatformLogo platform={STEAM_STORE} className="w-6 h-6 p-1" disableTooltip />
               Sign In With Steam
+            </button>
+            {/* Xbox under Steam, in the order they were built. Its sign-in
+                address comes from the Worker, which holds the client id, so
+                this one can fail before it goes anywhere and says so. */}
+            <button
+              type="button"
+              onClick={() => startXboxSignIn({ from: window.location.pathname + window.location.search })
+                .catch(err => setErrors(p => ({ ...p, form: err?.message || 'Xbox sign-in could not be started' })))}
+              className="tap-block w-full mt-3 lh-label px-4 py-3 border border-white/20 text-white hover:border-white hover:bg-white hover:text-black transition-colors cursor-pointer flex items-center justify-center gap-3 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white"
+            >
+              <PlatformLogo platform={XBOX_STORE} className="w-6 h-6 p-1" disableTooltip />
+              Sign In With Xbox
             </button>
             <div className="flex items-center gap-3 mt-6" aria-hidden="true">
               <span className="flex-1 h-px bg-white/15" />

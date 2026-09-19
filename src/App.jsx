@@ -22,7 +22,9 @@ const Library = lazy(() => import('./pages/library/Library'));
 const Duplicates = lazy(() => import('./pages/library/Duplicates'));
 const ImportWizardV2 = lazy(() => import('./pages/ImportWizard/ImportWizard'));
 const SteamImport = lazy(() => import('./pages/ImportWizard/SteamImport'));
+const XboxImport = lazy(() => import('./pages/ImportWizard/XboxImport'));
 const SteamAuth = lazy(() => import('./pages/auth/SteamAuth'));
+const XboxAuth = lazy(() => import('./pages/auth/XboxAuth'));
 const FranchisePage = lazy(() => import('./pages/franchises/FranchisePage'));
 const Collections = lazy(() => import('./pages/collections/Collections'));
 const CollectionDetail = lazy(() => import('./pages/collections/CollectionDetail'));
@@ -78,8 +80,15 @@ function App() {
        Explore listens for this event and refetches the two things a sync can
        change, its recommendations and its shelves, in Discover.jsx.
        ponytail: still blunt for every other route. Each one that grows state
-       worth keeping should refresh itself and join this list. */
-    const SELF_REFRESHING = ['/import', '/'];
+       worth keeping should refresh itself and join this list.
+
+       /auth is here for a different reason: a sign-in is not state worth
+       keeping, it is a step that cannot be taken twice. Signing in pulls the
+       account's data, which fires this event, which would remount the sign-in
+       page mid-sign-in and send the store a code or an assertion it has already
+       spent -- and the person would watch a sign-in that worked turn into a
+       failure. */
+    const SELF_REFRESHING = ['/import', '/auth', '/'];
 
     const handleSync = () => {
       const path = window.location.pathname;
@@ -152,8 +161,10 @@ function App() {
             <Route path="/library/:status" element={<Library />} />
             <Route path="/import" element={<ImportWizardV2 />} />
             <Route path="/import/steam" element={<SteamImport />} />
+            <Route path="/import/xbox" element={<XboxImport />} />
             {/* Where Steam returns every sign-in; see services/steamAuth.js. */}
             <Route path="/auth/steam" element={<SteamAuth />} />
+            <Route path="/auth/xbox" element={<XboxAuth />} />
             <Route path="/franchise/:franchiseId" element={<KeyedRoute component={FranchisePage} />} />
             <Route path="/collections" element={<Collections />} />
             {/* The hub page is gone: the sidebar submenu is the way in now, and
