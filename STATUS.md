@@ -412,7 +412,7 @@ check is `scripts/verify_proxy_live.mjs`.
   may need a different role. Until they exist, `store-submission.yml` fails
   loudly on a tagged release rather than passing green having done nothing. See
   [docs/MICROSOFT-STORE.md](docs/MICROSOFT-STORE.md), which also flags that the
-  publisher name in Partner Center reads "LoreHeaven".
+  publisher name in Partner Center reads "LoreHaven".
 - **e2e checks pull requests; the deploy and the release do not wait for it.**
   It runs from `e2e.yml`, apart from `main.yml`'s chain. Until the branch ruleset
   on `main` also requires "Playwright (chromium)", a red e2e run stops nothing:

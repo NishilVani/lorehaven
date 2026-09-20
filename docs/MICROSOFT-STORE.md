@@ -55,13 +55,13 @@ nothing to configure:
 | | |
 |---|---|
 | Store ID / Product ID | `9N7FD5QBSMBB` |
-| `Package/Identity/Name` | `LoreHeaven.LoreHaven` |
+| `Package/Identity/Name` | `LoreHaven.LoreHaven` |
 | `Package/Identity/Publisher` | `CN=CEEF9C0A-EDC7-4AE4-9AC3-FA2F4AC45FD8` |
-| `PublisherDisplayName` | `LoreHeaven` |
-| Package Family Name | `LoreHeaven.LoreHaven_hgh23a52snpg8` |
+| `PublisherDisplayName` | `LoreHaven` |
+| Package Family Name | `LoreHaven.LoreHaven_hgh23a52snpg8` |
 | Listing URL | https://apps.microsoft.com/detail/9N7FD5QBSMBB |
 
-**The publisher is spelled `LoreHeaven`, the app `LoreHaven`.** That is what
+**The publisher is spelled `LoreHaven`, the app `LoreHaven`.** That is what
 Partner Center holds, so that is what the manifest must say — a mismatch is a
 rejected package. It is also the name shown as the publisher on the listing.
 The listing is now live, so treat the identity as fixed: every update has to
