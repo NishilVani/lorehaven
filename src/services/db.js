@@ -29,6 +29,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { toDateInputValue } from './libraryFields.js';
 import { mergeLists, stampItems, mergeTombstones, tombstonesFor, pruneTombstones } from './syncMerge.js';
 import { COMPAT_LEVEL, APP_VERSION, evaluateCompat } from './compat.js';
+import { THEME_IDS, DEFAULT_THEME_ID } from '../constants/themes.js';
 
 /* Re-exported so callers keep one import site for library concerns. */
 export { toDateInputValue };
@@ -1330,7 +1331,7 @@ const PREFS_KEY = 'moctale_prefs';
 
 /** tasteBias: -1 comfort (more like your favourites) … +1 novelty (unlike what
  *  you have beaten). releaseEra: which era to favour, or 'any' to ignore. */
-export const DEFAULT_PREFS = { tasteBias: 0, releaseEra: 'any', steamImportAsked: {} };
+export const DEFAULT_PREFS = { tasteBias: 0, releaseEra: 'any', steamImportAsked: {}, theme: DEFAULT_THEME_ID };
 
 const ERAS = new Set(['any', 'new', 'neutral', 'old']);
 
@@ -1342,6 +1343,10 @@ export const getPrefs = () => {
       // Clamped, not trusted: this is user-editable storage.
       tasteBias: Number.isFinite(bias) ? Math.max(-1, Math.min(1, bias)) : 0,
       releaseEra: ERAS.has(parsed?.releaseEra) ? parsed.releaseEra : 'any',
+      /* The Appearance choice. Kept in prefs so it syncs with the rest of the
+         user's settings; an id this build does not know (a theme added in a
+         newer version, or a hand edit) falls back to the default. */
+      theme: THEME_IDS.has(parsed?.theme) ? parsed.theme : DEFAULT_THEME_ID,
       /* Which Steam accounts have already been asked about importing. Kept as
          plain true flags, because this is user-editable storage like the rest. */
       steamImportAsked: Object.fromEntries(

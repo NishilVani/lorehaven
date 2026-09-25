@@ -170,6 +170,68 @@ The system relies on absolute monochrome palette fundamentals: pure pitch black 
 - Typography as architecture (heavy display weights, uppercase labels, wide tracking).
 - Art-first visual hierarchy.
 
+## Themes
+
+Editorial, everything this file describes, is LoreHaven's identity and its
+default. It is also now one of thirteen themes the user can choose under
+**Appearance** in the account menu. The choice is stored in prefs
+(`moctale_prefs.theme`), so it syncs across devices like the recommendation
+settings. The rest of this document describes Editorial; a theme changes the
+values, never the structure.
+
+| Group | Themes |
+| :--- | :--- |
+| Signature | Editorial (default), Gallery (Editorial on white) |
+| Inspired by apps | Daylight (Apple), Marquee (Netflix), Groove (Spotify), Lounge (Discord) |
+| Inspired by games | Phosphor (wasteland terminal), Neon Arcade (synthwave), Night City (cyberpunk), Grimoire (fantasy RPG journal) |
+| Inspired by film | Noir (1940s crime), Spice (desert epic), Replicant (neo-noir sci-fi) |
+
+Theme names are our own. A theme's description may say what inspired it, but no
+theme carries another company's name, logo or proprietary typeface.
+
+### How a theme reaches the page
+
+- **One registry.** `src/constants/themes.js` holds every theme's values.
+  `src/services/theme.js` writes them onto `<html>` as custom properties;
+  `index.html` replays a cached copy before first paint so a light theme does
+  not flash black.
+- **`white` is the ink, `black` is the ground.** `src/index.css` points
+  Tailwind's `--color-white` at `--lh-ink` and `--color-black` at `--lh-paper`,
+  so the ~2,500 `text-white` / `border-white/15` / `bg-black` utilities follow
+  the theme without being rewritten. The four greys the app uses
+  (`neutral-950/900/200`, `gray-300/400`) map to theme tokens the same way.
+- **A solid `bg-white` is the fill.** Inside one, `white` resolves to
+  `--lh-fill` and `black` to `--lh-on-fill`. That is how Marquee's red and
+  Groove's green reach the selected shelf, the active dial stop and the primary
+  button. `hover:bg-white` is not the fill: it stays an inversion to ink.
+- **Alpha text is boosted per theme.** `text-white/50` is AA only over near
+  black. Each theme sets a `textBoost` k, and a build step in `vite.config.js`
+  rewrites every compiled `text-white/N` and `text-current/N` to
+  `N + (100 - N) * k`. Editorial's k is 0.
+- **Geometry and type are tokens too.** `--lh-radius-control`,
+  `--lh-radius-panel`, `--lh-case-label`, `--lh-case-display`, the two tracking
+  values, `--sans` and `--heading`. Rounded themes round bordered and filled
+  controls, fields, menus, dialog panels and tooltips; rows, rules and cover
+  art stay square.
+- **Light grounds get their own state hues.** The bright status, priority and
+  feel colours wash out on paper, so light themes darken them and set
+  `--lh-on-state` to white.
+
+### Writing themeable code
+
+1. Colour UI with the `white` / `black` utilities or a `--lh-*` token. Never a
+   hex, `rgba(255,255,255,...)` or `#000` in a component: it will not follow
+   the theme.
+2. Type on a status, priority or feel fill is `var(--lh-on-state)`, and its
+   secondary type `var(--lh-on-state-dim)`. Never a literal black.
+3. To dim type that must follow a hover inversion, use `text-current/N`, not
+   `opacity-N`. Opacity is not boosted, so it fails on light grounds.
+4. Adding a theme is one entry in `themes.js`. `npm run test:themes` measures
+   every theme's pairs against WCAG 2.2 AA (ink and resting text on each
+   surface, boosted `/50` text, fill and on-fill, every state colour as text
+   and as a fill, destructive, warning, award shine) and fails the build on
+   any miss. `A11Y_THEME=<id> npm run lint:a11y` runs the axe gate in a theme.
+
 ## Colors
 
 The palette character is strictly monochrome, where game art provides all emotional visual color.

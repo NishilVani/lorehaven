@@ -141,9 +141,9 @@ function StripCell({ label, color, active, onClick, group = 'status', activeLabe
          and left. That way the 1px grid stays exact however the row wraps, with no
          doubled edge and no missing divider between rows. */
       className="flex items-center gap-2 px-3.5 py-2.5 border-r border-b border-white/15 whitespace-nowrap shrink-0 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white focus-visible:z-10"
-      style={active ? { backgroundColor: color, color: '#000000' } : {}}
+      style={active ? { backgroundColor: color, color: 'var(--lh-on-state)' } : {}}
     >
-      <span className="w-2 h-2 shrink-0 pointer-events-none" style={{ backgroundColor: active ? '#000000' : color }} />
+      <span className="w-2 h-2 shrink-0 pointer-events-none" style={{ backgroundColor: active ? 'var(--lh-on-state)' : color }} />
       <span className={`lh-label pointer-events-none ${active ? '' : 'text-white/60'}`}>{label}</span>
     </button>
   );
@@ -168,10 +168,10 @@ function StateRow({ label, color, active, onClick, group = 'status', activeLabel
       aria-pressed={active}
       aria-label={active && activeLabel ? `${label} — ${activeLabel}` : `Set ${group} to ${label}`}
       className="flex items-center justify-between w-full px-3 py-2.5 border-t first:border-t-0 border-white/10 hover:bg-white/5 transition-colors cursor-pointer group focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white focus-visible:z-10"
-      style={active ? { backgroundColor: color, color: '#000000' } : {}}
+      style={active ? { backgroundColor: color, color: 'var(--lh-on-state)' } : {}}
     >
       <span className="flex items-center gap-2.5 pointer-events-none">
-        <span className="w-2 h-2 shrink-0" style={{ backgroundColor: active ? '#000000' : color }} />
+        <span className="w-2 h-2 shrink-0" style={{ backgroundColor: active ? 'var(--lh-on-state)' : color }} />
         <span className={`lh-label ${active ? '' : 'text-white/60 group-hover:text-white group-focus-visible:text-white transition-colors'}`}>{label}</span>
       </span>
       {/* The slot says what a click does. On an active status row that is

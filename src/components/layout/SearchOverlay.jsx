@@ -458,7 +458,7 @@ export default function SearchOverlay() {
                                     params.delete('q');
                                     setSearchParams(params, { replace: true });
                                 }} 
-                                className="absolute right-0 bottom-4 sm:bottom-6 text-[#666666] hover:text-[#FFFFFF] transition-colors cursor-pointer bg-black pl-4"
+                                className="absolute right-0 bottom-4 sm:bottom-6 text-white/50 hover:text-white transition-colors cursor-pointer bg-black pl-4"
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 sm:w-12 sm:h-12" viewBox="0 -960 960 960" fill="currentColor">
                                     <path d="M256-213.85 213.85-256l224-224-224-224L256-746.15l224 224 224-224L746.15-704l-224 224 224 224L704-213.85l-224-224-224 224Z"/>

@@ -61,8 +61,40 @@ const igdbProxy = () => ({
   },
 });
 
+/* Theme text boost. Tailwind compiles `text-white/50` to ink at a fixed 50%
+ * alpha, which is AA over pure black (5.32:1) and can never be AA over a light
+ * ground (at most 3.95:1 over white). Each theme in src/constants/themes.js
+ * states a `textBoost` k; this rewrites every compiled text-colour alpha of
+ * `white` from N% to N% + (100 - N)% * k, read from --lh-text-boost at runtime.
+ *
+ * Done on the compiled CSS, not with override classes, so every variant
+ * (hover:, group-hover:, disabled:) keeps exactly the specificity and order
+ * Tailwind gave it. `color:` only: borders and washes keep their alpha.
+ * `text-current/N` is boosted the same way, for type that dims its parent's
+ * colour so it can follow a hover inversion.
+ * Editorial's k is 0, so there the result is the number it always was. */
+const TEXT_ALPHA = /(^|[{;\s])color:\s*color-mix\(in oklab,\s*(var\(--color-white\)|currentcolor)\s+(\d+(?:\.\d+)?)%,\s*transparent\)/gi;
+export const boostTextAlpha = (css) => css.replace(TEXT_ALPHA, (_, pre, base, n) =>
+  `${pre}color:color-mix(in oklab, ${base} calc(${n}% + ${100 - Number(n)}% * var(--lh-text-boost, 0)), transparent)`);
+
+const themeTextBoost = () => ({
+  name: 'theme-text-boost',
+  enforce: 'post',
+  transform(code, id) {
+    if (!/\.css($|\?)/.test(id) || !code.includes('--color-white')) return null;
+    return { code: boostTextAlpha(code), map: null };
+  },
+  generateBundle(_, bundle) {
+    for (const file of Object.values(bundle)) {
+      if (file.type === 'asset' && file.fileName.endsWith('.css')) {
+        file.source = boostTextAlpha(String(file.source));
+      }
+    }
+  },
+});
+
 export default defineConfig({
-  plugins: [tailwindcss(), react(), igdbProxy()],
+  plugins: [tailwindcss(), react(), igdbProxy(), themeTextBoost()],
   clearScreen: false,
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),

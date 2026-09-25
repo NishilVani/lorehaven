@@ -247,9 +247,9 @@ export default function DropdownMenu({
 
   const VARIANT_STYLES = {
     default: {
-      text: 'rgba(255,255,255,0.7)',
-      hover: 'rgba(255,255,255,0.08)',
-      strip: '#ffffff',
+      text: 'color-mix(in oklab, var(--lh-ink) 70%, transparent)',
+      hover: 'color-mix(in oklab, var(--lh-ink) 8%, transparent)',
+      strip: 'var(--lh-ink)',
     },
     danger: {
       text: 'var(--destructive)',
@@ -257,9 +257,9 @@ export default function DropdownMenu({
       strip: 'var(--destructive)',
     },
     accent: {
-      text: '#ffffff',
-      hover: 'rgba(255,255,255,0.1)',
-      strip: '#ffffff',
+      text: 'var(--lh-ink)',
+      hover: 'color-mix(in oklab, var(--lh-ink) 10%, transparent)',
+      strip: 'var(--lh-ink)',
     },
   };
 
@@ -309,8 +309,8 @@ export default function DropdownMenu({
                options menu rendered behind the lightbox and could not be
                clicked at all. A menu belongs above whatever opened it. */
             zIndex: 10050,
-            background: '#000000',
-            border: '1px solid rgba(255,255,255,0.25)',
+            background: 'var(--lh-paper)',
+            border: '1px solid color-mix(in oklab, var(--lh-ink) 25%, transparent)',
             padding: '4px',
             animation: pos.openUpward
               ? 'dm-enter-up 0.14s cubic-bezier(0.2, 0, 0, 1.1) both'
@@ -338,11 +338,11 @@ export default function DropdownMenu({
               background: transparent;
             }
             .dm-scrollContainer::-webkit-scrollbar-thumb {
-              background: rgba(255,255,255,0.12);
+              background: color-mix(in oklab, var(--lh-ink) 12%, transparent);
               border-radius: 2px;
             }
             .dm-scrollContainer::-webkit-scrollbar-thumb:hover {
-              background: rgba(255,255,255,0.25);
+              background: color-mix(in oklab, var(--lh-ink) 25%, transparent);
             }
             .dm-item {
               display: flex;
@@ -378,14 +378,14 @@ export default function DropdownMenu({
                this arrow-key navigation produced NO visual change at all — the focused
                item looked identical to every other. */
             .dm-item:focus-visible {
-              outline: 1px solid #ffffff;
+              outline: 1px solid var(--lh-ink);
               outline-offset: -1px;
-              background: rgba(255,255,255,0.08);
+              background: color-mix(in oklab, var(--lh-ink) 8%, transparent);
             }
             .dm-item:focus-visible::before { opacity: 1; }
             .dm-divider {
               height: 1px;
-              background: rgba(255,255,255,0.15);
+              background: color-mix(in oklab, var(--lh-ink) 15%, transparent);
               margin: 4px 0;
             }
             .dm-group-label {
@@ -395,7 +395,7 @@ export default function DropdownMenu({
               letter-spacing: 0.18em;
               font-size: 0.6875rem;
               line-height: 1;
-              color: rgba(255,255,255,0.45);
+              color: color-mix(in oklab, var(--lh-ink) 45%, transparent);
               padding: 8px 14px 6px;
               user-select: none;
             }

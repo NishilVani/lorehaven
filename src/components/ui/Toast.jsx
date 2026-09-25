@@ -199,14 +199,14 @@ const ToastItem = ({ toast, onClose }) => {
       >
         {/* Background circle */}
         <svg aria-hidden="true" className="absolute inset-0 w-full h-full" viewBox="0 0 28 28">
-          <circle cx="14" cy="14" r="11" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="2" />
+          <circle cx="14" cy="14" r="11" fill="none" stroke="color-mix(in oklab, var(--lh-ink) 8%, transparent)" strokeWidth="2" />
           {/* Countdown ring — hidden for errors, which never expire, and paused
               alongside the timer so the two never disagree. */}
           {!isError && (
             <circle
               cx="14" cy="14" r="11"
               fill="none"
-              stroke="#ffffff"
+              stroke="var(--lh-ink)"
               strokeWidth="2"
               strokeLinecap="round"
               strokeDasharray="69.115"

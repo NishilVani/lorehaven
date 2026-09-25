@@ -173,7 +173,7 @@ export default function Dialog({
            scrim cannot darken #000, so the 1px border was the whole depth cue.
            A near-black ground plus a deep shadow separates the panel; the scrim
            needs no change. */
-        className={`relative bg-neutral-950 border border-white/25 shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_24px_64px_rgba(0,0,0,0.9)] outline-none ${
+        className={`relative bg-neutral-950 border border-white/25 shadow-(--lh-panel-shadow) outline-none ${
           panelClassName.includes('animate-in') ? '' : 'dialog-in'
         } ${panelClassName}`}
         style={{ ...panelStyle, ...dragDown.style }}

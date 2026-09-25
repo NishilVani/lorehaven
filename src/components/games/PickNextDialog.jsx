@@ -431,8 +431,8 @@ export default function PickNextDialog({ onClose }) {
                     /* On impact every rule in the field goes to full white at
                        once, delays zeroed — the flash has to be one frame, not
                        a second ripple chasing the first. */
-                    borderColor: flare ? 'rgba(255,255,255,0.85)'
-                      : out ? 'rgba(255,255,255,0.09)' : 'rgba(255,255,255,0.22)',
+                    borderColor: flare ? 'color-mix(in oklab, var(--lh-ink) 85%, transparent)'
+                      : out ? 'color-mix(in oklab, var(--lh-ink) 9%, transparent)' : 'color-mix(in oklab, var(--lh-ink) 22%, transparent)',
                     transitionDelay: flare ? '0ms' : `${cut.delay.get(i) || 0}ms`,
                   }}
                 >

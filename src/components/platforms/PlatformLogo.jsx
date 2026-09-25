@@ -15,7 +15,7 @@ export function LogoCard({ src, alt, className = "", style = {} }) {
         className={`inline-flex items-center justify-center overflow-hidden transition-colors duration-200 ${className}`}
         style={{
           background: "#000000",
-          border: "1px solid rgba(255, 255, 255, 0.15)",
+          border: "1px solid color-mix(in oklab, var(--lh-ink) 15%, transparent)",
           ...style,
         }}
       >
@@ -67,7 +67,7 @@ export function PlatformLogo({ platform, className = '', style = {}, disableTool
       className={`flex items-center justify-center shrink-0 overflow-hidden ${containerClass}`}
       style={{
         backgroundColor: swatch.fill,
-        border: '1px solid rgba(255, 255, 255, 0.15)',
+        border: '1px solid color-mix(in oklab, var(--lh-ink) 15%, transparent)',
         ...style,
       }}
     >

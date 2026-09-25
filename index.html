@@ -13,6 +13,28 @@
          Bytesized and Press Start 2P are both single-weight pixel faces; neither
          has a second cut to ask for, so no weight axis is requested. -->
     <link href="https://fonts.googleapis.com/css2?family=Bytesized&family=Press+Start+2P&display=swap" rel="stylesheet"/>
+    <!-- The chosen theme, before the first paint. src/services/theme.js caches
+         the resolved custom properties under lh_theme_css whenever a theme other
+         than Editorial is applied; without this a light theme would open on a
+         frame of black while the bundle loads. Anything unexpected is ignored
+         and the default theme paints, which is what an empty cache means too. -->
+    <script>
+      try {
+        var t = JSON.parse(localStorage.getItem('lh_theme_css') || 'null');
+        if (t && typeof t.css === 'string') {
+          var r = document.documentElement;
+          r.style.cssText = t.css;
+          r.dataset.theme = t.id;
+          r.dataset.scheme = t.scheme;
+          if (t.texture) r.dataset.texture = t.texture;
+          if (t.font) {
+            var l = document.createElement('link');
+            l.id = 'lh-theme-font'; l.rel = 'stylesheet'; l.href = t.font;
+            document.head.appendChild(l);
+          }
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

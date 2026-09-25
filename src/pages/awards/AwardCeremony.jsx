@@ -27,7 +27,7 @@ const img = (id, size) => `https://images.igdb.com/igdb/image/upload/t_${size}/$
 const normTitle = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 const isGoty = (c) => /game of the year|best game(?!\s*(direction|design))/i.test(c);
 
-const HATCH = 'repeating-linear-gradient(45deg,rgba(255,255,255,0.06) 0 8px,rgba(255,255,255,0.02) 8px 16px)';
+const HATCH = 'repeating-linear-gradient(45deg,color-mix(in oklab, var(--lh-ink) 6%, transparent) 0 8px,color-mix(in oklab, var(--lh-ink) 2%, transparent) 8px 16px)';
 
 /* ── Bits ──────────────────────────────────────────────────────────────── */
 
@@ -468,7 +468,7 @@ export default function AwardCeremony() {
               {heroWinner.art_id ? (
                 <img src={img(heroWinner.art_id, '1080p')} alt="" className="absolute inset-0 w-full h-full object-cover" />
               ) : (
-                <div className="absolute inset-0" style={{ background: 'repeating-linear-gradient(-45deg,rgba(255,255,255,0.045) 0 10px,rgba(255,255,255,0.012) 10px 20px)' }} />
+                <div className="absolute inset-0" style={{ background: 'repeating-linear-gradient(-45deg,color-mix(in oklab, var(--lh-ink) 4.5%, transparent) 0 10px,color-mix(in oklab, var(--lh-ink) 1.2%, transparent) 10px 20px)' }} />
               )}
               <div className="absolute inset-0 bg-black/85" />
 

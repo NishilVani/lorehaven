@@ -1,11 +1,12 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Compass, Search, Library, User, GalleryVerticalEnd, LogOut, MoreVertical, Calendar, LogIn, Minus, Square, Copy, X, Menu, Image as ImageIcon, Trophy, Tag, SlidersHorizontal, Drama, Users2, ChevronRight } from 'lucide-react';
+import { Compass, Search, Library, User, GalleryVerticalEnd, LogOut, MoreVertical, Calendar, LogIn, Minus, Square, Copy, X, Menu, Image as ImageIcon, Trophy, Tag, SlidersHorizontal, Palette, Drama, Users2, ChevronRight } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { toast } from '../ui/toastBus';
 import DropdownMenu from '../ui/DropdownMenu';
 import { useFocusTrap } from '../ui/useFocusTrap';
 import PreferencesDialog from '../ui/PreferencesDialog';
+import AppearanceDialog from '../ui/AppearanceDialog';
 import { auth } from '../../services/firebase';
 import { signOut, onAuthStateChanged } from 'firebase/auth';
 import AuthModal from '../ui/AuthModal';
@@ -39,6 +40,7 @@ export default function Navbar() {
     };
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
     const [prefsOpen, setPrefsOpen] = useState(false);
+    const [appearanceOpen, setAppearanceOpen] = useState(false);
     const [user, setUser] = useState(null);
     const [isMaximized, setIsMaximized] = useState(false);
     const [isVisible, setIsVisible] = useState(true);
@@ -230,7 +232,9 @@ export default function Navbar() {
        hatch for being signed in as the wrong person, and it is reversible,
        which none of the things that moved are.
 
-       Eight rows down to four. */
+       Eight rows down to four. Appearance joined later, for the same reason as
+       Recommendation Settings: a theme is chosen while looking at the page it
+       changes, so it opens over the page rather than sending you somewhere. */
     const userMenuOptions = [
         {
             label: 'My Profile',
@@ -246,6 +250,11 @@ export default function Navbar() {
             label: 'Recommendation Settings',
             icon: SlidersHorizontal,
             onClick: () => setPrefsOpen(true)
+        },
+        {
+            label: 'Appearance',
+            icon: Palette,
+            onClick: () => setAppearanceOpen(true)
         },
         {
             label: 'Log out',
@@ -277,6 +286,11 @@ export default function Navbar() {
             label: 'Recommendation Settings',
             icon: SlidersHorizontal,
             onClick: () => setPrefsOpen(true)
+        },
+        {
+            label: 'Appearance',
+            icon: Palette,
+            onClick: () => setAppearanceOpen(true)
         },
         {
             label: 'Sign In',
@@ -989,6 +1003,7 @@ export default function Navbar() {
             {/* Auth Modal */}
             <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
             {prefsOpen && <PreferencesDialog onClose={() => setPrefsOpen(false)} />}
+            {appearanceOpen && <AppearanceDialog onClose={() => setAppearanceOpen(false)} />}
 
         </>
     );

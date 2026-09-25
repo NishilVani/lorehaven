@@ -166,7 +166,7 @@ function HoursPlot({ games }) {
         <div className="px-2">
           <div
             className="relative border-r border-white/15"
-            style={{ height: plotH, backgroundImage: 'linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px)', backgroundSize: '16.666% 100%' }}
+            style={{ height: plotH, backgroundImage: 'linear-gradient(90deg, color-mix(in oklab, var(--lh-ink) 10%, transparent) 1px, transparent 1px)', backgroundSize: '16.666% 100%' }}
           >
             {dots.map((d, i) => (
               <span
@@ -402,12 +402,12 @@ export default function YearInReview() {
                 title={`${m.label} ${year}: ${m.games} finished`}
                 className="flex-1 min-w-0 flex flex-col items-center justify-end gap-1.5 h-full"
               >
-                <span className="lh-label tabular-nums" style={{ color: peak ? BEATEN : '#fff' }}>{m.games || ''}</span>
+                <span className="lh-label tabular-nums" style={{ color: peak ? BEATEN : 'var(--lh-ink)' }}>{m.games || ''}</span>
                 <span
                   className="draw-bar w-full min-h-[1px] block"
                   style={{
                     height: m.games ? `${(m.games / monthPeak) * 100}%` : 0,
-                    background: peak ? BEATEN : 'rgba(255,255,255,.85)',
+                    background: peak ? BEATEN : 'color-mix(in oklab, var(--lh-ink) 85%, transparent)',
                   }}
                 />
               </div>
