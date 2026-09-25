@@ -53,6 +53,7 @@
     "test:e2e:ios": "bash scripts/e2e-shard.sh tests \"Mobile Safari\" 24 ios"
   },
   "dependencies": {
+    "@blobatar/react": "^2.7.0",
     "@craco/craco": "^7.1.0",
     "@tailwindcss/vite": "^4.2.4",
     "@tauri-apps/api": "^2.11.0",
@@ -60,6 +61,7 @@
     "@tauri-apps/plugin-fs": "^2.5.1",
     "@tauri-apps/plugin-http": "^2.5.9",
     "@tauri-apps/plugin-shell": "^2.3.5",
+    "blobatar": "^2.7.0",
     "firebase": "^12.14.0",
     "jose": "^6.2.12",
     "lucide-react": "^1.14.0",
