@@ -22,6 +22,10 @@ infinite-scroll audit, with the measurement behind every claim.
   render used fallbacks), routes that need IGDB, and the Tauri and Android
   shells. Found and fixed on the way: `YourData.jsx` dimmed a line with
   `opacity-60`, which no theme boost can reach; it is `text-current/60` now.
+  axe per theme (/profile, /library/backlog, /import, three shells): Gallery,
+  Daylight, Lounge, Grimoire and Spice CLEAN. Editorial and the other seven
+  fail only on `text-white/40` "Not enough data" in `LibraryNumbers.jsx`, a
+  sub-AA label that predates this branch and `lint:contrast` already flags.
 
 - **Live at https://lorehaven.app** (connected 2026-09-16, Firebase-issued
   certificate) and still at https://lorehaven.web.app, deployed by CI on every
