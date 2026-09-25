@@ -60,7 +60,7 @@ import useAnnounce from '../../components/ui/useAnnounce';
    sheet slides over a full-bleed #000000 page with no shadow to separate it, so
    an identical black would erase the boundary. */
 const SHEET_SURFACE = 'rgba(8,8,8,0.97)';
-const HAIRLINE = 'rgba(255,255,255,0.15)';
+const HAIRLINE = 'color-mix(in oklab, var(--lh-ink) 15%, transparent)';
 
 /* Above the mobile header, which is z-130, and below the plate viewer at z-150.
    At 120 the header painted over the expanded sheet — its top edge and hairline
@@ -377,7 +377,7 @@ const Tile = memo(function Tile({
        plates, forty violations, for as long as the page has existed. */
     <div
       className="group relative overflow-hidden bg-neutral-900 shrink-0 select-none"
-      style={{ width: wp.tw, height: wp.th, boxShadow: sel ? 'inset 0 0 0 2px #ffffff' : 'none' }}
+      style={{ width: wp.tw, height: wp.th, boxShadow: sel ? 'inset 0 0 0 2px var(--lh-ink)' : 'none' }}
     >
       <img
         src={tileUrl(wp)}
@@ -1441,7 +1441,7 @@ export default function Wallpapers() {
             height: 52,
             bottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))',
             ...(wide ? { left: 'calc(220px + (100% - 220px) / 2)', right: 'auto' } : null),
-            boxShadow: '0 0 0 1px rgba(255,255,255,0.2)',
+            boxShadow: '0 0 0 1px color-mix(in oklab, var(--lh-ink) 20%, transparent)',
           }}
           role="region"
           aria-label="Selection"
@@ -1813,7 +1813,7 @@ export default function Wallpapers() {
                       style={{
                         width: Math.max(44, Math.round(44 * it.aspect)),   // same floor, compact strip
                         opacity: on ? 1 : 0.45,
-                        boxShadow: on ? 'inset 0 0 0 2px #ffffff' : 'none',
+                        boxShadow: on ? 'inset 0 0 0 2px var(--lh-ink)' : 'none',
                       }}
                     >
                       <img src={tileUrl(it)} alt="" className="w-full h-full object-cover block" loading="lazy" decoding="async" draggable={false} />
@@ -2092,7 +2092,7 @@ export default function Wallpapers() {
                     // A portrait plate measured 32px beside 100px landscapes. Floor it.
                     width: Math.max(56, Math.round(56 * it.aspect)),
                     opacity: on ? 1 : 0.45,
-                    boxShadow: on ? 'inset 0 0 0 2px #ffffff' : 'none',
+                    boxShadow: on ? 'inset 0 0 0 2px var(--lh-ink)' : 'none',
                   }}
                 >
                   <img src={tileUrl(it)} alt="" className="w-full h-full object-cover block" loading="lazy" decoding="async" draggable={false} />

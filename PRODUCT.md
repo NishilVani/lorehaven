@@ -38,6 +38,7 @@ Unlike traditional game backlog apps or social trackers that prioritize noisy co
 - **Data Import Wizard:** CSV / steam / raw data import flows for external library migration.
 
 ### Constraints
+- **Themes:** Stark Editorial Brutalism is the identity and the default theme. Users can switch to one of twelve other themes under Appearance (see "Themes" in `DESIGN.md`); every theme must pass `npm run test:themes`.
 - **Design System:** Must adhere strictly to Stark Editorial Brutalism (`DESIGN.md`). Pitch black (`#000000`) background, stark white (`#FFFFFF`) typography, sharp rectangular edges only (`rounded-none`), no soft UI drop shadows, and no decorative UI colors (game art is the primary color source).
 - **API Keys:** Requires IGDB Client ID and Client Secret stored in Firebase `config/igdb` or local browser storage.
 

@@ -557,7 +557,7 @@ export default function GameCard({
                 <span
                   style={{
                     backgroundColor: badge.text,
-                    color: '#000000',
+                    color: 'var(--lh-on-state)',
                     clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%)',
                   }}
                   className="block pl-2.5 pr-2 py-1 text-[10px] font-bold tracking-widest uppercase leading-none whitespace-nowrap"

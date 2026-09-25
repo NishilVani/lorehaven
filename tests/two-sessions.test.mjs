@@ -13,7 +13,7 @@ const src = fs.readFileSync('src/services/db.js', 'utf8');
    appending an export to a temp copy that imports the same neighbours. */
 const tmp = path.resolve('tests/_db.tmp.mjs');
 fs.writeFileSync(tmp, src
-  .replace(/from '\.\/([^']+)'/g, (m, f) => `from '../src/services/${f}'`)
+  .replace(/from '(\.\.?)\/([^']+)'/g, (m, up, f) => `from '../src/${up === '.' ? 'services/' : ''}${f}'`)
   + '\nexport const __apply = applyDomainDoc; export const __pending = pendingWrites; export const __signIn = (u) => { currentUser = u; }; export const __setOutdated = (v) => { syncState = { ...syncState, outdated: v }; }; export const __flush = flushCloud; export const __setSyncState = setSyncState;\n');
 
 const makeDevice = () => {

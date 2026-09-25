@@ -45,7 +45,7 @@ function ScaleRow({ label, count, of, color, textColor }) {
   return (
     <div className="flex items-center gap-3 py-2">
       <Swatch color={color} />
-      <span className="text-sm w-[92px] shrink-0" style={{ color: textColor || 'rgba(255,255,255,.85)' }}>{label}</span>
+      <span className="text-sm w-[92px] shrink-0" style={{ color: textColor || 'color-mix(in oklab, var(--lh-ink) 85%, transparent)' }}>{label}</span>
       <span className="flex-1 min-w-0 h-2 block bg-white/10" aria-hidden="true">
         <span className="block h-full" style={{ width: `${pct}%`, background: color }} />
       </span>
@@ -328,11 +328,11 @@ export default function LibraryNumbers({ stats: s }) {
                     const peak = y.games === yearPeak && soleBestYear;
                     return (
                       <div key={y.year} className="flex-1 min-w-0 flex flex-col items-center justify-end gap-1.5 h-full">
-                        <span className="lh-label tabular-nums" style={{ color: peak ? BEATEN : '#fff' }}>{y.games}</span>
+                        <span className="lh-label tabular-nums" style={{ color: peak ? BEATEN : 'var(--lh-ink)' }}>{y.games}</span>
                         <div
                           title={`${y.year}: ${y.games} ${y.games === 1 ? 'game' : 'games'}${y.covered > 0 ? `, about ${nf.format(y.hours)} hours` : ''}${peak ? ' — your best year' : ''}`}
                           className="draw-bar w-full min-h-[2px]"
-                          style={{ height: `${(y.games / yearPeak) * 100}%`, background: peak ? BEATEN : 'rgba(255,255,255,.85)' }}
+                          style={{ height: `${(y.games / yearPeak) * 100}%`, background: peak ? BEATEN : 'color-mix(in oklab, var(--lh-ink) 85%, transparent)' }}
                         />
                       </div>
                     );

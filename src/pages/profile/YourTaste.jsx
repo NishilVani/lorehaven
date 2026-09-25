@@ -98,7 +98,7 @@ function DotGroup({ label, rows, scale, colorOf, textColorOf }) {
         className="relative border-r border-white/15"
         style={{
           height,
-          backgroundImage: 'linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px)',
+          backgroundImage: 'linear-gradient(90deg, color-mix(in oklab, var(--lh-ink) 10%, transparent) 1px, transparent 1px)',
           backgroundSize: '20% 100%',
         }}
       >

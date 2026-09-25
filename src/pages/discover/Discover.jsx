@@ -385,7 +385,7 @@ export default function Discover() {
                 <GameCard
                   key={u.card.id}
                   game={u.card}
-                  statusBadge={{ dot: '#ffffff', text: '#ffffff', label: UPDATE_TAG[u.primary.type] || 'Update' }}
+                  statusBadge={{ dot: 'var(--lh-ink)', text: 'var(--lh-ink)', label: UPDATE_TAG[u.primary.type] || 'Update' }}
                   topBadge={u.extra > 0 ? (
                     <UpdateCountBadge events={u.events} primary={u.primary} />
                   ) : null}

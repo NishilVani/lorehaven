@@ -7,6 +7,22 @@ infinite-scroll audit, with the measurement behind every claim.
 
 ## Where this stands
 
+- **Themes: built on `feature/app-themes`.** Appearance in the account menu
+  (`src/components/ui/AppearanceDialog.jsx`) offers thirteen themes; Editorial
+  stays the default and is unchanged. Registry `src/constants/themes.js`,
+  applied by `src/services/theme.js`, stored in prefs so it syncs. Mechanism
+  and rules for new code: "Themes" in `DESIGN.md`. Verified: `test:themes`
+  (every theme's colour pairs against WCAG 2.2 AA, in `npm test`), `npm test`,
+  lint 0 errors, build, and a rendered check in Chromium of the library, the
+  picker at 1280 and 375, live switching, hover and focus on the fill, reset
+  from a light theme to a dark one, and an unknown id falling back. axe via
+  `A11Y_THEME=<id>` on the routes that render offline (/library/backlog,
+  /profile, /import); per-theme results are listed below this entry. Not
+  verified: the web fonts (this sandbox has no route to Google Fonts, so every
+  render used fallbacks), routes that need IGDB, and the Tauri and Android
+  shells. Found and fixed on the way: `YourData.jsx` dimmed a line with
+  `opacity-60`, which no theme boost can reach; it is `text-current/60` now.
+
 - **Live at https://lorehaven.app** (connected 2026-09-16, Firebase-issued
   certificate) and still at https://lorehaven.web.app, deployed by CI on every
   push to `main`. `www.lorehaven.app` is added in Firebase as a redirect to the

@@ -4,6 +4,20 @@
    duration in the product that sits off the scale. */
 @theme {
   --default-transition-duration: 200ms;
+
+  /* Themes. The app is written in two colours -- `text-white`, `border-white/15`,
+     `bg-black` -- and these two lines are what make it themeable: "white" is the
+     current theme's ink and "black" its ground. See src/constants/themes.js. */
+  --color-white: var(--lh-ink);
+  --color-black: var(--lh-paper);
+  /* The four greys the app uses besides alpha steps of white. */
+  --color-neutral-950: var(--lh-surface);
+  --color-neutral-900: var(--lh-surface-2);
+  --color-neutral-200: var(--lh-fill-hover);
+  --color-gray-200: var(--lh-fill-hover);
+  --color-gray-300: var(--lh-text-strong);
+  --color-gray-400: var(--lh-text);
+  --color-neutral-700: var(--lh-text-faint);
 }
 @config "../tailwind.config.js";
 @source ".";
@@ -12,7 +26,14 @@
    LOREHAVEN — Stark Editorial Brutalism
    Pitch black. Pure white. Sharp edges. Art is the only color.
    Type roles: Kicaps = display · Courbe Sans = labels/nav · Space Grotesk = body
-   ════════════════════════════════════════════════════════════════ */
+   ════════════════════════════════════════════════════════════════
+
+   Editorial is the default theme and the values below are its values. Every
+   other theme overrides the --lh-* set (and, for light grounds, the state
+   scales) as inline properties on <html>; src/services/theme.js applies them
+   and src/constants/themes.js is where they are written down. Derived tokens
+   are colour-mixes of --lh-ink and --lh-paper so they follow whichever theme
+   is on. */
 
 @font-face {
   font-family: 'Kicaps';
@@ -29,49 +50,73 @@
 }
 
 :root {
-  --text: #a3a3a3;
-  --text-h: #ffffff;
-  --bg: #000000;
-  --border: rgba(255, 255, 255, 0.15);
-  --code-bg: #111111;
-  --accent: #ffffff;
-  --accent-bg: rgba(255, 255, 255, 0.1);
-  --accent-border: rgba(255, 255, 255, 0.5);
+  /* ── Theme primitives (Editorial). Overridden per theme on <html>. ── */
+  --lh-paper: #000000;          /* the ground: Tailwind `black` */
+  --lh-ink: #ffffff;            /* type and rules: Tailwind `white` */
+  --lh-text: #a3a3a3;           /* resting body copy */
+  --lh-surface: #0a0a0a;        /* dialog panel: neutral-950 */
+  --lh-surface-2: #171717;      /* raised row / well: neutral-900 */
+  --lh-fill: #ffffff;           /* the chosen or primary control: solid bg-white */
+  --lh-on-fill: #000000;        /* type on the fill */
+  --lh-fill-hover: #e5e5e5;     /* the fill under the pointer: neutral-200 */
+  --lh-on-state: #000000;       /* type on a status sticker or shelf fill */
+  --lh-on-state-dim: rgb(0 0 0 / 0.7); /* its secondary type, e.g. a shelf count */
+  --lh-text-strong: #d1d5db;    /* gray-300 */
+  --lh-text-faint: #404040;     /* neutral-700, decorative only */
+  --lh-text-boost: 0;           /* see themes.js, textBoost */
+  --lh-radius-control: 0px;
+  --lh-radius-panel: 0px;
+  --lh-case-label: uppercase;
+  --lh-case-display: uppercase;
+  --lh-label-tracking: 0.18em;
+  --lh-display-tracking: -0.02em;
+  --lh-panel-shadow: 0 0 0 1px color-mix(in oklab, var(--lh-ink) 6%, transparent), 0 24px 64px rgb(0 0 0 / 0.9);
+
+  --text: var(--lh-text);
+  --text-h: var(--lh-ink);
+  --bg: var(--lh-paper);
+  --border: color-mix(in oklab, var(--lh-ink) 15%, transparent);
+  --code-bg: var(--lh-surface-2);
+  --accent: var(--lh-fill);
+  --accent-bg: color-mix(in oklab, var(--lh-ink) 10%, transparent);
+  --accent-border: color-mix(in oklab, var(--lh-ink) 50%, transparent);
 
   /* Global Skeleton Loading Tokens */
-  --skeleton-base: rgba(255, 255, 255, 0.03);
-  --skeleton-shine: rgba(255, 255, 255, 0.09);
-  --skeleton-highlight: rgba(255, 255, 255, 0.15);
+  --skeleton-base: color-mix(in oklab, var(--lh-ink) 3%, transparent);
+  --skeleton-shine: color-mix(in oklab, var(--lh-ink) 9%, transparent);
+  --skeleton-highlight: color-mix(in oklab, var(--lh-ink) 15%, transparent);
   --skeleton-speed: 2.5s;
 
-  /* State Colors — monochrome ramp: meaning through weight, not hue */
-  --status-playing: #ffffff;
-  --status-playing-glass: rgba(255, 255, 255, 0.14);
-  --status-playing-border: rgba(255, 255, 255, 0.6);
-  --status-playing-hover: rgba(255, 255, 255, 0.1);
+  /* State Colors — monochrome ramp: meaning through weight, not hue.
+     Steps of the ink toward the ground, so the ramp holds in every theme. */
+  --status-playing: var(--lh-ink);
+  --status-playing-glass: color-mix(in oklab, var(--lh-ink) 14%, transparent);
+  --status-playing-border: color-mix(in oklab, var(--lh-ink) 60%, transparent);
+  --status-playing-hover: color-mix(in oklab, var(--lh-ink) 10%, transparent);
 
-  --status-backlog: #d4d4d4;
-  --status-backlog-glass: rgba(255, 255, 255, 0.1);
-  --status-backlog-border: rgba(255, 255, 255, 0.4);
-  --status-backlog-hover: rgba(255, 255, 255, 0.08);
+  --status-backlog: color-mix(in oklab, var(--lh-ink) 86%, var(--lh-paper));
+  --status-backlog-glass: color-mix(in oklab, var(--lh-ink) 10%, transparent);
+  --status-backlog-border: color-mix(in oklab, var(--lh-ink) 40%, transparent);
+  --status-backlog-hover: color-mix(in oklab, var(--lh-ink) 8%, transparent);
 
-  --status-wishlist: #a3a3a3;
-  --status-wishlist-glass: rgba(255, 255, 255, 0.08);
-  --status-wishlist-border: rgba(255, 255, 255, 0.35);
-  --status-wishlist-hover: rgba(255, 255, 255, 0.06);
+  --status-wishlist: color-mix(in oklab, var(--lh-ink) 70%, var(--lh-paper));
+  --status-wishlist-glass: color-mix(in oklab, var(--lh-ink) 8%, transparent);
+  --status-wishlist-border: color-mix(in oklab, var(--lh-ink) 35%, transparent);
+  --status-wishlist-hover: color-mix(in oklab, var(--lh-ink) 6%, transparent);
 
-  --status-beaten: #e5e5e5;
-  --status-beaten-glass: rgba(255, 255, 255, 0.12);
-  --status-beaten-border: rgba(255, 255, 255, 0.5);
-  --status-beaten-hover: rgba(255, 255, 255, 0.09);
+  --status-beaten: color-mix(in oklab, var(--lh-ink) 92%, var(--lh-paper));
+  --status-beaten-glass: color-mix(in oklab, var(--lh-ink) 12%, transparent);
+  --status-beaten-border: color-mix(in oklab, var(--lh-ink) 50%, transparent);
+  --status-beaten-hover: color-mix(in oklab, var(--lh-ink) 9%, transparent);
 
-  /* #737373 measured 4.43:1 on #000 — 0.07 short of WCAG 1.4.3. #757575 is 4.6:1. */
-  --status-dropped: #757575;
-  --status-dropped-glass: rgba(255, 255, 255, 0.06);
+  /* #737373 measured 4.43:1 on #000 — 0.07 short of WCAG 1.4.3. #757575 is 4.6:1,
+     which is roughly ink at 58% toward the ground in OKLab. */
+  --status-dropped: color-mix(in oklab, var(--lh-ink) 58%, var(--lh-paper));
+  --status-dropped-glass: color-mix(in oklab, var(--lh-ink) 6%, transparent);
   /* 0.25 composites to #404040 = 2.03:1, below the 3:1 that WCAG 1.4.11 requires of a
      border carrying state meaning. 0.4 = 3.66:1. */
-  --status-dropped-border: rgba(255, 255, 255, 0.4);
-  --status-dropped-hover: rgba(255, 255, 255, 0.05);
+  --status-dropped-border: color-mix(in oklab, var(--lh-ink) 40%, transparent);
+  --status-dropped-hover: color-mix(in oklab, var(--lh-ink) 5%, transparent);
 
   /* State Colors — solid ramp: the sanctioned hue exception, used ONLY on the
      die-cut poster stickers where a status has to read at a glance against
@@ -89,17 +134,17 @@
      (Backlog 255 to Wishlist 294 = 39 deg). Black on it measures 11.62:1. */
   --status-solid-unreleased: #22d3ee;
   /* Shown when a status is absent or unrecognised — deliberately colourless. */
-  --status-solid-fallback: rgba(255, 255, 255, 0.4);
+  --status-solid-fallback: color-mix(in oklab, var(--lh-ink) 40%, transparent);
 
   /* Rate/Feel — the one sanctioned color exception: rating stickers on the case */
   --feel-skip: #fe647e;
   --feel-timepass: #fcb700;
   --feel-go-for-it: #00d391;
-  --feel-perfection: #B048FF !important;
+  --feel-perfection: #B048FF;
   /* Perfection is the one feel whose text reads lighter than its dot: #B048FF is
      5.22:1 on black against 12.21:1 here. The other three use one value for both. */
   --feel-perfection-text: #e2b4ff;
-  --feel-none: rgba(255, 255, 255, 0.3);
+  --feel-none: color-mix(in oklab, var(--lh-ink) 30%, transparent);
 
   /* Priority — the third state scale. These had no token at all; the four hexes
      were inlined in nine places. src/constants/stateColors.js is the only reader. */
@@ -107,7 +152,7 @@
   --priority-soon: #FB923C;
   --priority-maybe: #0EA5E9;
   --priority-someday: #94A3B8;
-  --priority-none: rgba(255, 255, 255, 0.3);
+  --priority-none: color-mix(in oklab, var(--lh-ink) 30%, transparent);
 
   /* Feedback roles. Deliberately separate from the state scales even where a hue
      repeats: --destructive shares a hex with --status-solid-dropped, but one means
@@ -125,7 +170,7 @@
      conflicts are the only current use. */
   --warning: #fcd34d;                              /* 14.56:1 on #000 */
   --warning-border: rgba(252, 211, 77, 0.55);      /* 4.63:1 */
-  --social-bg: rgba(255, 255, 255, 0.06);
+  --social-bg: color-mix(in oklab, var(--lh-ink) 6%, transparent);
   --shadow: none;
 
   --sans: 'Space Grotesk', system-ui, 'Segoe UI', sans-serif;
@@ -145,7 +190,7 @@
 
   font: 16px/145% var(--sans);
   letter-spacing: 0.18px;
-  color-scheme: light dark;
+  color-scheme: dark;
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
@@ -224,9 +269,9 @@
   html {
     margin: 0;
     font-family: var(--sans);
-    background-color: #000000;
-    /* LoreHaven: pitch black, always */
-    color: white;
+    background-color: var(--lh-paper);
+    /* Editorial: pitch black. Other themes: their own ground. */
+    color: var(--lh-ink);
     /* width: 100vw removed — on Windows, 100vw includes the scrollbar gutter width, causing a
        15px layout shift when the scrollbar appears/disappears between pages. Let html size naturally. */
     overflow-x: hidden;
@@ -260,7 +305,7 @@
     font-family: var(--heading);
     font-weight: 700;
     color: var(--text-h);
-    text-transform: uppercase;
+    text-transform: var(--lh-case-display);
   }
 }
 
@@ -326,11 +371,11 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+  background: color-mix(in oklab, var(--lh-ink) 15%, transparent);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: color-mix(in oklab, var(--lh-ink) 30%, transparent);
 }
 
 /* Hide the up/down arrows */
@@ -340,7 +385,7 @@
 
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  scrollbar-color: color-mix(in oklab, var(--lh-ink) 15%, transparent) transparent;
 }
 
 .custom-scrollbar::-webkit-scrollbar {
@@ -353,11 +398,11 @@
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+  background: color-mix(in oklab, var(--lh-ink) 15%, transparent);
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: color-mix(in oklab, var(--lh-ink) 30%, transparent);
 }
 
 .no-scrollbar {
@@ -412,8 +457,12 @@
 .award-shine:not(div),
 .award-shine span {
   /* Darkest stops raised from #707070/gray: at 4.43:1 the label dipped under AA
-     wherever it sat over artwork rather than pure black. Floor is now 7.46:1. */
-  background: linear-gradient(90deg, #b0b0b0 0%, #fff 20%, #9a9a9a 30%, #b0b0b0 40%) 100% 0 / 200% 100%;
+     wherever it sat over artwork rather than pure black. Floor is now 7.46:1.
+     Written as steps of the ink toward the ground so the shine holds in every
+     theme; tests/themes.test.mjs measures the darkest stop (62%). */
+  --shine-mid: color-mix(in oklab, var(--lh-ink) 70%, var(--lh-paper));
+  --shine-dark: color-mix(in oklab, var(--lh-ink) 62%, var(--lh-paper));
+  background: linear-gradient(90deg, var(--shine-mid) 0%, var(--lh-ink) 20%, var(--shine-dark) 30%, var(--shine-mid) 40%) 100% 0 / 200% 100%;
   background-clip: border-box;
   -webkit-text-fill-color: transparent;
   -webkit-text-size-adjust: none;
@@ -626,7 +675,7 @@ body.dragging-active * {
    both under AA. Lightening moves the same numbers the other way: 9.46:1 and
    5.62:1. */
 .lh-tab[aria-current="page"].is-drop-over {
-  box-shadow: inset 0 0 0 999px rgb(255 255 255 / 0.22);
+  box-shadow: inset 0 0 0 999px color-mix(in oklab, var(--lh-ink) 22%, transparent);
 }
 
 /* Remove keeps its own colour throughout. Lifting it to white on hover made the
@@ -756,8 +805,8 @@ body.dragging-active * {
    only: nothing moves, nothing reflows, and the covers underneath are
    untouched. */
 @keyframes pick-land {
-  from { border-color: #ffffff; }
-  to { border-color: rgba(255, 255, 255, 0.55); }
+  from { border-color: var(--lh-ink); }
+  to { border-color: color-mix(in oklab, var(--lh-ink) 55%, transparent); }
 }
 
 .pick-land {
@@ -958,9 +1007,9 @@ body.dragging-active * {
 .platform-tooltip {
   position: fixed;
   z-index: 99999;
-  background-color: #000000;
-  color: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  background-color: var(--lh-paper);
+  color: color-mix(in oklab, var(--lh-ink) 90%, transparent);
+  border: 1px solid color-mix(in oklab, var(--lh-ink) 30%, transparent);
   padding: 6px 10px;
   font-family: var(--sans);
   font-size: 10px;
@@ -1000,7 +1049,7 @@ body.dragging-active * {
   position: absolute;
   inset: 0;
   clip-path: inset(8px 8px calc(100% - 116px) 8px);
-  background-color: #0e0e0e;
+  background-color: var(--lh-surface);
   z-index: 0;
   pointer-events: none;
   overflow: hidden;
@@ -1009,7 +1058,7 @@ body.dragging-active * {
 
 .event-card:hover .event-card-bg {
   clip-path: inset(0px);
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: color-mix(in oklab, var(--lh-ink) 5%, transparent);
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -1026,8 +1075,8 @@ body.dragging-active * {
 /* Text selection: inverted, stark */
 @layer base {
   ::selection {
-    background: #ffffff;
-    color: #000000;
+    background: var(--lh-fill);
+    color: var(--lh-on-fill);
   }
 }
 
@@ -1171,8 +1220,8 @@ body.dragging-active * {
 .lh-label {
   font-family: var(--sans);
   font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
+  text-transform: var(--lh-case-label);
+  letter-spacing: var(--lh-label-tracking);
   font-size: 0.6875rem;
   line-height: 1;
 }
@@ -1216,8 +1265,8 @@ body.dragging-active * {
 .lh-display {
   font-family: var(--heading);
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: -0.02em;
+  text-transform: var(--lh-case-display);
+  letter-spacing: var(--lh-display-tracking);
 }
 
 /* Brand type — the LoreHaven wordmark and special moments only */
@@ -1260,5 +1309,99 @@ body.dragging-active * {
     display: block !important;
     height: 100% !important;
     overflow: hidden !important;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   THEMES. The rules a theme needs beyond its colour values.
+   Values: src/constants/themes.js. Applied by: src/services/theme.js.
+   ════════════════════════════════════════════════════════════════ */
+
+/* Greys that Editorial states as exact hexes, every other theme derives. */
+:root[data-theme]:not([data-theme="editorial"]) {
+  --lh-text-strong: color-mix(in oklab, var(--lh-ink) 82%, var(--lh-paper));
+  --lh-text-faint: color-mix(in oklab, var(--lh-ink) 25%, var(--lh-paper));
+}
+
+:root[data-scheme="light"] {
+  --lh-panel-shadow: 0 0 0 1px rgb(0 0 0 / 0.04), 0 24px 64px rgb(0 0 0 / 0.18);
+}
+
+/* The fill. A solid `bg-white` is this app's one "chosen" signal: the selected
+   shelf, the active dial stop, the primary button. Inside one, `white` resolves
+   to the theme's fill and `black` to the type that sits on it, so the utilities
+   already on those elements (border-white, text-black, hover:bg-neutral-200)
+   paint the accent without a single component changing. In Editorial the fill
+   is the ink, so nothing moves.
+
+   Only the resting `bg-white`. `hover:bg-white` stays an inversion to ink: a
+   whole list turning red under the pointer would spend the accent on nothing. */
+[class~="bg-white"] {
+  --color-white: var(--lh-fill);
+  --color-black: var(--lh-on-fill);
+}
+
+/* Geometry. Editorial is square, and one rule above de-rounds everything. A
+   theme with corners puts them back on the shapes that read as objects --
+   bordered and filled controls, fields, menus, dialog panels, tooltips -- and
+   leaves rules, rows and cover art square, where a radius would only show as
+   a bent hairline. Higher specificity than the `*` reset, both !important. */
+:root[data-theme] :is(
+  button[class~="border"], button[class~="bg-white"],
+  a[class~="border"], a[class~="bg-white"],
+  [role="radio"][class~="border"], [role="tab"][class~="border"],
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea
+) {
+  border-radius: var(--lh-radius-control) !important;
+}
+
+:root[data-theme] :is([role="menu"], [role="listbox"], .dialog-in, .platform-tooltip) {
+  border-radius: var(--lh-radius-panel) !important;
+}
+
+/* Textures. Flavour only: painted on the ground BEHIND the content (z-index
+   -1 in the root stacking context), so no type is ever drawn through one; never
+   interactive; and gone for anyone who asked for more contrast or their own
+   colours. Where a page lays its own `bg-black` panel, that panel covers it. */
+:root[data-texture] body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+
+:root[data-texture="scanlines"] body::after {
+  background: repeating-linear-gradient(to bottom, rgb(0 0 0 / 0.16) 0 1px, transparent 1px 3px);
+}
+
+:root[data-texture="grid"] body::after {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% 0%, color-mix(in oklab, var(--lh-fill) 10%, transparent), transparent 70%),
+    linear-gradient(color-mix(in oklab, var(--lh-fill) 5%, transparent) 1px, transparent 1px) 0 0 / 48px 48px,
+    linear-gradient(90deg, color-mix(in oklab, var(--lh-fill) 5%, transparent) 1px, transparent 1px) 0 0 / 48px 48px;
+}
+
+:root[data-texture="hatch"] body::after {
+  background: repeating-linear-gradient(135deg, color-mix(in oklab, var(--lh-ink) 3%, transparent) 0 2px, transparent 2px 14px);
+}
+
+:root[data-texture="vignette"] body::after {
+  background: radial-gradient(ellipse 120% 90% at 50% 40%, transparent 55%, rgb(0 0 0 / 0.35) 100%);
+}
+
+:root[data-texture="haze"] body::after {
+  background: radial-gradient(ellipse 90% 60% at 50% -10%, color-mix(in oklab, var(--lh-fill) 14%, transparent), transparent 70%);
+}
+
+/* Film and paper grain: one tile of SVG turbulence, no image request. */
+:root[data-texture="grain"] body::after {
+  opacity: 0.07;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@media (prefers-contrast: more), (forced-colors: active) {
+  :root[data-texture] body::after {
+    display: none;
   }
 }

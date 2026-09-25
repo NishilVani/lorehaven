@@ -301,7 +301,9 @@ const CHROME_FLOOR = 18;   // rail + title bar + window controls, no route conte
 
 const AXE_OPTS = { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] } };
 
-const browser = await chromium.launch();
+/* CHROMIUM_PATH points at a browser other than the one this Playwright build
+   downloads, e.g. a CI image's preinstalled Chromium. */
+const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
 const failures = [];
 const unverified = [];
 let checks = 0;
@@ -343,6 +345,15 @@ for (const shell of SHELLS) {
     localStorage.setItem('moctale_library', json);
     localStorage.setItem('moctale_library_mt', String(now));
   }, [JSON.stringify(SEED_LIBRARY), Date.now()]);
+
+  /* A11Y_THEME=<id> runs the whole gate in one theme from
+     src/constants/themes.js. Every theme recolours every route, so contrast has
+     to be measured per theme, not assumed from the default. */
+  if (process.env.A11Y_THEME) {
+    await ctx.addInitScript((theme) => {
+      localStorage.setItem('moctale_prefs', JSON.stringify({ tasteBias: 0, releaseEra: 'any', theme }));
+    }, process.env.A11Y_THEME);
+  }
 
   /* Tauri chrome is gated on this global and must exist before the app boots.
      The stub has to satisfy @tauri-apps/api, not just the app's truthiness check:

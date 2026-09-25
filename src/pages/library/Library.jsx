@@ -1346,12 +1346,12 @@ export default function Library() {
                        4x-throttled CPU, EVERY frame of the drag ran over 32ms and
                        the median was 57.5. The highlight touches seven cells; it
                        has no business costing a render of the grid. */
-                    style={{ '--tab-color': statusColor(tab), ...(isActive ? { backgroundColor: statusColor(tab), color: '#000000' } : null) }}
+                    style={{ '--tab-color': statusColor(tab), ...(isActive ? { backgroundColor: statusColor(tab), color: 'var(--lh-on-state)' } : null) }}
                   >
                     <span
                       aria-hidden="true"
                       className="lh-swatch w-2 h-2 shrink-0 self-center pointer-events-none"
-                      style={{ backgroundColor: isActive ? '#000000' : statusColor(tab) }}
+                      style={{ backgroundColor: isActive ? 'var(--lh-on-state)' : statusColor(tab) }}
                     />
                     {/* .lh-label tracks at 0.18em, which trails the last glyph as
                         dead space. Two of those cost `Unreleased` its count at
@@ -1384,20 +1384,20 @@ export default function Library() {
                    "filled means you are here" the desktop strip has always used
                    for its active tab, so the two read as one system. The border
                    goes with it: a filled bar carries its own edge. */
-                className="lh-tab lh-strip-compact xl:hidden col-span-full flex items-center gap-2 min-h-[44px] px-4 cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-black"
-                style={{ backgroundColor: statusColor(activeTab), color: '#000000' }}
+                className="lh-tab lh-strip-compact xl:hidden col-span-full flex items-center gap-2 min-h-[44px] px-4 cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-(--lh-on-state)"
+                style={{ backgroundColor: statusColor(activeTab), color: 'var(--lh-on-state)' }}
               >
                 <span
                   aria-hidden="true"
-                  className="lh-swatch w-2 h-2 shrink-0 bg-black pointer-events-none"
+                  className="lh-swatch w-2 h-2 shrink-0 bg-(--lh-on-state) pointer-events-none"
                 />
                 <span className="lh-label pointer-events-none -mr-[0.18em]">{activeTab}</span>
                 {/* Black at 70%, not the 60% the mock used. 60% is fine on Beaten
                     (5.13:1) and fails on half the ramp — Wishlist 3.88:1, Dropped
                     3.91:1, Backlog 4.04:1. 70% is the first step that clears AA on
                     every shelf, worst 4.92:1 on Dropped. */}
-                <span className="lh-label tabular-nums text-black/70 pointer-events-none">{tabCounts[activeTab]}</span>
-                <ChevronDown className="w-3.5 h-3.5 ml-auto shrink-0 text-black/70 pointer-events-none" />
+                <span className="lh-label tabular-nums text-(--lh-on-state-dim) pointer-events-none">{tabCounts[activeTab]}</span>
+                <ChevronDown className="w-3.5 h-3.5 ml-auto shrink-0 text-(--lh-on-state-dim) pointer-events-none" />
               </button>
 
               {/* Spacer pushes the drop target to the right edge on the lg row,
@@ -1970,20 +1970,20 @@ export default function Library() {
                      text does not — so colour is not carrying it alone, and
                      aria-current still says it outright. */
                   className={`w-full flex items-center gap-3 min-h-[52px] px-4 border-b border-white/10 cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-inset ${
-                    isActive ? 'focus-visible:ring-black' : 'text-white/60 hover:text-white focus-visible:ring-white'
+                    isActive ? 'focus-visible:ring-(--lh-on-state)' : 'text-white/60 hover:text-white focus-visible:ring-white'
                   }`}
-                  style={isActive ? { backgroundColor: statusColor(tab), color: '#000000' } : undefined}
+                  style={isActive ? { backgroundColor: statusColor(tab), color: 'var(--lh-on-state)' } : undefined}
                 >
                   <span
                     aria-hidden="true"
                     className="lh-swatch w-2 h-2 shrink-0"
-                    style={{ backgroundColor: isActive ? '#000000' : statusColor(tab) }}
+                    style={{ backgroundColor: isActive ? 'var(--lh-on-state)' : statusColor(tab) }}
                   />
                   <span className="lh-label -mr-[0.18em]">{tab}</span>
                   {/* 70%, not 60%: black at 60% clears AA on Beaten and fails on
                       Wishlist, Dropped and Backlog. 70% is the first step that
                       holds across the whole ramp. */}
-                  <span className={`lh-label tabular-nums ml-auto ${isActive ? 'text-black/70' : 'text-white/60'}`}>
+                  <span className={`lh-label tabular-nums ml-auto ${isActive ? 'text-(--lh-on-state-dim)' : 'text-white/60'}`}>
                     {tabCounts[tab]}
                   </span>
                 </button>

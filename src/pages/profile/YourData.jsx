@@ -59,7 +59,10 @@ function Action({ icon: Icon, label, detail, onClick, danger, busy }) {
             contrast was the smaller half of the mistake. This is the one line on
             the page that has to be read before the click, and it was the only
             one set quieter than its own label. */}
-        <span className={`block text-[13px] mt-0.5 ${danger ? '' : 'opacity-60'}`}>{detail}</span>
+        {/* text-current/60 rather than opacity-60: the same dim that follows
+            the row's hover inversion, but as a colour, so a theme's text boost
+            (src/constants/themes.js) can lift it on a light ground. */}
+        <span className={`block text-[13px] mt-0.5 ${danger ? '' : 'text-current/60'}`}>{detail}</span>
       </span>
       {!danger && <ChevronRight className="w-4 h-4 shrink-0 opacity-60" aria-hidden="true" />}
     </button>
