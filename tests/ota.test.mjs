@@ -1,17 +1,20 @@
-/* Android OTA: the pure decisions, the Worker route, and the real inlined
+/* Android OTA: the pure decisions, the publish script, and the real inlined
  * bootstrap run in a sandbox for each path it can take.
  * Design: docs/superpowers/specs/2026-09-09-android-ota-design.md
  *
  * What this cannot prove, and the design says so: that a real WebView fetches
- * and runs a cross-origin module bundle from R2. scripts/ota_check.mjs checks the
- * two headers that decide it against the deployed Worker; the rest is by hand.
+ * and runs a cross-origin module bundle from GitHub Pages. scripts/ota_check.mjs checks the
+ * two headers that decide it against the live GitHub Pages site; the rest is by
+ * hand.
  */
 import assert from 'node:assert';
 import vm from 'node:vm';
 import { validManifest, settleMarker, decideBoot, OTA_KEYS } from '../src/ota/policy.js';
 import { compareVersions } from '../src/services/version.js';
-import { otaKey, otaRoute, contentTypeFor, MANIFEST_KEY } from '../functions/ota.js';
-import { handle } from '../functions/proxy.js';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { liftEntry, renderBootstrap } from '../scripts/vite-ota-bootstrap.mjs';
 
 let passed = 0;
@@ -95,66 +98,56 @@ await test('marked bad stays bad, once, and is never attempted again', () => {
   assert.strictEqual(decide({ bad }).reason, 'marked-bad');
 });
 
-/* ── Worker route ────────────────────────────────────────────────────────── */
+/* ── Publish script ──────────────────────────────────────────────────────── */
 
-await test('otaKey serves the manifest and versioned paths, and nothing else', () => {
-  assert.strictEqual(otaKey('/ota/android.json'), MANIFEST_KEY);
-  assert.strictEqual(otaKey('/ota/0.4.0/assets/index-ABC.js'), 'ota/0.4.0/assets/index-ABC.js');
-  assert.strictEqual(otaKey('/ota/0.4.0/platform-icons/Windows%2011.svg'), 'ota/0.4.0/platform-icons/Windows 11.svg');
-  for (const p of ['/ota/', '/ota/0.4.0', '/ota/latest/x.js', '/ota/0.4.0/../android.json',
-    '/ota/0.4.0/%2e%2e/secret', '/ota/0.4.0/a%2Fb.js', '/ota/0.4.0//x.js', '/api/games', '/ota/0.4.0/%E0%A4%A.js']) {
-    assert.strictEqual(otaKey(p), null, p);
-  }
-});
-
-const bucket = (objects) => ({
-  async get(key) { const o = objects[key]; return o ? { body: o.body, httpMetadata: { contentType: o.type }, httpEtag: '"e"' } : null; },
-  async head(key) { const o = objects[key]; return o ? { httpMetadata: { contentType: o.type }, httpEtag: '"e"' } : null; },
-});
-const OBJECTS = {
-  'ota/android.json': { body: JSON.stringify(GOOD), type: 'application/json' },
-  'ota/0.4.0/assets/index-ABC.js': { body: 'export {}', type: 'text/javascript; charset=utf-8' },
-  'ota/0.4.0/assets/untyped.js': { body: 'export {}', type: undefined },
+const VERSION = JSON.parse(readFileSync('src-tauri/tauri.conf.json', 'utf8')).version;
+const ORIGIN = readFileSync('.env.production', 'utf8').match(/^VITE_OTA_ORIGIN=(.+)$/m)[1].trim();
+const fakeDist = (entry = 'assets/index-AAA.js') => {
+  const d = mkdtempSync(join(tmpdir(), 'ota-dist-'));
+  mkdirSync(join(d, 'assets'));
+  writeFileSync(join(d, entry), 'export {}');
+  writeFileSync(join(d, 'assets/index-AAA.css'), '');
+  writeFileSync(join(d, 'assets/_underscored.js'), '');
+  writeFileSync(join(d, 'ota-entry.json'), JSON.stringify({ entry, css: ['assets/index-AAA.css'], preload: [] }));
+  return d;
 };
-const get = (path, method = 'GET', env = { OTA: bucket(OBJECTS) }) =>
-  otaRoute(new Request(`https://proxy.example.dev${path}`, { method }), env);
+const publish = (args) => execFileSync('node', ['scripts/ota_publish.mjs', ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 
-await test('the entry is served with CORS * and a JavaScript type, cached immutably', async () => {
-  const r = await get('/ota/0.4.0/assets/index-ABC.js');
-  assert.strictEqual(r.status, 200);
-  assert.strictEqual(r.headers.get('access-control-allow-origin'), '*');
-  assert.match(r.headers.get('content-type'), /^text\/javascript/);
-  assert.match(r.headers.get('cache-control'), /immutable/);
-  assert.strictEqual(await r.text(), 'export {}');
+await test('publish lays out ota/<version>/ and a manifest that validates against the Pages origin', () => {
+  const site = mkdtempSync(join(tmpdir(), 'ota-site-'));
+  publish(['--version', VERSION, '--site', site, '--dist', fakeDist()]);
+  assert.ok(existsSync(join(site, `ota/${VERSION}/assets/index-AAA.js`)));
+  assert.ok(existsSync(join(site, `ota/${VERSION}/assets/_underscored.js`)));
+  assert.ok(existsSync(join(site, '.nojekyll')), 'Jekyll would drop files starting with _');
+  const m = validManifest(JSON.parse(readFileSync(join(site, 'ota/android.json'), 'utf8')));
+  assert.ok(m);
+  assert.strictEqual(m.version, VERSION);
+  assert.strictEqual(m.base, `${ORIGIN}/ota/${VERSION}/`);
+  assert.strictEqual(m.entry, 'assets/index-AAA.js');
+  assert.strictEqual(m.minShellVersion, JSON.parse(readFileSync('src-tauri/ota-min-shell.json', 'utf8')).minShellVersion);
+  assert.deepStrictEqual(JSON.parse(readFileSync(join(site, `ota/${VERSION}/manifest.json`), 'utf8')), m, 'kept beside the bundle, for rollback');
 });
 
-await test('the manifest is always revalidated', async () => {
-  const r = await get('/ota/android.json');
-  assert.strictEqual(r.headers.get('cache-control'), 'no-cache');
-  assert.deepStrictEqual(await r.json(), GOOD);
+await test('publish re-run with the same build is fine; a different build under the same version is refused', () => {
+  const site = mkdtempSync(join(tmpdir(), 'ota-site-'));
+  publish(['--version', VERSION, '--site', site, '--dist', fakeDist()]);
+  assert.match(publish(['--version', VERSION, '--site', site, '--dist', fakeDist()]), /already holds this build/);
+  assert.throws(() => publish(['--version', VERSION, '--site', site, '--dist', fakeDist('assets/index-BBB.js')]), /different build/);
 });
 
-await test('an object uploaded without a type still gets one from its extension', async () => {
-  const r = await get('/ota/0.4.0/assets/untyped.js');
-  assert.match(r.headers.get('content-type'), /^text\/javascript/);
-  assert.match(contentTypeFor('x.css'), /^text\/css/);
-  assert.strictEqual(contentTypeFor('x.unknown'), 'application/octet-stream');
+await test('rollback copies an earlier release\'s own manifest into place, and refuses one never published', () => {
+  const site = mkdtempSync(join(tmpdir(), 'ota-site-'));
+  publish(['--version', VERSION, '--site', site, '--dist', fakeDist()]);
+  writeFileSync(join(site, 'ota/android.json'), JSON.stringify({ ...GOOD, version: '9.9.9' }));
+  execFileSync('node', ['scripts/ota_rollback.mjs', '--version', VERSION, '--site', site], { stdio: 'pipe' });
+  assert.strictEqual(JSON.parse(readFileSync(join(site, 'ota/android.json'), 'utf8')).version, VERSION);
+  assert.throws(() => execFileSync('node', ['scripts/ota_rollback.mjs', '--version', '0.0.1', '--site', site], { stdio: 'pipe' }), /no published bundle/);
 });
 
-await test('HEAD has headers and no body; POST, missing and unbound all refuse', async () => {
-  const h = await get('/ota/0.4.0/assets/index-ABC.js', 'HEAD');
-  assert.strictEqual(h.status, 200);
-  assert.strictEqual(await h.text(), '');
-  assert.strictEqual((await get('/ota/0.4.0/assets/index-ABC.js', 'POST')).status, 405);
-  assert.strictEqual((await get('/ota/0.4.0/assets/nope.js')).status, 404);
-  assert.strictEqual((await get('/ota/0.4.0/assets/index-ABC.js', 'GET', {})).status, 503);
-});
-
-await test('the proxy answers /ota/* before the POST-only rule and the IGDB credential check', async () => {
-  const r = await handle(new Request('https://proxy.example.dev/ota/android.json'), { OTA: bucket(OBJECTS) });
-  assert.strictEqual(r.status, 200);
-  const other = await handle(new Request('https://proxy.example.dev/api/games'), {});
-  assert.strictEqual(other.status, 405, 'every other route is still POST only');
+await test('publish refuses a version that is not the one in tauri.conf.json', () => {
+  const site = mkdtempSync(join(tmpdir(), 'ota-site-'));
+  assert.throws(() => publish(['--version', '99.0.0', '--site', site, '--dist', fakeDist()]), /does not match tauri.conf.json/);
+  assert.strictEqual(existsSync(join(site, 'ota')), false, 'nothing written');
 });
 
 /* ── Build plugin and the real bootstrap ─────────────────────────────────── */

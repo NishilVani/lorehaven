@@ -19,11 +19,3 @@ preview_urls = false
 
 [observability]
 enabled = true
-
-# Android OTA bundles (functions/ota.js). Public, immutable build output, read
-# by the /ota/* route and written only by the release workflow. The bucket has
-# to exist before the first deploy with this binding:
-#   npx wrangler r2 bucket create lorehaven-ota
-[[r2_buckets]]
-binding = "OTA"
-bucket_name = "lorehaven-ota"

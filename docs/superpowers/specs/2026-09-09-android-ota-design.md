@@ -6,6 +6,16 @@ it needs the one-time setup in [RELEASING.md](../../RELEASING.md#android-ota-fro
 
 **Changes from this design, found while implementing it:**
 
+- **Hosted on GitHub Pages, not R2** (decided 2026-09-25, to avoid a Cloudflare
+  billing account and a CI secret). The sections below on R2 and the Worker
+  route describe the original plan. Pages sends `Access-Control-Allow-Origin: *`
+  and a JavaScript type, which is what the CORS and MIME sections require. The
+  `gh-pages` branch plays R2's part: every release under `ota/<version>/`, never
+  removed, with `ota/android.json` the one file that moves, and the whole branch
+  deployed atomically by `actions/deploy-pages`. It keeps fate decoupling (a
+  Firebase deploy touches nothing Android uses) and adds no dependency to the
+  Worker. What it gives up: Pages caches for about ten minutes where R2 served
+  the manifest `no-cache`, so a rollback takes up to that long to reach phones.
 - **The bundle did need a change.** Vite's preload helper built chunk URLs as
   `"/" + path`, which inside the app resolves to the APK's own origin, where a
   newer bundle's chunks do not exist, so every lazy-loaded route would have

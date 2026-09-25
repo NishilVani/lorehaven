@@ -52,7 +52,7 @@ ${body}
 })();`;
 }
 
-export default function otaBootstrap({ proxyOrigin }) {
+export default function otaBootstrap({ otaOrigin }) {
   let outDir = 'dist';
   let lifted = null;
   return {
@@ -62,11 +62,16 @@ export default function otaBootstrap({ proxyOrigin }) {
     transformIndexHtml: {
       order: 'post',
       handler(html) {
+        /* Loud rather than a bootstrap that asks a relative URL and silently
+           never updates a phone. */
+        if (!/^https:\/\//.test(otaOrigin || '')) {
+          throw new Error('vite-ota-bootstrap: VITE_OTA_ORIGIN is missing or not https (see .env.production)');
+        }
         const { html: rest, entry, css, preload } = liftEntry(html);
         lifted = { entry, css, preload };
         const script = renderBootstrap({
           embedded: lifted,
-          manifestUrl: `${(proxyOrigin || '').replace(/\/$/, '')}/ota/android.json`,
+          manifestUrl: `${(otaOrigin || '').replace(/\/$/, '')}/ota/android.json`,
         });
         return rest.replace('</head>', `  <script>${script}</script>\n  </head>`);
       },

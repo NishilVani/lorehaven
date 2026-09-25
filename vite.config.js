@@ -97,8 +97,8 @@ const themeTextBoost = () => ({
 export default defineConfig(({ mode }) => ({
   plugins: [
     tailwindcss(), react(), igdbProxy(), themeTextBoost(),
-    /* Build only. The OTA manifest lives on the same Worker as the IGDB proxy. */
-    otaBootstrap({ proxyOrigin: loadEnv(mode, process.cwd(), 'VITE_').VITE_PROXY_ORIGIN }),
+    /* Build only. The OTA manifest is on GitHub Pages; see .env.production. */
+    otaBootstrap({ otaOrigin: loadEnv(mode, process.cwd(), 'VITE_').VITE_OTA_ORIGIN }),
   ],
   clearScreen: false,
   experimental: {

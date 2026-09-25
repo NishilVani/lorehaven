@@ -1,103 +1,84 @@
 #!/usr/bin/env node
 /**
- * Publishes a built dist/ as an Android OTA bundle. Run by the `ota` job in
- * .github/workflows/release.yml after `npm run build`.
+ * Adds a built dist/ to the Android OTA site. Run by the `ota` job in
+ * .github/workflows/release.yml, inside a checkout of the `gh-pages` branch,
+ * which is then published to GitHub Pages:
  *
- *   node scripts/ota_publish.mjs --version 0.3.0 [--dry-run]
+ *   node scripts/ota_publish.mjs --version 0.4.0 --site <gh-pages checkout>
  *
- * Order is the point (docs/superpowers/specs/2026-09-09-android-ota-design.md):
- *   1. every file of dist/ goes to ota/<version>/<path>, each with an explicit
- *      Content-Type, because a module script served without a JavaScript type
- *      is refused and the app does not boot;
- *   2. the manifest is built from dist/ota-entry.json (written by the build,
- *      never typed) and src-tauri/ota-min-shell.json, and validated with the
- *      same function the app uses;
- *   3. ota/android.json is written LAST, so it never names a bundle that is not
- *      fully present.
+ * Design: docs/superpowers/specs/2026-09-09-android-ota-design.md
  *
- * Needs CLOUDFLARE_API_TOKEN (R2 write) and CLOUDFLARE_ACCOUNT_ID in the
- * environment, as wrangler reads them.
+ * The branch is the store: every release's files sit under ota/<version>/ and
+ * are never changed or removed, so every past bundle stays servable and
+ * rollback is editing one file. ota/android.json is the pointer, the one file
+ * that moves. The whole branch deploys as one Pages site, atomically, so the
+ * pointer never goes live ahead of what it points at.
+ *
+ * GitHub Pages sends Access-Control-Allow-Origin: * and a JavaScript type for
+ * .js, the two headers a module script from another origin needs.
+ * scripts/ota_check.mjs confirms both on the live site after the deploy.
  */
-import { readFileSync, readdirSync, statSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, cpSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { tmpdir } from 'node:os';
-import { execFileSync } from 'node:child_process';
-import { contentTypeFor, MANIFEST_KEY } from '../functions/ota.js';
 import { validManifest } from '../src/ota/policy.js';
-
-const BUCKET = 'lorehaven-ota';
-const DIST = 'dist';
 
 const arg = (name) => {
   const i = process.argv.indexOf(`--${name}`);
   return i > -1 ? process.argv[i + 1] : undefined;
 };
+const fail = (msg) => { console.error(msg); process.exit(1); };
+
 const version = arg('version');
-const dryRun = process.argv.includes('--dry-run');
-if (!/^\d+\.\d+\.\d+$/.test(version || '')) {
-  console.error('usage: ota_publish.mjs --version X.Y.Z [--dry-run]');
+const site = arg('site');
+const dist = arg('dist') || 'dist';
+if (!/^\d+\.\d+\.\d+$/.test(version || '') || !site) {
+  console.error('usage: ota_publish.mjs --version X.Y.Z --site <dir> [--dist dist]');
   process.exit(2);
 }
 
 const tauriVersion = JSON.parse(readFileSync('src-tauri/tauri.conf.json', 'utf8')).version;
-if (tauriVersion !== version) {
-  console.error(`--version ${version} does not match tauri.conf.json ${tauriVersion}`);
-  process.exit(1);
-}
+if (tauriVersion !== version) fail(`--version ${version} does not match tauri.conf.json ${tauriVersion}`);
 
-const proxy = (readFileSync('.env.production', 'utf8').match(/^VITE_PROXY_ORIGIN=(.+)$/m)?.[1] || '').trim().replace(/\/$/, '');
-if (!/^https:\/\//.test(proxy)) {
-  console.error('VITE_PROXY_ORIGIN in .env.production is missing or not https');
-  process.exit(1);
-}
+const origin = (readFileSync('.env.production', 'utf8').match(/^VITE_OTA_ORIGIN=(.+)$/m)?.[1] || '').trim().replace(/\/$/, '');
+if (!/^https:\/\//.test(origin)) fail('VITE_OTA_ORIGIN in .env.production is missing or not https');
 
-const lifted = JSON.parse(readFileSync(join(DIST, 'ota-entry.json'), 'utf8'));
+const lifted = JSON.parse(readFileSync(join(dist, 'ota-entry.json'), 'utf8'));
 const { minShellVersion } = JSON.parse(readFileSync('src-tauri/ota-min-shell.json', 'utf8'));
 const manifest = validManifest({
   version,
   minShellVersion,
-  base: `${proxy}/ota/${version}/`,
+  base: `${origin}/ota/${version}/`,
   entry: lifted.entry,
   css: lifted.css,
 });
-if (!manifest) {
-  console.error('the generated manifest does not validate:', { version, minShellVersion, lifted });
-  process.exit(1);
+if (!manifest) fail(`the generated manifest does not validate: ${JSON.stringify({ version, minShellVersion, lifted })}`);
+for (const f of [manifest.entry, ...manifest.css]) {
+  if (!existsSync(join(dist, f))) fail(`${dist}/ has no ${f}, which the manifest points at`);
 }
 
-const walk = (dir) => readdirSync(dir).flatMap(name => {
-  const p = join(dir, name);
-  return statSync(p).isDirectory() ? walk(p) : [p];
-});
-const files = walk(DIST).map(p => relative(DIST, p).split('\\').join('/'));
-for (const needed of [manifest.entry, ...manifest.css]) {
-  if (!files.includes(needed)) {
-    console.error(`dist/ has no ${needed}, which the manifest points at`);
-    process.exit(1);
-  }
+/* A published version is never rewritten: a phone may already have it
+   cached. Re-running the same release with the same build is allowed. */
+const target = join(site, 'ota', version);
+if (existsSync(target)) {
+  const entryThere = join(target, manifest.entry);
+  if (!existsSync(entryThere)) fail(`ota/${version}/ already exists with a different build; bump the version instead`);
+  console.log(`ota/${version}/ already holds this build, leaving it as it is`);
+} else {
+  mkdirSync(target, { recursive: true });
+  cpSync(dist, target, { recursive: true });
 }
 
-const put = (key, file, type) => {
-  if (dryRun) {
-    console.log(`put ${key}  (${type})`);
-    return;
-  }
-  execFileSync('npx', ['wrangler', 'r2', 'object', 'put', `${BUCKET}/${key}`,
-    '--file', file, '--content-type', type, '--remote'], { stdio: ['ignore', 'ignore', 'inherit'] });
-};
+/* Pages runs Jekyll unless told not to, and Jekyll drops files that start
+   with an underscore. Vite can emit those. */
+writeFileSync(join(site, '.nojekyll'), '');
 
-/* 1. The bundle. The entry's type is checked before anything uploads: this is
-      the single header most able to break every phone at once. */
-if (!/^text\/javascript/.test(contentTypeFor(manifest.entry))) {
-  console.error(`the entry would upload as ${contentTypeFor(manifest.entry)}, not JavaScript`);
-  process.exit(1);
-}
-for (const f of files) put(`ota/${version}/${f}`, join(DIST, f), contentTypeFor(f));
-console.log(`${dryRun ? 'would upload' : 'uploaded'} ${files.length} files to ota/${version}/`);
+/* The manifest twice: beside its bundle, where it never changes and is what
+   .github/workflows/ota-rollback.yml copies back into place, and at the one
+   key the app reads. */
+const body = JSON.stringify(manifest, null, 2) + '\n';
+writeFileSync(join(target, 'manifest.json'), body);
+writeFileSync(join(site, 'ota', 'android.json'), body);
 
-/* 2 and 3. The switch, last. */
-const tmp = join(mkdtempSync(join(tmpdir(), 'ota-')), 'android.json');
-writeFileSync(tmp, JSON.stringify(manifest, null, 2) + '\n');
-put(MANIFEST_KEY, tmp, contentTypeFor(MANIFEST_KEY));
-console.log(`${dryRun ? 'would point' : 'pointed'} ${MANIFEST_KEY} at ${version}:`);
+const count = (d) => readdirSync(d).reduce((n, f) => n + (statSync(join(d, f)).isDirectory() ? count(join(d, f)) : 1), 0);
+console.log(`ota/${version}/: ${count(target)} files; ${relative(site, join(site, 'ota', 'android.json'))} now points at it:`);
 console.log(JSON.stringify(manifest, null, 2));

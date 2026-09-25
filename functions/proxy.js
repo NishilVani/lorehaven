@@ -22,7 +22,6 @@
 
 import { steamRoute } from './steam.js';
 import { authRoute } from './auth.js';
-import { otaRoute } from './ota.js';
 
 const IGDB = 'https://api.igdb.com/v4';
 const TWITCH = 'https://id.twitch.tv/oauth2/token';
@@ -36,9 +35,6 @@ const WD_UA = 'LoreHaven/1.0 (game library app; contact via app repo)';
  * an open credential for the whole of IGDB to anyone who finds the URL. Adding a
  * new fetcher to the app means adding its endpoint here.
  * Source: every `fetch('/api/…')` in src/services/igdb.js. */
-/* The /ota/* route is not on this list and needs no place on it: it forwards
- * nothing and authenticates nothing, only reading public build output from R2.
- * See ota.js. */
 const ALLOWED = new Set([
   'games', 'games/count', 'genres', 'themes', 'platforms', 'companies',
   'franchises', 'collections', 'collection_memberships', 'collection_relations',
@@ -283,15 +279,10 @@ async function wikidata(path, req, ctx) {
  * @param {{IGDB_CLIENT_ID: string, IGDB_CLIENT_SECRET: string}} env
  */
 export async function handle(req, env, ctx) {
-  const { pathname } = new URL(req.url);
-
-  /* Android OTA bundles: GET, public, read-only, from R2. Before everything
-     else because it is the only route that is not a POST, and it needs no
-     credential; see ota.js for the boundary. */
-  if (/^\/+ota\//.test(pathname)) return otaRoute(req, env);
-
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors() });
   if (req.method !== 'POST') return json(405, { error: 'POST only' });
+
+  const { pathname } = new URL(req.url);
 
   /* Steam before the IGDB credential check: its routes need their own key or
      none at all, and a Steam sign-in should not fail because IGDB is
