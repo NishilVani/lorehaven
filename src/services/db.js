@@ -1331,9 +1331,16 @@ const PREFS_KEY = 'moctale_prefs';
 
 /** tasteBias: -1 comfort (more like your favourites) … +1 novelty (unlike what
  *  you have beaten). releaseEra: which era to favour, or 'any' to ignore. */
-export const DEFAULT_PREFS = { tasteBias: 0, releaseEra: 'any', steamImportAsked: {}, theme: DEFAULT_THEME_ID };
+export const DEFAULT_PREFS = { tasteBias: 0, releaseEra: 'any', steamImportAsked: {}, xboxImportAsked: {}, theme: DEFAULT_THEME_ID };
 
 const ERAS = new Set(['any', 'new', 'neutral', 'old']);
+
+/* Which accounts were already asked about importing: plain true flags keyed
+   by account, because this is user-editable storage. */
+const askedFlags = (obj) => Object.fromEntries(
+  Object.entries(obj && typeof obj === 'object' ? obj : {})
+    .filter(([k, v]) => typeof k === 'string' && v === true),
+);
 
 export const getPrefs = () => {
   try {
@@ -1349,10 +1356,10 @@ export const getPrefs = () => {
       theme: THEME_IDS.has(parsed?.theme) ? parsed.theme : DEFAULT_THEME_ID,
       /* Which Steam accounts have already been asked about importing. Kept as
          plain true flags, because this is user-editable storage like the rest. */
-      steamImportAsked: Object.fromEntries(
-        Object.entries(parsed?.steamImportAsked || {})
-          .filter(([k, v]) => typeof k === 'string' && v === true),
-      ),
+      steamImportAsked: askedFlags(parsed?.steamImportAsked),
+      /* The same for Xbox. XboxAuth.jsx always wrote it, but it was not kept
+         here, so it never read back and the import question came every time. */
+      xboxImportAsked: askedFlags(parsed?.xboxImportAsked),
     };
   } catch {
     return { ...DEFAULT_PREFS };
