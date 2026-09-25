@@ -1,0 +1,68 @@
+name: Roll back Android OTA
+
+# Points installed APKs back at an earlier release's web bundle, by copying
+# that release's own manifest (ota/<version>/manifest.json, written when it was
+# published) over ota/android.json on gh-pages and redeploying Pages. Nothing
+# else changes: every bundle stays where it is.
+# Design: docs/superpowers/specs/2026-09-09-android-ota-design.md
+#
+# Run from main (Actions > Roll back Android OTA > Run workflow). Phones follow
+# within Pages' cache time, about ten minutes, on their next launch.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release to go back to, without the v (e.g. 0.3.0)"
+        required: true
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: ota-pages
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: site
+
+      - name: Point the manifest at ${{ inputs.version }}
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          node scripts/ota_rollback.mjs --version "$VERSION" --site site
+          cd site
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "OTA rollback to ${VERSION}" || echo "already pointing at ${VERSION}"
+          git push origin gh-pages
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
+
+      - name: Check CORS and MIME on the live site
+        run: node scripts/ota_check.mjs --version "${{ inputs.version }}"

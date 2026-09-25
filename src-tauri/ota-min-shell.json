@@ -1,0 +1,4 @@
+{
+  "//": "The oldest APK that can run the current web bundle. Bump it, in the same commit, whenever a change needs native code: anything under src-tauri/ (Rust, a plugin added or upgraded, a Tauri bump), Android permissions or manifest changes, or native config in tauri.conf.json such as CSP and capabilities. An APK below it keeps its embedded bundle and is told to reinstall. See docs/superpowers/specs/2026-09-09-android-ota-design.md.",
+  "minShellVersion": "0.2.3"
+}

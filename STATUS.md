@@ -7,6 +7,25 @@ infinite-scroll audit, with the measurement behind every claim.
 
 ## Where this stands
 
+- **Android OTA: built on `feature/android-ota`, not live.** Implements
+  `docs/superpowers/specs/2026-09-09-android-ota-design.md`, hosted on GitHub
+  Pages instead of R2 (the reasons and the other deviations are at the top of
+  that spec). Bootstrap: `src/ota/` (policy, bootstrap, `useBootConfirmed`),
+  inlined by `scripts/vite-ota-bootstrap.mjs`. Release: the `ota` job adds the
+  bundle to `gh-pages` (`scripts/ota_publish.mjs`), deploys it, and checks the
+  live headers (`scripts/ota_check.mjs`); rollback is the `ota-rollback.yml` workflow. Native boundary:
+  `src-tauri/ota-min-shell.json`. The Worker is unchanged. Verified: `test:ota`
+  25 of 25, `npm test`, lint 0 errors, build; in Chromium against the built app
+  with the Android shell stubbed, a remote bundle on another origin boots with
+  all its JS and lazy chunks from that origin; a bundle that throws falls back
+  within the same launch and is not retried; the website makes no OTA request.
+  Not verified: a real APK on a device and the live Pages site. Served at
+  `https://ota.lorehaven.app`. Owner to do: Pages source = GitHub Actions,
+  CNAME `ota` -> `nishilvani.github.io` at Name.com, custom domain + Enforce
+  HTTPS in Pages settings, verify `lorehaven.app` for the account, add the `v*`
+  tag rule to the `github-pages` environment, release, install that APK once. See "Android OTA" in
+  docs/RELEASING.md.
+
 - **Blobatar avatars: built on `feature/blobatar-avatars`, version 0.3.0.**
   `UserBlob` replaces the photo/initial in the nav (three places), the profile
   header and, new, the sign-in dialog. Behaviour: "Avatars" in `DESIGN.md`.

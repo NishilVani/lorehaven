@@ -345,6 +345,89 @@ jobs:
             "/repos/${{ github.repository }}/releases/${{ needs.create-release.outputs.release_id }}" \
             -f draft=false
 
+  # Android OTA: publish this release's web bundle so installed APKs pick it up
+  # without a reinstall (docs/superpowers/specs/2026-09-09-android-ota-design.md).
+  #
+  # Served from GitHub Pages, which sends the CORS and JavaScript MIME headers a
+  # module script from another origin needs, at no cost and with no secret.
+  # The `gh-pages` branch is the store: each release adds ota/<version>/ and
+  # moves ota/android.json, and nothing is ever removed, so every past bundle
+  # stays servable and rollback is one edit. The whole branch is then deployed
+  # to Pages in one atomic step.
+  #
+  # `needs: publish`, like app-config below: nothing points phones at a release
+  # that is not public. The bundle is built from the tag, so it is the same code
+  # as the APK attached to this release. scripts/ota_check.mjs then waits for
+  # the live manifest to name this version and checks both headers on it.
+  #
+  # Served at https://ota.lorehaven.app (Pages custom domain). One-time setup:
+  # Pages source GitHub Actions, the ota CNAME, the custom domain with HTTPS,
+  # and a v* tag rule on the github-pages environment (see docs/RELEASING.md).
+  ota:
+    name: Publish Android OTA bundle
+    needs: [create-release, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    concurrency:
+      group: ota-pages
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.create-release.outputs.tag }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Check out the gh-pages branch, or start it
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          url="https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+          if git ls-remote --exit-code --heads "$url" gh-pages >/dev/null; then
+            git clone --branch gh-pages --single-branch --depth 1 "$url" site
+          else
+            mkdir site && git -C site init -b gh-pages && git -C site remote add origin "$url"
+          fi
+
+      - name: Add the bundle and point the manifest at it
+        run: node scripts/ota_publish.mjs --version "${{ needs.create-release.outputs.version }}" --site site
+
+      - name: Commit to gh-pages
+        run: |
+          cd site
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "OTA ${{ needs.create-release.outputs.version }}" || echo "nothing new to commit"
+          git push origin gh-pages
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
+
+      - name: Check CORS and MIME on the live site
+        run: node scripts/ota_check.mjs --version "${{ needs.create-release.outputs.version }}"
+
   # Tell the running clients a newer version exists, by writing latestVersion
   # into the Firestore document config/app.
   #

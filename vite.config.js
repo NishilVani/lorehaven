@@ -1,4 +1,5 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
+import otaBootstrap from './scripts/vite-ota-bootstrap.mjs'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { readFileSync } from 'node:fs'
@@ -93,9 +94,22 @@ const themeTextBoost = () => ({
   },
 });
 
-export default defineConfig({
-  plugins: [tailwindcss(), react(), igdbProxy(), themeTextBoost()],
+export default defineConfig(({ mode }) => ({
+  plugins: [
+    tailwindcss(), react(), igdbProxy(), themeTextBoost(),
+    /* Build only. The OTA manifest is on GitHub Pages; see .env.production. */
+    otaBootstrap({ otaOrigin: loadEnv(mode, process.cwd(), 'VITE_').VITE_OTA_ORIGIN }),
+  ],
   clearScreen: false,
+  experimental: {
+    /* Chunk and asset URLs that JS builds at runtime resolve against the module
+       that asks for them (import.meta.url), not against the page's origin. On
+       the web the two are the same place. In the Android app they are not: the
+       page is the APK's own and the code may come from the OTA bundle (see
+       docs/superpowers/specs/2026-09-09-android-ota-design.md), and an absolute
+       "/assets/x.js" would fetch the APK's copy, which has different hashes. */
+    renderBuiltUrl: (filename, { hostType }) => (hostType === 'js' ? { relative: true } : undefined),
+  },
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),
   },
@@ -126,4 +140,4 @@ export default defineConfig({
 
     }
   }
-})
+}))
