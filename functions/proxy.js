@@ -158,7 +158,10 @@ const json = (status, body) =>
 const cors = (h = {}) => ({
   ...h,
   'access-control-allow-origin': '*',
-  'access-control-allow-headers': 'content-type, authorization',
+  /* user-agent and accept too: builds already installed still send a
+     User-Agent on Wikidata queries, and Firefox, unlike Chrome, puts it on the
+     wire and asks for it in the preflight. Refusing it blocked every one. */
+  'access-control-allow-headers': 'content-type, authorization, accept, user-agent',
   'access-control-allow-methods': 'POST, OPTIONS',
 });
 
