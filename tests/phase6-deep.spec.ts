@@ -268,13 +268,19 @@ test.describe('/profile', () => {
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Ada Lovelace');
   });  test('3b. the Save button path does close the editor and restore the heading', async ({ page }) => {
     await page.goto('/profile');
+    /* The avatar is a blobatar grown from the account, not the name, so renaming
+       yourself must not change your face. Its silhouette is the first path;
+       expressions move it with transforms, never by redrawing it. */
+    const avatar = page.getByRole('button', { name: /Your avatar/ });
+    const silhouette = () => avatar.locator('svg path').first().getAttribute('d');
+    const before = await silhouette();
+    expect(before).toBeTruthy();
     await page.getByRole('heading', { level: 1 }).getByRole('button').click();
     await page.getByLabel('Display name').fill('Ada Lovelace');
     await page.getByRole('button', { name: 'Save name' }).click();
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Ada Lovelace');
     expect(JSON.parse((await ls(page, KEYS.profile)) || '{}').name).toBe('Ada Lovelace');
-    // The avatar initial is derived from the same string, so the two cannot disagree.
-    await expect(page.locator('header [aria-hidden="true"]').first()).toHaveText('A');
+    expect(await silhouette()).toBe(before);
   });
 
   test('4. the Save (check) button commits and returns focus to the edit button', async ({ page }) => {

@@ -7,6 +7,8 @@ import DropdownMenu from '../ui/DropdownMenu';
 import { useFocusTrap } from '../ui/useFocusTrap';
 import PreferencesDialog from '../ui/PreferencesDialog';
 import AppearanceDialog from '../ui/AppearanceDialog';
+import UserBlob from '../ui/UserBlob';
+import { blobSeed } from '../ui/blobSeed';
 import { auth } from '../../services/firebase';
 import { signOut, onAuthStateChanged } from 'firebase/auth';
 import AuthModal from '../ui/AuthModal';
@@ -486,12 +488,7 @@ export default function Navbar() {
                                 {user ? (
                                     <DropdownMenu options={userMenuOptions} align="right">
                                         <button className="w-8 h-8 flex items-center justify-center hover:bg-white/[0.08] cursor-pointer" data-tauri-drag-region="false">
-                                            <div className="w-5 h-5 overflow-hidden border border-white/30">
-                                                {user.photoURL
-  ? <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-  /* An email/password account has no photoURL. The initial replaces a round trip to ui-avatars.com that showed a broken-image glyph offline. */
-  : <span role="img" aria-label="Profile" className="w-full h-full flex items-center justify-center lh-label text-white/80">{(user.displayName || user.email || "?").trim().charAt(0).toUpperCase()}</span>}
-                                            </div>
+                                            <UserBlob seed={blobSeed(user)} size={20} hoverMood="happy" label="Profile" />
                                         </button>
                                     </DropdownMenu>
                                 ) : (
@@ -716,12 +713,7 @@ export default function Navbar() {
                         <div className="flex items-center justify-between px-6 py-3.5 w-full">
                             <DropdownMenu options={closesDrawer(userMenuOptions)} align="right" fullWidth>
                                 <button className="flex items-center gap-3 text-white/60 hover:text-white transition-colors cursor-pointer flex-1 text-left min-w-0">
-                                    <div className="w-6 h-6 flex-shrink-0 overflow-hidden border border-white/30">
-                                        {user.photoURL
-  ? <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-  /* An email/password account has no photoURL. The initial replaces a round trip to ui-avatars.com that showed a broken-image glyph offline. */
-  : <span role="img" aria-label="Profile" className="w-full h-full flex items-center justify-center lh-label text-white/80">{(user.displayName || user.email || "?").trim().charAt(0).toUpperCase()}</span>}
-                                    </div>
+                                    <UserBlob seed={blobSeed(user)} size={24} hoverMood="happy" label="Profile" />
                                     <span className="lh-label truncate max-w-[100px]">{user.displayName || "User"}</span>
                                 </button>
                             </DropdownMenu>
@@ -975,12 +967,7 @@ export default function Navbar() {
                                 {user ? (
                                     <DropdownMenu options={userMenuOptions} align="right">
                                         <button className="w-10 h-10 flex items-center justify-center cursor-pointer">
-                                            <div className="w-6 h-6 overflow-hidden border border-white/30">
-                                                {user.photoURL
-  ? <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-  /* An email/password account has no photoURL. The initial replaces a round trip to ui-avatars.com that showed a broken-image glyph offline. */
-  : <span role="img" aria-label="Profile" className="w-full h-full flex items-center justify-center lh-label text-white/80">{(user.displayName || user.email || "?").trim().charAt(0).toUpperCase()}</span>}
-                                            </div>
+                                            <UserBlob seed={blobSeed(user)} size={24} hoverMood="happy" label="Profile" />
                                         </button>
                                     </DropdownMenu>
                                 ) : (

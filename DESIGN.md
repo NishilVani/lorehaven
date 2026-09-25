@@ -603,6 +603,28 @@ Three rules for any confirm:
 
 `useConfirm()` makes this one line, so adding a confirm is cheaper than skipping one.
 
+### Avatars
+
+The user's picture is a blobatar (`blobatar` + `@blobatar/react`), rendered by
+`src/components/ui/UserBlob.jsx`: a small creature grown from a string, drawn
+in the page with no upload and no request. The seed is `blobSeed(user)` in
+`src/components/ui/blobSeed.js`: the email, else the uid, never the display
+name, so renaming yourself does not change your face. It replaces the provider
+photo and the initial everywhere.
+
+It is the one element in the app with a personality, and that is deliberate:
+- **Nav (20-24px):** still until hovered, then cheers.
+- **Profile header (88px):** follows the pointer, answers each poke with a new
+  pose (five quick pokes make it dizzy), thinks while the name is edited or
+  sync connects, looks sad when sync fails, cheers when a name is saved, and
+  dozes off after a minute without input.
+- **Sign-in dialog (64px):** a preview of the account's avatar, grown from the
+  email as it is typed; it watches the email field, looks away from the
+  password, thinks while signing in and looks sad on an error.
+
+The face is decoration. Every state it shows is also said in words beside it,
+and under reduced motion it holds still.
+
 ### Icons
 
 **The One Family Rule.** Every icon in the app is lucide, drawn as an inline SVG

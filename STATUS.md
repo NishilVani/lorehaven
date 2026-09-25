@@ -7,6 +7,14 @@ infinite-scroll audit, with the measurement behind every claim.
 
 ## Where this stands
 
+- **Blobatar avatars: built on `feature/blobatar-avatars`, version 0.3.0.**
+  `UserBlob` replaces the photo/initial in the nav (three places), the profile
+  header and, new, the sign-in dialog. Behaviour: "Avatars" in `DESIGN.md`.
+  Verified: lint 0 errors, `npm test`, build, and a Chromium render of the
+  profile blob (poke changes its pose) and the sign-in dialog (grown from the
+  typed email, shy on the password field). Not verified: the nav avatar, which
+  only shows signed in, and sign-in here is impossible offline.
+
 - **Themes: built on `feature/app-themes`.** Appearance in the account menu
   (`src/components/ui/AppearanceDialog.jsx`) offers thirteen themes; Editorial
   stays the default and is unchanged. Registry `src/constants/themes.js`,

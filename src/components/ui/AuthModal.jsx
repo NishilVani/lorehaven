@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { PlatformLogo } from '../platforms/PlatformLogo';
 import { STEAM_STORE } from '../../services/steamImport';
@@ -10,6 +10,8 @@ import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswor
 import { auth } from '../../services/firebase';
 import { toast } from './toastBus';
 import Dialog from './Dialog';
+import UserBlob from './UserBlob';
+import { blobSeed } from './blobSeed';
 
 export default function AuthModal({ isOpen, onClose }) {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -25,6 +27,30 @@ export default function AuthModal({ isOpen, onClose }) {
   const [errors, setErrors] = useState({});
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
+
+  /* The blob at the top is a preview of the avatar this account will have:
+     it is grown from the email, the same seed the nav and profile use. The
+     seed settles 350ms after typing stops so it does not reshuffle per key. */
+  const [focusField, setFocusField] = useState(null);
+  /* The element itself, captured on focus: the gaze needs it, and a ref may
+     not be read during render. */
+  const [emailEl, setEmailEl] = useState(null);
+  const [blobEmail, setBlobEmail] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setBlobEmail(email), 350);
+    return () => clearTimeout(t);
+  }, [email]);
+  const hasError = Object.values(errors).some(Boolean);
+  const blobMood = loading ? 'thinking'
+    : hasError ? 'sad'
+      : focusField === 'password' ? 'shy'
+        : isForgotPassword ? 'unsure'
+          : 'idle';
+  /* Watches the email as you type it, looks politely away from the password. */
+  const blobFollow = focusField === 'password' ? 'rest'
+    : focusField === 'email' ? emailEl
+      : 'pointer';
+  const modeFlips = (isSignUp ? 1 : 0) + (isForgotPassword ? 2 : 0);
 
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -130,7 +156,18 @@ export default function AuthModal({ isOpen, onClose }) {
         </button>
 
         <div className="mb-8">
-          <span className="lh-brand block text-2xl text-white mb-6">LoreHaven</span>
+          <div className="flex items-center justify-between gap-4 mb-6 pr-10">
+            <span className="lh-brand block text-2xl text-white">LoreHaven</span>
+            <UserBlob
+              seed={blobSeed({ email: blobEmail })}
+              size={64}
+              animate="always"
+              follow={blobFollow}
+              mood={blobMood}
+              celebrate={modeFlips}
+              label="Preview of your avatar"
+            />
+          </div>
           <h2 id="auth-modal-title" className="lh-display text-xl text-white mb-1.5">
             {isForgotPassword ? 'Reset Password' : isSignUp ? 'Create an Account' : 'Welcome Back'}
           </h2>
@@ -195,6 +232,8 @@ export default function AuthModal({ isOpen, onClose }) {
                 autoComplete="email"
                 ref={emailRef}
                 value={email}
+                onFocus={(e) => { setFocusField('email'); setEmailEl(e.currentTarget); }}
+                onBlur={() => setFocusField(null)}
                 onChange={(e) => { setEmail(e.target.value); if (errors.email) setErrors(p => ({ ...p, email: null })); }}
                 aria-invalid={!!errors.email}
                 aria-describedby={errors.email ? 'auth-email-error' : undefined}
@@ -234,6 +273,8 @@ export default function AuthModal({ isOpen, onClose }) {
                 autoComplete={isSignUp ? 'new-password' : 'current-password'}
                 ref={passwordRef}
                 value={password}
+                onFocus={() => setFocusField('password')}
+                onBlur={() => setFocusField(null)}
                 onChange={(e) => { setPassword(e.target.value); if (errors.password) setErrors(p => ({ ...p, password: null })); }}
                 aria-invalid={!!errors.password}
                 aria-describedby={errors.password ? 'auth-password-error' : undefined}

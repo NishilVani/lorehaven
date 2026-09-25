@@ -6,6 +6,8 @@ import { Check, X, Pencil } from 'lucide-react';
 import { auth } from '../../services/firebase';
 import { signOut, onAuthStateChanged } from 'firebase/auth';
 import AuthModal from '../../components/ui/AuthModal';
+import UserBlob from '../../components/ui/UserBlob';
+import { blobSeed } from '../../components/ui/blobSeed';
 import LibraryNumbers from './LibraryNumbers';
 import YourTaste from './YourTaste';
 import YourData from './YourData';
@@ -79,6 +81,8 @@ export default function Profile() {
 
   const [name, setName] = useState(() => getUserName() || '');
   const [editing, setEditing] = useState(false);
+  /* Bumped when a name is saved, so the blob cheers. */
+  const [saves, setSaves] = useState(0);
   const [draft, setDraft] = useState('');
   const inputRef = useRef(null);
   const editBtnRef = useRef(null);
@@ -134,6 +138,7 @@ export default function Profile() {
     setUserName(next);
     setName(next);
     closeEdit();
+    if (next) setSaves(n => n + 1);
     toast(next ? 'Name saved' : 'Name cleared');
   }, [draft, closeEdit]);
 
@@ -159,10 +164,14 @@ export default function Profile() {
           ? { line: `Synced ${sinceText(sync.at)}`, tone: 'text-white/60', dot: 'var(--status-solid-playing)' }
           : { line: 'Connecting…', tone: 'text-white/60', dot: 'var(--status-solid-fallback)' };
 
-  /* The avatar is the first letter of whatever the page is already showing as
-     your name, so it can never disagree with the title beside it. */
   const heading = name || (user ? 'Add a name' : 'My Profile');
-  const initial = (name || user?.email || '?').trim().charAt(0).toUpperCase();
+  /* The blob mirrors what the page says: it thinks while you edit your name
+     or while sync connects, and looks sad when sync fails. Every one of those
+     is also said in words beside it. */
+  const blobMood = editing ? 'thinking'
+    : (sync.outdated || (user && sync.error)) ? 'sad'
+      : (user && !sync.at) ? 'thinking'
+        : 'idle';
 
   return (
     <div className="min-h-screen bg-black text-white pb-16 animate-in fade-in duration-500">
@@ -170,12 +179,19 @@ export default function Profile() {
 
         <header className="flex flex-wrap items-start justify-between gap-6 pb-8 border-b border-white/15">
           <div className="flex items-center gap-5 min-w-0">
-            <div
-              aria-hidden="true"
-              className="w-16 h-16 lg:w-[88px] lg:h-[88px] shrink-0 border border-white/25 flex items-center justify-center lh-display text-[28px] lg:text-4xl text-white"
-            >
-              {initial}
-            </div>
+            {/* Large on purpose: the gaze is a large-size effect. Poke it. */}
+            <UserBlob
+              seed={blobSeed(user, 'guest')}
+              size={88}
+              animate="always"
+              follow="pointer"
+              pokeable
+              sleepAfter={60000}
+              mood={blobMood}
+              celebrate={saves}
+              label="Your avatar. Poke it"
+              className="w-16 h-16 lg:w-[88px] lg:h-[88px] [&_svg]:w-full [&_svg]:h-full"
+            />
 
             {/* min-h: the editing row is ~94px against a 48px heading, so opening the
                editor shoved the stat tiles down 41px (52px at 375). */}
