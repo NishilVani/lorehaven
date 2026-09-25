@@ -343,10 +343,11 @@ function wdqs(sparql) {
           headers: {
             'Accept': 'application/sparql-results+json',
             'Content-Type': 'application/x-www-form-urlencoded',
-            // Browsers drop this (forbidden header) and the dev proxy adds its
-            // own, but the packaged Tauri app has no proxy — without a real UA
-            // Wikimedia 429s/403s it, which is the main cause of prod failures.
-            'User-Agent': 'LoreHaven/1.0 (game library app; contact via app repo)',
+            /* No User-Agent. Every client now goes through the proxy, which
+               sends Wikimedia the one its policy asks for (functions/proxy.js,
+               WD_UA). Chrome silently dropped this header, but Firefox sends
+               it, which made the request need a CORS preflight that the proxy
+               refused: every awards query failed in Firefox. */
           },
           body: `query=${encodeURIComponent(sparql)}`,
           signal: ctl.signal,
