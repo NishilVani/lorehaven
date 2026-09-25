@@ -360,8 +360,9 @@ jobs:
   # as the APK attached to this release. scripts/ota_check.mjs then waits for
   # the live manifest to name this version and checks both headers on it.
   #
-  # One-time setup: Settings > Pages > Source: GitHub Actions, and let the
-  # github-pages environment deploy from tags (see docs/RELEASING.md).
+  # Served at https://ota.lorehaven.app (Pages custom domain). One-time setup:
+  # Pages source GitHub Actions, the ota CNAME, the custom domain with HTTPS,
+  # and a v* tag rule on the github-pages environment (see docs/RELEASING.md).
   ota:
     name: Publish Android OTA bundle
     needs: [create-release, publish]

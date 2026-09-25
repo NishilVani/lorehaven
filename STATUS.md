@@ -19,9 +19,11 @@ infinite-scroll audit, with the measurement behind every claim.
   with the Android shell stubbed, a remote bundle on another origin boots with
   all its JS and lazy chunks from that origin; a bundle that throws falls back
   within the same launch and is not retried; the website makes no OTA request.
-  Not verified: a real APK on a device and the live Pages site. Owner to do:
-  Pages source = GitHub Actions, add the `v*` tag rule to the `github-pages`
-  environment, release, install that APK once. See "Android OTA" in
+  Not verified: a real APK on a device and the live Pages site. Served at
+  `https://ota.lorehaven.app`. Owner to do: Pages source = GitHub Actions,
+  CNAME `ota` -> `nishilvani.github.io` at Name.com, custom domain + Enforce
+  HTTPS in Pages settings, verify `lorehaven.app` for the account, add the `v*`
+  tag rule to the `github-pages` environment, release, install that APK once. See "Android OTA" in
   docs/RELEASING.md.
 
 - **Blobatar avatars: built on `feature/blobatar-avatars`, version 0.3.0.**

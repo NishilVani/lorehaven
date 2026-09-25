@@ -251,9 +251,8 @@ losing it still means users must uninstall before they can update.
 An installed APK can pick up a newer release's web bundle without a reinstall.
 Design and reasoning: [2026-09-09-android-ota-design.md](superpowers/specs/2026-09-09-android-ota-design.md).
 
-**Where the bundles live.** GitHub Pages for this repo, at
-`https://nishilvani.github.io/lorehaven/ota/` (`VITE_OTA_ORIGIN` in
-`.env.production`). Free, no secret, and Pages already sends the two headers a
+**Where the bundles live.** GitHub Pages for this repo, on its own subdomain:
+`https://ota.lorehaven.app/ota/` (`VITE_OTA_ORIGIN` in `.env.production`). Free, no secret, and Pages already sends the two headers a
 module script from another origin needs: `Access-Control-Allow-Origin: *` and a
 JavaScript type. The `gh-pages` branch is the store: `ota/<version>/` per
 release, never changed or removed, and `ota/android.json`, the one file that
@@ -285,14 +284,25 @@ that throws before the app mounts is marked bad on that device, reloaded into
 the embedded bundle at once, and not tried again. A version is only marked bad
 on the device it failed on.
 
-**One-time setup.**
+**One-time setup, before the first release that carries OTA.** Every APK has
+the manifest address built in, so the domain has to be working before one
+ships. If it is not, those APKs simply keep their embedded bundle.
 
 1. Settings > Pages > Build and deployment > Source: **GitHub Actions**.
-2. Settings > Environments > `github-pages` > Deployment branches and tags: add
+1. DNS at Name.com: a `CNAME` record, host `ota`, pointing to
+   `nishilvani.github.io` (the account name, not the repo).
+1. Settings > Pages > Custom domain: `ota.lorehaven.app`, save, and wait for the
+   DNS check to pass and the certificate to be issued, then tick **Enforce
+   HTTPS**. `.app` is HTTPS-only in every browser, so the address does nothing
+   at all until that certificate exists.
+1. Account Settings > Pages > Verified domains: verify `lorehaven.app` (a TXT
+   record). This stops anyone else's GitHub Pages site from claiming a
+   subdomain of it if this one is ever switched off.
+1. Settings > Environments > `github-pages` > Deployment branches and tags: add
    the tag rule `v*`. The release runs on a tag, and by default this
    environment only accepts deploys from the default branch, so without it the
    `ota` job is refused.
-3. Release, and install that APK once by hand. OTA cannot install itself: the
+1. Release, and install that APK once by hand. OTA cannot install itself: the
    first APK that carries the bootstrap has to arrive the old way.
 
 ## Store submissions
