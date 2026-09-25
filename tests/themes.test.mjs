@@ -13,7 +13,7 @@
  * Run: node tests/themes.test.mjs
  */
 import { readFileSync } from 'node:fs';
-import { THEMES, THEME_IDS, DEFAULT_THEME_ID, boostedAlpha, themeVars, onStateDim } from '../src/constants/themes.js';
+import { THEMES, THEME_IDS, DEFAULT_THEME_ID, boostedAlpha, themeVars, onStateDim, isPreviewTheme } from '../src/constants/themes.js';
 
 /* ── colour maths ─────────────────────────────────────────────────────────── */
 
@@ -103,6 +103,16 @@ if (!THEME_IDS.has(DEFAULT_THEME_ID)) {
 if (THEME_IDS.size !== THEMES.length) {
   console.log('  FAIL two themes share an id');
   failures += 1;
+}
+
+/* Preview marks a theme that changes more than colour. Editorial and Gallery
+   change colour only; Daylight changes type and corners. */
+for (const [id, want] of [['editorial', false], ['gallery', false], ['daylight', true]]) {
+  checks += 1;
+  if (isPreviewTheme(THEMES.find(t => t.id === id)) !== want) {
+    failures += 1;
+    console.log(`  FAIL ${id} should ${want ? '' : 'not '}be marked Preview`);
+  }
 }
 
 for (const t of THEMES) {

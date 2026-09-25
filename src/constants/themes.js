@@ -381,6 +381,17 @@ export const THEMES = [
 
 export const DEFAULT_THEME_ID = 'editorial';
 
+/* The keys that change more than colour: type, case, tracking, corners and
+   texture. Colour is measured for every theme by tests/themes.test.mjs; these
+   are not, and every screen was built square, uppercase and in Space Grotesk,
+   so a theme that sets any of them is labelled Preview in the picker until it
+   has been looked at screen by screen. Derived rather than flagged by hand, so
+   a new theme cannot forget the label. */
+const BEYOND_COLOUR = ['sans', 'heading', 'fontHref', 'radiusControl', 'radiusPanel',
+  'caseLabel', 'caseDisplay', 'labelTracking', 'displayTracking', 'texture'];
+
+export const isPreviewTheme = (t) => BEYOND_COLOUR.some(k => t[k] !== undefined);
+
 export const THEME_IDS = new Set(THEMES.map(t => t.id));
 
 export const getTheme = (id) =>

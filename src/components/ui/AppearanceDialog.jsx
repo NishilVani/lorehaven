@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Check } from 'lucide-react';
 import Dialog from './Dialog';
 import { getPrefs, setPrefs } from '../../services/db';
-import { THEMES, THEME_GROUPS, themeVars, getTheme } from '../../constants/themes';
+import { THEMES, THEME_GROUPS, themeVars, getTheme, isPreviewTheme } from '../../constants/themes';
 
 /* Appearance: pick the theme the whole app wears.
  *
@@ -130,6 +130,9 @@ export default function AppearanceDialog({ onClose }) {
       <p id="appearance-body" className="text-[15px] leading-relaxed text-white/60 mb-6 max-w-[60ch]">
         Changes the colours, type and shape of the whole app. It applies straight away and follows your account to your other devices.
       </p>
+      <p className="text-[13px] leading-relaxed text-white/60 -mt-4 mb-6 max-w-[60ch]">
+        Themes marked Preview also change fonts, corners or texture. They are still being tested, so some screens may look off.
+      </p>
 
       <div role="radiogroup" aria-labelledby="appearance-title">
         {THEME_GROUPS.map(group => {
@@ -150,14 +153,19 @@ export default function AppearanceDialog({ onClose }) {
                       role="radio"
                       aria-checked={on}
                       onClick={() => choose(t.id)}
-                      className={`group text-left border cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-950 ${
+                      className={`group text-left border overflow-hidden cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-950 ${
                         on ? 'border-white' : 'border-white/20 hover:border-white/60'
                       }`}
                     >
                       <Preview theme={t} />
                       <span className="flex items-start gap-3 p-3 border-t border-white/15">
                         <span className="min-w-0 flex-1">
-                          <span className="lh-label block text-white">{t.name}</span>
+                          <span className="flex flex-wrap items-center gap-2">
+                            <span className="lh-label text-white">{t.name}</span>
+                            {isPreviewTheme(t) && (
+                              <span className="lh-label px-1.5 py-1 border border-white/40 text-white/70">Preview</span>
+                            )}
+                          </span>
                           <span className="block text-[13px] leading-snug text-white/60 mt-1.5">{t.description}</span>
                         </span>
                         <span
@@ -181,6 +189,7 @@ export default function AppearanceDialog({ onClose }) {
       <div className="flex items-center gap-3 pt-2 border-t border-white/15">
         <p className="text-[13px] text-white/60 py-3" aria-live="polite">
           Current theme: <span className="text-white">{active.name}</span>
+          {isPreviewTheme(active) && ' (Preview)'}
         </p>
         <button
           onClick={onClose}
