@@ -1,7 +1,32 @@
 # Android OTA frontend updates — design
 
 **Date:** 2026-09-09
-**Status:** approved, not yet implemented
+**Status:** implemented on `feature/android-ota` (2026-09-25). Not yet live:
+it needs the one-time setup in [RELEASING.md](../../RELEASING.md#android-ota-frontend-updates).
+
+**Changes from this design, found while implementing it:**
+
+- **The bundle did need a change.** Vite's preload helper built chunk URLs as
+  `"/" + path`, which inside the app resolves to the APK's own origin, where a
+  newer bundle's chunks do not exist, so every lazy-loaded route would have
+  failed. `experimental.renderBuiltUrl` in `vite.config.js` now makes those URLs
+  relative to the importing module, which on the web is the same address.
+- **A broken bundle falls back on the launch it fails, not the next one.** An
+  uncaught error from the bundle's own files before mount marks it bad and
+  reloads into the embedded bundle at once, so the user never sees a blank app.
+  The marker still covers everything else (a hang, a native crash). There is
+  deliberately no timer: a slow first download must not be mistaken for a
+  broken bundle.
+- **The last good manifest is remembered**, so a launch without a network still
+  boots a cached remote bundle instead of dropping back to the embedded one. If
+  the entry itself is not cached, the script's load error loads the embedded
+  bundle, and that is not recorded as bad.
+- **`compareVersions` moved to `src/services/version.js`** (re-exported by
+  `compat.js`), because the bootstrap is inlined into `index.html` and cannot
+  import.
+- **Still loaded from the APK:** files the code names by absolute path rather
+  than through Vite (`/platform-icons/*`, the two `@font-face` files). A release
+  that adds a new platform icon shows it only after a reinstall.
 **Depends on:** [the compatibility gate](2026-09-09-compat-gate-design.md), which
 ships first and stands on its own.
 

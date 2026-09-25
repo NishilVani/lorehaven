@@ -97,6 +97,8 @@ job needs them; the desktop matrix uses the built-in `GITHUB_TOKEN`.
 | `WINDOWS_CERTIFICATE_BASE64` | Windows | Authenticode `.pfx`, base64-encoded. **Optional, and not needed for the Store** — the Store listing is an MSIX, which Microsoft signs. This only affects the MSI/NSIS people download straight from GitHub: unsigned, those raise a SmartScreen warning |
 | `WINDOWS_CERTIFICATE_PASSWORD` | Windows | The `.pfx` password |
 | `AZURE_AD_TENANT_ID`, `AZURE_AD_APPLICATION_CLIENT_ID`, `AZURE_AD_APPLICATION_SECRET`, `SELLER_ID` | Store | Microsoft Store submission. See [MICROSOFT-STORE.md](MICROSOFT-STORE.md) |
+| `CLOUDFLARE_API_TOKEN` | OTA | A Cloudflare API token with **R2 write** on the `lorehaven-ota` bucket. Without it the `ota` job warns and skips; see [Android OTA](#android-ota-frontend-updates) |
+| `CLOUDFLARE_ACCOUNT_ID` | OTA | The Cloudflare account that owns the bucket and the Worker |
 
 To produce the base64 blob from the keystore on this machine:
 
@@ -245,6 +247,51 @@ They still have to be signed, even though nothing checks them against a store:
 Android refuses to install an unsigned APK, and an update only installs over an
 existing app if it carries the **same** key. So the keystore still matters, and
 losing it still means users must uninstall before they can update.
+
+## Android OTA frontend updates
+
+An installed APK can pick up a newer release's web bundle without a reinstall.
+Design and reasoning: [2026-09-09-android-ota-design.md](superpowers/specs/2026-09-09-android-ota-design.md).
+
+**How a release reaches phones.** After `publish`, the `ota` job builds the tag,
+uploads `dist/` to R2 under `ota/<version>/` with a Content-Type on every object
+(`scripts/ota_publish.mjs`), writes `ota/android.json` last, and then checks the
+CORS and MIME headers through the deployed Worker (`scripts/ota_check.mjs`). On
+its next launch an APK loads that bundle through the Worker's `/ota/*` route,
+while the page, and so every user's local library, stays the APK's own.
+
+**When a change needs a reinstall.** Anything the bundle cannot carry: code under
+`src-tauri/`, a plugin added or upgraded, a Tauri bump, Android permissions or
+manifest changes, CSP or capabilities in `tauri.conf.json`. In the same commit,
+raise `minShellVersion` in `src-tauri/ota-min-shell.json` to the version that
+will ship the change. An older APK then keeps its embedded bundle and tells the
+user to download the new one.
+
+**Rolling back.** Every bundle stays in R2. Repoint the manifest at an earlier
+one; the bundles themselves are never touched:
+
+```bash
+npx wrangler r2 object get lorehaven-ota/ota/android.json --remote --file android.json
+# edit "version" and "base" to the release to go back to, then:
+npx wrangler r2 object put lorehaven-ota/ota/android.json --file android.json \
+  --content-type "application/json; charset=utf-8" --remote
+node scripts/ota_check.mjs
+```
+
+**If a bundle fails on a device.** It never breaks the app for long: a bundle
+that throws before the app mounts is marked bad on that device, reloaded into
+the embedded bundle at once, and not tried again. A version is only marked bad
+on the device it failed on.
+
+**One-time setup, in this order.**
+
+1. `npx wrangler r2 bucket create lorehaven-ota`
+2. `npx wrangler deploy`. The Worker now binds the bucket as `OTA`, and the
+   deploy fails if the bucket does not exist yet.
+3. Add `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` to the `production`
+   environment's secrets.
+4. Release, and install that APK once by hand. OTA cannot install itself: the
+   first APK that carries the bootstrap has to arrive the old way.
 
 ## Store submissions
 

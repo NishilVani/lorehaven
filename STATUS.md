@@ -7,6 +7,24 @@ infinite-scroll audit, with the measurement behind every claim.
 
 ## Where this stands
 
+- **Android OTA: built on `feature/android-ota`, not live.** Implements
+  `docs/superpowers/specs/2026-09-09-android-ota-design.md`; the deviations
+  found while building it are listed at the top of that spec. Bootstrap:
+  `src/ota/` (policy, bootstrap, `useBootConfirmed`), inlined by
+  `scripts/vite-ota-bootstrap.mjs`. Worker route: `functions/ota.js` (R2
+  binding `OTA`). Release: the `ota` job, `scripts/ota_publish.mjs`,
+  `scripts/ota_check.mjs`. Native boundary: `src-tauri/ota-min-shell.json`.
+  Verified: `test:ota` 27 of 27 (3 of 3 mutations caught), `npm test`, lint 0
+  errors, build; in Chromium against the built app with the Android shell
+  stubbed, a remote bundle on another origin boots with all 19 JS files and the
+  lazy Collections chunk from that origin and none from the local one; a
+  bundle that throws falls back within the same launch and is not retried;
+  the website makes no OTA request and stores nothing. Not verified: a real
+  APK on a device, R2, and the deployed route. Owner to do, in order: create
+  the `lorehaven-ota` bucket, `npx wrangler deploy`, add
+  `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, release, install that APK
+  once. See "Android OTA" in docs/RELEASING.md.
+
 - **Blobatar avatars: built on `feature/blobatar-avatars`, version 0.3.0.**
   `UserBlob` replaces the photo/initial in the nav (three places), the profile
   header and, new, the sign-in dialog. Behaviour: "Avatars" in `DESIGN.md`.

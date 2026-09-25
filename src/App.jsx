@@ -7,6 +7,7 @@ import ScrollToTop from './components/layout/ScrollToTop';
 import AppLinks from './components/layout/AppLinks';
 import { ToastContainer } from './components/ui/Toast';
 import ApiErrorBanner from './components/ui/ApiErrorBanner';
+import useBootConfirmed from './ota/useBootConfirmed';
 
 // Routes are code-split: each becomes its own chunk fetched on first navigation,
 // so visiting the home page no longer downloads the Import Wizard, the Award
@@ -69,6 +70,8 @@ function KeyedRoute({ component: Component }) {
 
 
 function App() {
+  /* Mounting is what proves an OTA bundle works; see src/ota/bootstrap.js. */
+  useBootConfirmed();
   const [syncKey, setSyncKey] = useState(0);
 
   useEffect(() => {

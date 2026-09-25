@@ -23,22 +23,11 @@ export const COMPAT_LEVEL = 2;
 export const APP_VERSION =
     typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0';
 
-/**
- * Numeric semver compare. PURE.
- * Segments compare as numbers: "0.10.0" is newer than "0.9.0", which a string
- * compare gets backwards.
- * @returns {-1|0|1}
- */
-export const compareVersions = (a, b) => {
-    const parse = (v) => String(v ?? '').replace(/^v/, '').split('.')
-        .map(n => { const i = parseInt(n, 10); return Number.isFinite(i) ? i : 0; });
-    const x = parse(a), y = parse(b);
-    for (let i = 0; i < Math.max(x.length, y.length); i++) {
-        const d = (x[i] || 0) - (y[i] || 0);
-        if (d !== 0) return d > 0 ? 1 : -1;
-    }
-    return 0;
-};
+/* Numeric semver compare, re-exported: it lives in version.js because the
+   Android OTA bootstrap inlines that file into index.html, where nothing can
+   be imported. One implementation for both, tested in compat.test.mjs. */
+export { compareVersions } from './version.js';
+import { compareVersions } from './version.js';
 
 /**
  * What this build should do about the published config. PURE.
