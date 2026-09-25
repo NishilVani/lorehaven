@@ -1,0 +1,9 @@
+{
+  "version": "0.4.0",
+  "minShellVersion": "0.2.3",
+  "base": "https://ota.lorehaven.app/ota/0.4.0/",
+  "entry": "assets/index-Cv7RtfSX.js",
+  "css": [
+    "assets/index-CmKYXP6A.css"
+  ]
+}
