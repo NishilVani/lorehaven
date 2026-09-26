@@ -1,0 +1,15 @@
+{
+  "entry": "assets/index-fivM1wOD.js",
+  "css": [
+    "assets/index-CmKYXP6A.css"
+  ],
+  "preload": [
+    "assets/chunk-CilyBKbf.js",
+    "assets/firebase-CdAsONFF.js",
+    "assets/core-B5bnUsBk.js",
+    "assets/dist-js-Cw8TQypZ.js",
+    "assets/platformLogoUtils-DGvHd4Rm.js",
+    "assets/appSignIn-FeomQcz_.js",
+    "assets/platformMatch-rR92zx2g.js"
+  ]
+}

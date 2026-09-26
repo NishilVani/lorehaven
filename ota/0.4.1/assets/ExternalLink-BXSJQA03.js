@@ -1,0 +1,1 @@
+import{B as e,Hn as t,z as n}from"./index-fivM1wOD.js";var r=t();function i({href:t,onClick:i,children:a,...o}){return(0,r.jsx)(`a`,{href:t,target:`_blank`,rel:`noopener noreferrer`,onClick:r=>{i?.(r),!(r.defaultPrevented||!n())&&(r.preventDefault(),e(t))},...o,children:a})}export{i as t};
