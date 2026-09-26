@@ -335,6 +335,10 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
+      # make_latest explicitly: undrafting through the API does not reliably
+      # move GitHub's "Latest" badge, and v0.4.0 went out with v0.2.3 still
+      # marked latest, so the /releases/latest link pointed people at an old
+      # APK.
       - name: Undraft
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -343,7 +347,8 @@ jobs:
             --method PATCH \
             -H "Accept: application/vnd.github+json" \
             "/repos/${{ github.repository }}/releases/${{ needs.create-release.outputs.release_id }}" \
-            -f draft=false
+            -f draft=false \
+            -f make_latest=true
 
   # Android OTA: publish this release's web bundle so installed APKs pick it up
   # without a reinstall (docs/superpowers/specs/2026-09-09-android-ota-design.md).
