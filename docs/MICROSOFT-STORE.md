@@ -55,20 +55,21 @@ nothing to configure:
 | | |
 |---|---|
 | Store ID / Product ID | `9N7FD5QBSMBB` |
-| `Package/Identity/Name` | `LoreHaven.LoreHaven` |
+| `Package/Identity/Name` | `LoreHeaven.LoreHaven` |
 | `Package/Identity/Publisher` | `CN=CEEF9C0A-EDC7-4AE4-9AC3-FA2F4AC45FD8` |
 | `PublisherDisplayName` | `LoreHaven` |
-| Package Family Name | `LoreHaven.LoreHaven_hgh23a52snpg8` |
+| Package Family Name | `LoreHeaven.LoreHaven_hgh23a52snpg8` |
 | Listing URL | https://apps.microsoft.com/detail/9N7FD5QBSMBB |
 
-**The publisher is spelled `LoreHaven`, the app `LoreHaven`.** That is what
-Partner Center holds, so that is what the manifest must say — a mismatch is a
-rejected package. It is also the name shown as the publisher on the listing.
-The listing is now live, so treat the identity as fixed: every update has to
-carry exactly these values. Changing the publisher display name in Partner
-Center later would mean updating `PublisherDisplayName` in the manifest too, and
-the `Package/Identity/Name` prefix, derived from the publisher name at
-reservation, may not follow the rename.
+**The identity keeps the old spelling, `LoreHeaven`, and always will.** The
+`Package/Identity/Name` prefix was derived from the publisher name when the app
+was reserved, and it does not follow a rename. The publisher display name was
+later changed to `LoreHaven` in Partner Center, which is why
+`PublisherDisplayName` is `LoreHaven`, but the identity stayed
+`LoreHeaven.LoreHaven`. Changing it to match was tried in v0.4.0 and the Store
+rejected the submission: `Invalid package identity name: LoreHaven.LoreHaven
+(expected: LoreHeaven.LoreHaven)`. Every update has to carry exactly the values
+above, typo included.
 
 ## Status
 

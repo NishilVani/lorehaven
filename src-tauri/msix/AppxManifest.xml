@@ -9,8 +9,12 @@
   (https://apps.microsoft.com/detail/9N7FD5QBSMBB) is public. They came from
   Product management -> Product identity.
 
-  Note the spelling: the publisher is "LoreHaven", the app is "LoreHaven". That
-  is what Partner Center has, so that is what has to be here.
+  Note the spelling of Identity Name: "LoreHeaven.LoreHaven", with an E. The
+  prefix was derived from the publisher name when the app was reserved, and it
+  is fixed for the life of the app: renaming the publisher in Partner Center to
+  "LoreHaven" changed PublisherDisplayName below but NOT this. Correcting it to
+  "LoreHaven.LoreHaven" made the Store reject v0.4.0 with InvalidParameterValue
+  (expected: LoreHeaven.LoreHaven). Do not "fix" the typo.
 
   {{VERSION}} is the only substitution, done by scripts/pack_msix.ps1. It is
   four-part: the Store reserves the fourth field and requires 0 in what you
@@ -27,7 +31,7 @@
   IgnorableNamespaces="uap rescap">
 
   <Identity
-    Name="LoreHaven.LoreHaven"
+    Name="LoreHeaven.LoreHaven"
     Publisher="CN=CEEF9C0A-EDC7-4AE4-9AC3-FA2F4AC45FD8"
     Version="{{VERSION}}"
     ProcessorArchitecture="x64" />
