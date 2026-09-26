@@ -16,6 +16,8 @@ const Discover = lazy(() => import('./pages/discover/Discover'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const ExploreList = lazy(() => import('./pages/discover/ExploreList'));
 const Feedback = lazy(() => import('./pages/discover/Feedback'));
+const Notifications = lazy(() => import('./pages/notifications/Notifications'));
+const NotificationDetail = lazy(() => import('./pages/notifications/NotificationDetail'));
 const Profile = lazy(() => import('./pages/profile/Profile'));
 const YearInReview = lazy(() => import('./pages/profile/YearInReview'));
 const GameDetail = lazy(() => import('./pages/games/GameDetail'));
@@ -151,7 +153,11 @@ function App() {
           <Suspense fallback={<RouteFallback />}>
           <Routes key={syncKey}>
             <Route path="/" element={<Discover />} />
+            {/* The library updates list became the notification center. */}
+            <Route path="/explore/updates" element={<Navigate to="/notifications" replace />} />
             <Route path="/explore/:section" element={<KeyedRoute component={ExploreList} />} />
+            <Route path="/notifications" element={<Notifications />} />
+            <Route path="/notifications/:gameId" element={<KeyedRoute component={NotificationDetail} />} />
             <Route path="/feedback" element={<Feedback />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/profile/year/:year" element={<YearInReview />} />

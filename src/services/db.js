@@ -102,6 +102,12 @@ const DOMAINS = {
        off 'libUpdates' would silently make one of the two keys unreachable when
        a cloud doc arrives. */
     lh_lib_updates_clear: { docId: 'libUpdatesClear', field: 'clearedAt' },
+
+    /* When the notification center was last opened: everything at or before it
+       is read. A watermark for the same reason as the clear above, and synced so
+       reading your notifications on the phone clears the badge on the desktop.
+       Newest-wins is right, since the latest visit saw the most. */
+    lh_notif_seen: { docId: 'notifSeen', field: 'seenAt' },
 };
 /* The whole domain config, not just key and field: the policies are read off
    this map, and a map that dropped them silently disabled every one. */

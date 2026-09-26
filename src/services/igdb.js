@@ -790,7 +790,8 @@ export const getGamesForUpdates = async (ids) => {
     ids = (ids || []).map(Number).filter(Number.isFinite);
     if (ids.length === 0) return [];
     const fields = `fields name, cover.image_id, updated_at, first_release_date, total_rating, ` +
-        `videos.id, screenshots.id, artworks.id, game_type`;
+        `videos.id, videos.video_id, videos.name, screenshots.id, screenshots.image_id, ` +
+        `artworks.id, artworks.image_id, game_type`;
     let out = [];
     for (let i = 0; i < ids.length; i += 500) {
         const chunk = ids.slice(i, i + 500);

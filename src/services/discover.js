@@ -436,7 +436,31 @@ const snapshot = (g) => ({
   videos: g.videos?.length || 0,
   screens: g.screenshots?.length || 0,
   art: g.artworks?.length || 0,
+  /* The ids, so a later diff can say WHICH media is new rather than only how
+     many. Numbers only: this object is synced for every game in the library. A
+     snapshot taken before these existed has counts alone, and a diff against it
+     falls back to counting. */
+  videoIds: (g.videos || []).map(v => v.id),
+  screenIds: (g.screenshots || []).map(v => v.id),
+  artIds: (g.artworks || []).map(v => v.id),
 });
+
+/* The most items one event carries. A game that gains thirty screenshots in one
+   pass is still one notification; the page shows these and links to the rest. */
+const MAX_ITEMS = 12;
+
+/** PURE. What media `next` has that `prev` did not, as event items. Null when
+ *  `prev` predates media ids, so the caller knows only the count changed. */
+export function addedMedia(prevIds, list, kind) {
+  if (!Array.isArray(prevIds)) return null;
+  const had = new Set(prevIds);
+  return (list || [])
+    .filter(m => m && !had.has(m.id))
+    .slice(0, MAX_ITEMS)
+    .map(m => (kind === 'video'
+      ? { id: m.id, video_id: m.video_id || null, name: m.name || null }
+      : { id: m.id, image_id: m.image_id || null }));
+}
 
 const YEAR_S = 365 * 24 * 3600;
 
@@ -445,7 +469,7 @@ const YEAR_S = 365 * 24 * 3600;
  *  media, metadata edits, updated_at bumps on any backend recalc) — that is
  *  noise, not news. Only unreleased or first-year games produce events, and
  *  there is deliberately NO updated_at catch-all. */
-export function diffSnapshots(prev, next, nowSec = Math.floor(Date.now() / 1000)) {
+export function diffSnapshots(prev, next, nowSec = Math.floor(Date.now() / 1000), media = {}) {
   if (!prev) return []; // first sight = baseline, not news
   if (next.release && next.release < nowSec - YEAR_S) return []; // old game = curation noise
   const events = [];
@@ -458,24 +482,41 @@ export function diffSnapshots(prev, next, nowSec = Math.floor(Date.now() / 1000)
   if (wasUnreleased && isReleased) {
     events.push({ type: 'released', detail: 'Now released' });
   } else if (prev.release !== next.release) {
+    /* `from` and `to` are the release timestamps (seconds, null = TBA), so the
+       notification page can show the move rather than only its destination. */
+    const change = { from: prev.release || null, to: next.release || null };
     if (next.release && next.release > nowSec) {
       const d = new Date(next.release * 1000).toLocaleDateString('en-US', {
         day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC',
       });
-      events.push({ type: 'date', detail: `Release date moved to ${d}` });
+      events.push({ type: 'date', detail: `Release date moved to ${d}`, change });
     } else if (!next.release && prev.release && prev.release > nowSec) {
-      events.push({ type: 'date', detail: 'Release date moved to TBA' });
+      events.push({ type: 'date', detail: 'Release date moved to TBA', change });
     }
   }
-  if (next.videos > prev.videos) {
-    const n = next.videos - prev.videos;
-    events.push({ type: 'video', detail: n === 1 ? 'New trailer' : `${n} new videos` });
-  }
-  if (next.screens > prev.screens) events.push({ type: 'screens', detail: 'New screenshots' });
-  if (next.art > prev.art) events.push({ type: 'art', detail: 'New artwork' });
+  /* Each media event carries the new items when both snapshots have ids, so
+     the page can show the trailer itself. A new id only counts when the total
+     did not shrink to make room for it: IGDB re-uploading a screenshot swaps
+     one id for another, and that is not news. */
+  const mediaEvent = (type, countKey, idsKey, list, kind, detail) => {
+    const items = addedMedia(prev[idsKey], list, kind);
+    const grew = next[countKey] > prev[countKey];
+    if (!grew) return;
+    const ev = { type, detail };
+    if (items && items.length) ev.items = items;
+    events.push(ev);
+  };
+  const nv = next.videos - prev.videos;
+  mediaEvent('video', 'videos', 'videoIds', media.videos, 'video', nv === 1 ? 'New trailer' : `${nv} new videos`);
+  mediaEvent('screens', 'screens', 'screenIds', media.screenshots, 'image', 'New screenshots');
+  mediaEvent('art', 'art', 'artIds', media.artworks, 'image', 'New artwork');
   if (next.rating != null && (prev.rating == null || Math.round(prev.rating) !== Math.round(next.rating))) {
     const detail = prev.rating == null ? 'Critic rating in' : 'Critic rating now';
-    events.push({ type: 'rating', detail: `${detail} — ${Math.round(next.rating)}/100` });
+    events.push({
+      type: 'rating',
+      detail: `${detail} — ${Math.round(next.rating)}/100`,
+      change: { from: prev.rating == null ? null : Math.round(prev.rating), to: Math.round(next.rating) },
+    });
   }
   return events;
 }
@@ -541,7 +582,9 @@ export async function refreshLibraryUpdates({ force = false } = {}) {
     const previousSnap = storedSnap && !storedSnap._snap_at && lastChecked > 0
       ? { ...storedSnap, _snap_at: Math.floor(lastChecked / 1000) }
       : storedSnap;
-    const events = diffSnapshots(previousSnap, snap, nowSec);
+    const events = diffSnapshots(previousSnap, snap, nowSec, {
+      videos: g.videos, screenshots: g.screenshots, artworks: g.artworks,
+    });
     // A recent release is news no matter when the game entered the library —
     // snapshot diffing can't see changes that predate the first snapshot.
     if (snap.release && snap.release <= nowSec && snap.release > nowSec - RETRO_S
@@ -554,6 +597,8 @@ export async function refreshLibraryUpdates({ force = false } = {}) {
           gameId: g.id, gameName: snap.name, cover: snap.cover,
           type: ev.type, detail: ev.detail, at: Date.now(),
           game_type: g.game_type,
+          ...(ev.change ? { change: ev.change } : {}),
+          ...(ev.items ? { items: ev.items } : {}),
         });
       }
   }
@@ -613,9 +658,21 @@ export function mergeGameEvents(events) {
     byType.set(ev.type, list);
   }
 
+  /* Every item the group carries, newest event first, once each. */
+  const itemsOf = (group) => {
+    const seen = new Set();
+    const out = [];
+    for (const ev of [...group].sort((a, b) => (b.at || 0) - (a.at || 0))) {
+      for (const it of ev.items || []) if (!seen.has(it.id)) { seen.add(it.id); out.push(it); }
+    }
+    return out.length ? out : undefined;
+  };
+
   const result = [];
   for (const [type, group] of byType.entries()) {
     const baseEv = group[0];
+    const items = itemsOf(group);
+    const newestAt = Math.max(...group.map(ev => ev.at || 0));
     if (type === 'video') {
       let totalVideos = 0;
       for (const ev of group) {
@@ -624,16 +681,22 @@ export function mergeGameEvents(events) {
       }
       result.push({
         ...baseEv,
+        at: newestAt,
+        items,
         detail: totalVideos > 1 ? `${totalVideos} new trailers` : (baseEv.detail || 'New trailer'),
       });
     } else if (type === 'screens') {
       result.push({
         ...baseEv,
+        at: newestAt,
+        items,
         detail: 'New screenshots',
       });
     } else if (type === 'art') {
       result.push({
         ...baseEv,
+        at: newestAt,
+        items,
         detail: 'New artwork',
       });
     } else if (type === 'released') {
@@ -641,8 +704,17 @@ export function mergeGameEvents(events) {
         ...baseEv,
         detail: 'Now released',
       });
+    } else if (type === 'date' || type === 'rating') {
+      /* Newest value, but from the oldest one seen: two moves in a row read as
+         one, from where it was to where it is now. */
+      const byAge = [...group].sort((a, b) => (a.at || 0) - (b.at || 0));
+      const newest = byAge[byAge.length - 1];
+      const firstChange = byAge.find(ev => ev.change)?.change;
+      result.push(firstChange && newest.change
+        ? { ...newest, change: { from: firstChange.from, to: newest.change.to } }
+        : newest);
     } else {
-      // date, rating, or other: pick newest event in group
+      // anything else: newest event in group
       const newest = group.reduce((latest, ev) => ((ev.at || 0) > (latest.at || 0) ? ev : latest), baseEv);
       result.push(newest);
     }
