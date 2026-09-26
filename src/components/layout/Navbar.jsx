@@ -1,12 +1,13 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Compass, Search, Library, User, GalleryVerticalEnd, LogOut, MoreVertical, Calendar, LogIn, Minus, Square, Copy, X, Menu, Image as ImageIcon, Trophy, Tag, SlidersHorizontal, Palette, Drama, Users2, ChevronRight } from 'lucide-react';
+import { Compass, Search, Library, User, GalleryVerticalEnd, LogOut, MoreVertical, Calendar, LogIn, Minus, Square, Copy, X, Menu, Image as ImageIcon, Trophy, Tag, SlidersHorizontal, Palette, Bell, Drama, Users2, ChevronRight } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { toast } from '../ui/toastBus';
 import DropdownMenu from '../ui/DropdownMenu';
 import { useFocusTrap } from '../ui/useFocusTrap';
 import PreferencesDialog from '../ui/PreferencesDialog';
 import AppearanceDialog from '../ui/AppearanceDialog';
+import useNotifications from '../../pages/notifications/useNotifications';
 import UserBlob from '../ui/UserBlob';
 import { blobSeed } from '../ui/blobSeed';
 import { auth } from '../../services/firebase';
@@ -43,6 +44,10 @@ export default function Navbar() {
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
     const [prefsOpen, setPrefsOpen] = useState(false);
     const [appearanceOpen, setAppearanceOpen] = useState(false);
+    const { unread: unreadNotifications } = useNotifications();
+    const notifLabel = unreadNotifications
+        ? `Notifications, ${unreadNotifications} new`
+        : 'Notifications';
     const [user, setUser] = useState(null);
     const [isMaximized, setIsMaximized] = useState(false);
     const [isVisible, setIsVisible] = useState(true);
@@ -648,6 +653,32 @@ export default function Navbar() {
                         )}
                     </Link>
 
+                    {/* Notifications. Beside Search rather than in the numbered
+                        index: like Search it is a tool, not a place in the
+                        archive. The count is the number of games with news you
+                        have not seen, and it is spoken, not only shown. */}
+                    {(() => {
+                        const on = !isSearchOpen && location.pathname.startsWith('/notifications');
+                        return (
+                            <Link
+                                to="/notifications"
+                                aria-label={notifLabel}
+                                aria-current={on ? 'page' : undefined}
+                                onClick={() => { setIsMobileSidebarOpen(false); setBrowseOpen(false); }}
+                                className={`w-full flex items-center gap-4 px-6 py-3.5 min-h-[44px] border-t border-white/10 transition-colors duration-150 ${on ? 'bg-white text-black' : 'text-white/50 hover:text-white'}`}
+                            >
+                                <Bell className="w-3.5 h-3.5 flex-shrink-0 opacity-60" strokeWidth={2.5} aria-hidden="true" />
+                                <span className="lh-label">Notifications</span>
+                                <span className="flex-1" />
+                                {unreadNotifications > 0 && (
+                                    <span aria-hidden="true" className={`lh-label tabular-nums px-1.5 py-1 ${on ? 'bg-black text-white' : 'bg-white text-black'}`}>
+                                        {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                                    </span>
+                                )}
+                            </Link>
+                        );
+                    })()}
+
                     {/* Numbered Index */}
                     {navItems.map((item, i) => {
                         const no = String(i + 1).padStart(2, '0');
@@ -954,8 +985,21 @@ export default function Navbar() {
                                 </Link>
                             </div>
 
-                            {/* Right: Search + Profile/Menu */}
+                            {/* Right: Search + Notifications + Profile/Menu */}
                             <div className="flex items-center h-full gap-1 shrink-0">
+                                <Link
+                                    to="/notifications"
+                                    aria-label={notifLabel}
+                                    title="Notifications"
+                                    className="relative w-10 h-10 flex items-center justify-center text-white/50 hover:text-white transition-colors duration-150"
+                                >
+                                    <Bell className="w-[18px] h-[18px]" aria-hidden="true" />
+                                    {unreadNotifications > 0 && (
+                                        <span aria-hidden="true" className="absolute top-1.5 right-1 min-w-4 h-4 px-1 flex items-center justify-center bg-white text-black text-[10px] font-bold leading-none tabular-nums">
+                                            {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                                        </span>
+                                    )}
+                                </Link>
                                 <Link
                                     to={isSearchOpen ? getCloseLink() : getSearchLink()}
                                     className={`w-10 h-10 flex items-center justify-center transition-colors duration-150 cursor-pointer ${isSearchOpen ? 'text-white' : 'text-white/50 hover:text-white'}`}

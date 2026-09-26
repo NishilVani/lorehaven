@@ -379,7 +379,7 @@ export default function Discover() {
         {/* ── In Your Library (updates) ── */}
         {updateCards.length > 0 && (
           <section className="mb-12">
-            <SectionHead to="/explore/updates" showSeeAll={updateCards.length > preview}>In Your Library</SectionHead>
+            <SectionHead to="/notifications" showSeeAll={updateCards.length > 0}>In Your Library</SectionHead>
             <div className="game-grid">
               {updateCards.slice(0, preview).map(u => (
                 <GameCard

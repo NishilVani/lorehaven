@@ -7,6 +7,21 @@ infinite-scroll audit, with the measurement behind every claim.
 
 ## Where this stands
 
+- **Notification center: built on `feature/notification-center`.** Library
+  updates moved from an Explore card row to `/notifications` (a rail row and a
+  mobile bell, both with an unread count), one row per game grouped by day.
+  A "released"-only row opens the game; any other opens
+  `/notifications/:gameId`, which shows what changed: the release date and
+  critic score from/to, and the new trailers (playable), screenshots and
+  artwork themselves. `refreshLibraryUpdates` now keeps media ids in each
+  snapshot and puts `change` / `items` on events (`src/services/discover.js`);
+  updates found before this carry counts only and their page says so. Read
+  state is one synced watermark, `lh_notif_seen` (`src/services/notifications.js`).
+  `/explore/updates` redirects to the center. Verified: `test:notifications`
+  12/12 (2 of 2 mutations caught), `npm test`, lint 0 errors, build; seeded
+  render at 1280/375/280: badge, routing per row, mark-seen, no overflow, axe 0
+  on list and detail. Not verified: real IGDB media (offline here).
+
 - **Android OTA: built on `feature/android-ota`, not live.** Implements
   `docs/superpowers/specs/2026-09-09-android-ota-design.md`, hosted on GitHub
   Pages instead of R2 (the reasons and the other deviations are at the top of
