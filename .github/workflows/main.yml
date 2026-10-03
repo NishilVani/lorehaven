@@ -123,6 +123,17 @@ jobs:
     name: Release
     needs: [test, version]
     if: needs.version.outputs.changed == 'true'
+    # release.yml's ota job deploys the Android bundle to GitHub Pages, which
+    # needs pages:write and id-token:write. A called workflow cannot hold more
+    # than its caller grants, and GitHub checks that before the run starts --
+    # `if` or not -- so without these every push to main has been a
+    # startup_failure since the ota job landed (6de731c, 2026-09-25): no tests,
+    # no web deploy, no release. Granted on this job only, not the workflow, so
+    # the web deploy and the tests do not get an OIDC token they never use.
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
     uses: ./.github/workflows/release.yml
     with:
       version: ${{ needs.version.outputs.version }}
