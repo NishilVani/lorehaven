@@ -1176,7 +1176,7 @@ async function stubConnections(page: Page) {
     }
     if (path === '/api/franchises') return json([{ id: 24, name: 'Stub Franchise' }]);
     if (path === '/api/collections') return json([{ id: 77, name: 'Stub Collection' }]);
-    if (path === '/api/events') return json([{ id: 88, name: 'Stub Showcase', games: [5561] }]);
+    if (path === '/api/showcases') return json([{ id: 88, name: 'Stub Showcase', games: [5561] }]);
     return json([]);
   });
 }
