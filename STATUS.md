@@ -7,6 +7,30 @@ infinite-scroll audit, with the measurement behind every claim.
 
 ## Where this stands
 
+- **Game page redesign, phase 1: built on `feature/game-page-redesign`, uncommitted.**
+  Plan: phase 1 restructure with data already fetched (this); phase 2 new IGDB
+  fields on `getGameById` (similar games, DLC/expansions, remakes and parent,
+  per-platform release dates, storyline; bump `gameById.v3`); phase 3 store
+  Steam/Xbox playtime and lastPlayed on library entries (owner approved all three).
+  Phase 1: masthead (cover beside title), one `TrackerBar` (inline at lg, docked
+  to the bottom below; menus match card menus, Remove only in More), `LeadBlock`
+  by status (decide / plan / playing / record / waiting), inline `MediaStrip`,
+  Details + Appears In column, Awards collapsed to the top 5 ceremonies, lightbox
+  Save, Share / Save Franchise / Interested / Transfer Data in More. Fixed QA
+  FINDING 2 (stranded note draft) and FINDING 11 (no collections on phones).
+  `Figure` moved to `components/ui`, image saving to `services/saveImage.js`,
+  Toast honours `--toast-bottom`. Verified: game-page Playwright 94/94 on
+  chromium + Mobile Chrome, `npm test`, lint 0 errors, build, themes 861/861,
+  axe clean on /game/1942 at 1280 and 375. Pre-existing, not from this branch:
+  `text-white/40` in `LibraryNumbers.jsx:326` and `EmptyPlate.jsx:13` fail contrast.
+
+- **Android icon safe zone: built on `fix/android-icon-safe-zone` (worktree
+  `../moctale-icon`), uncommitted.** `scripts/android_icon.mjs` renders the
+  launcher set from `src-tauri/icons/android-mark.svg`: mark alone on the
+  adaptive foreground, corner at 30dp of the 33dp safe radius, black background
+  layer (was white), monochrome layer, hdpi legacy icons now 72px (were 49).
+  Not verified on a device.
+
 - **Android OTA: built on `feature/android-ota`, not live.** Implements
   `docs/superpowers/specs/2026-09-09-android-ota-design.md`, hosted on GitHub
   Pages instead of R2 (the reasons and the other deviations are at the top of

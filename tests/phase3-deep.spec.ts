@@ -6,7 +6,9 @@
  * Every test DRIVES a control and asserts the state it changed. A test that
  * only asserts a route renders belongs in tests/routes.spec.ts, not here.
  *
- * Eleven cases assert the WRONG behaviour on purpose, each marked `FINDING n`.
+ * Nine cases assert the WRONG behaviour on purpose, each marked `FINDING n`.
+ * (FINDING 2 and FINDING 11 were fixed by the game page redesign and now
+ * assert the right behaviour under ordinary names.)
  * (The numbers run 1-12 with no 6: that case turned out to be correct behaviour
  * and was rewritten as an ordinary test rather than renumbering the rest.)
  * They are pinned so the suite stays green and the defect cannot be quietly
@@ -124,19 +126,23 @@ async function detailReady(page: Page, name: string | RegExp) {
   await expect(page.getByRole('heading', { level: 1, name })).toBeVisible({ timeout: 20000 });
 }
 
-/** The status/priority/rating controls exist twice — a desktop rail (StateRow)
-    and a mobile strip (StripCell). Both carry the same accessible name, so a
-    role+name query matches two nodes at every width and only one is visible. */
-function stateControl(page: Page, group: 'status' | 'priority' | 'rating', label: string) {
-  return page.locator(`button[aria-label="Set ${group} to ${label}"]:visible`).first();
+/** The library controls live in one tracker bar, rendered once at every width
+    (inline at lg, docked to the bottom below it). Each segment is a menu button
+    named for its current value: "Status: Backlog", "Priority: not set",
+    "Rating: Perfection" — or "Add to library" before the game is shelved. */
+function trigger(page: Page, group: 'status' | 'priority' | 'rating') {
+  if (group === 'status') return page.locator('button[aria-label^="Status:"], button[aria-label="Add to library"]').first();
+  return page.locator(`button[aria-label^="${group === 'priority' ? 'Priority' : 'Rating'}:"]`).first();
 }
-/** Once a status row is active its accessible name changes to the remove form. */
-function activeStatus(page: Page, label: string) {
-  return page.locator(`button[aria-label^="${label} — remove"]:visible`).first();
+/** Open a segment's menu and choose an item in it. */
+async function choose(page: Page, group: 'status' | 'priority' | 'rating', label: string) {
+  await trigger(page, group).click();
+  await page.getByRole('menu').getByRole(/^Clear /.test(label) ? 'menuitem' : 'menuitemradio', { name: label, exact: true }).click();
 }
-/** Priority and rating rows do the same, in the clear form. */
-function activeState(page: Page, group: 'priority' | 'rating', label: string) {
-  return page.locator(`button[aria-label="${label} — clear ${group} for ${'${'}''}"]:visible`).first();
+/** Open More and choose an item in it. */
+async function more(page: Page, label: string) {
+  await page.getByRole('button', { name: 'More actions' }).click();
+  await page.getByRole('menu').getByRole('menuitem', { name: label }).click();
 }
 
 async function libRow(page: Page, id: string | number) {
@@ -180,7 +186,7 @@ test.describe('/game/:id — entry points', () => {
     await expect(page).toHaveURL(/localhost:5173\/$/);
   });
 
-  test('an Index taxonomy link leaves the detail page for its category', async ({ page }) => {
+  test('a Details taxonomy link leaves the detail page for its category', async ({ page }) => {
     await stubIgdb(page, STUBS);
     await page.goto('/game/5551');
     await detailReady(page, 'Stub Complete Edition');
@@ -196,11 +202,11 @@ test.describe('/game/:id — entry points', () => {
     await expect(page).toHaveURL(/\/games\/company\/908/);
   });
 
-  test('every Index row renders its value or is absent — none renders empty', async ({ page }) => {
+  test('every Details row renders its value or is absent — none renders empty', async ({ page }) => {
     await stubIgdb(page, STUBS);
     await page.goto('/game/5551');
     await detailReady(page, 'Stub Complete Edition');
-    const index = page.locator('section:has(h2:text-is("Index"))');
+    const index = page.locator('section:has(h2:text-is("Details"))');
     await expect(index.getByText('19 May 2015'.replace('19 May 2015', 'May 19, 2015'))).toBeVisible();
     await expect(index.getByRole('link', { name: 'Stub Publishing' })).toBeVisible();
     await expect(index.getByRole('link', { name: 'PC' })).toBeVisible();
@@ -218,81 +224,90 @@ test.describe('/game/:id — library state controls', () => {
     await stubIgdb(page, STUBS);
   });
 
-  test('each of the five status rows writes that status and relabels itself', async ({ page }) => {
+  test('each status in the menu writes that status and relabels the segment', async ({ page }) => {
     const errs = watchConsole(page);
     await page.goto('/game/5551');
     await detailReady(page, 'Stub Complete Edition');
 
-    for (const status of ['Playing', 'Backlog', 'Wishlist', 'Dropped']) {
-      await stateControl(page, 'status', status).click();
+    await choose(page, 'status', 'Playing');
+    await expect(page.getByText('Added to Playing')).toBeVisible();
+    for (const status of ['Backlog', 'Wishlist', 'Dropped']) {
+      await choose(page, 'status', status);
       await expect(page.getByText(`Moved to ${status}`)).toBeVisible();
       expect((await libRow(page, 5551) as { status: string }).status).toBe(status);
-      await expect(activeStatus(page, status)).toHaveAttribute('aria-pressed', 'true');
+      await expect(trigger(page, 'status')).toHaveAttribute('aria-label', `Status: ${status}`);
     }
-    // Beaten last: it swaps the whole rail (priority out, rating + date in).
-    await stateControl(page, 'status', 'Beaten').click();
+    // Beaten last: it swaps the second segment (priority out, rating in).
+    await choose(page, 'status', 'Beaten');
     expect((await libRow(page, 5551) as { status: string }).status).toBe('Beaten');
+    await expect(trigger(page, 'rating')).toBeVisible();
     expect(realErrors(errs)).toEqual([]);
   });
 
-  test('re-clicking the active status opens the remove confirm, and Cancel keeps the row', async ({ page }) => {
+  test('choosing the status a game already has changes nothing and asks nothing', async ({ page }) => {
     await page.goto('/game/5551');
     await detailReady(page, 'Stub Complete Edition');
-    await stateControl(page, 'status', 'Playing').click();
-    await expect(activeStatus(page, 'Playing')).toBeVisible();
+    await choose(page, 'status', 'Playing');
+    await expect(trigger(page, 'status')).toHaveAttribute('aria-label', 'Status: Playing');
 
-    await activeStatus(page, 'Playing').click();
-    const dialog = page.getByRole('dialog');
-    await expect(dialog).toBeVisible();
-    await expect(dialog.getByText('Remove Stub Complete Edition?')).toBeVisible();
-    await dialog.getByRole('button', { name: 'Cancel' }).click();
-    await expect(dialog).toBeHidden();
+    /* It used to open the remove confirm. Removing is its own item in More now,
+       as it is on every card menu. */
+    await trigger(page, 'status').click();
+    await expect(page.getByRole('menuitemradio', { name: 'Playing', exact: true })).toHaveAttribute('aria-checked', 'true');
+    await page.getByRole('menuitemradio', { name: 'Playing', exact: true }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
     expect((await libRow(page, 5551) as { status: string }).status).toBe('Playing');
   });
 
-  test('confirming the remove deletes the row and the rail loses Priority', async ({ page }) => {
+  test('Remove in More confirms, deletes the row, and the bar loses Priority', async ({ page }) => {
     await page.goto('/game/5551');
     await detailReady(page, 'Stub Complete Edition');
-    await stateControl(page, 'status', 'Playing').click();
-    await expect(stateControl(page, 'priority', 'Next Up')).toBeVisible();
+    await choose(page, 'status', 'Playing');
+    await expect(trigger(page, 'priority')).toBeVisible();
 
-    await activeStatus(page, 'Playing').click();
+    await more(page, 'Remove from Library');
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByText('Remove Stub Complete Edition?')).toBeVisible();
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
+    expect((await libRow(page, 5551) as { status: string }).status).toBe('Playing');
+
+    await more(page, 'Remove from Library');
     await page.getByRole('dialog').getByRole('button', { name: 'Remove' }).click();
     await expect(page.getByText('Removed from library')).toBeVisible();
     expect(await libRow(page, 5551)).toBeNull();
-    await expect(stateControl(page, 'priority', 'Next Up')).toHaveCount(0);
+    await expect(trigger(page, 'priority')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Add to library' })).toBeVisible();
   });
 
-  test('each priority sets, and a second click on the same one clears it', async ({ page }) => {
+  test('each priority sets, and Clear Priority clears it', async ({ page }) => {
     await page.goto('/game/5551');
     await detailReady(page, 'Stub Complete Edition');
-    await stateControl(page, 'status', 'Backlog').click();
+    await choose(page, 'status', 'Backlog');
 
     for (const p of ['Next Up', 'Soon', 'Maybe', 'Someday']) {
-      await stateControl(page, 'priority', p).click();
-      await expect(page.getByText(`Priority: ${p}`)).toBeVisible();
+      await choose(page, 'priority', p);
+      await expect(page.getByRole('status').getByText(`Priority: ${p}`)).toBeVisible();
       expect((await libRow(page, 5551) as { priority: string }).priority).toBe(p);
     }
-    // The active row is named for what a click now does, so it is a different locator.
-    await page.locator('button[aria-label^="Someday — clear priority"]:visible').first().click();
+    await choose(page, 'priority', 'Clear Priority');
     await expect(page.getByText('Priority cleared')).toBeVisible();
     expect((await libRow(page, 5551) as { priority: string | null }).priority).toBeNull();
   });
 
-  test('rating rows appear only on Beaten, set, and clear on a second click', async ({ page }) => {
+  test('rating appears only on Beaten, sets, and Clear Rating clears it', async ({ page }) => {
     await page.goto('/game/5551');
     await detailReady(page, 'Stub Complete Edition');
-    await stateControl(page, 'status', 'Backlog').click();
-    await expect(stateControl(page, 'rating', 'Perfection')).toHaveCount(0);
+    await choose(page, 'status', 'Backlog');
+    await expect(trigger(page, 'rating')).toHaveCount(0);
 
-    await stateControl(page, 'status', 'Beaten').click();
-    await expect(stateControl(page, 'priority', 'Next Up')).toHaveCount(0);
+    await choose(page, 'status', 'Beaten');
+    await expect(trigger(page, 'priority')).toHaveCount(0);
     for (const f of ['Perfection', 'Go for it', 'Timepass', 'Skip']) {
-      await stateControl(page, 'rating', f).click();
+      await choose(page, 'rating', f);
       await expect(page.getByText(`Rated: ${f}`)).toBeVisible();
       expect((await libRow(page, 5551) as { feel: string }).feel).toBe(f);
     }
-    await page.locator('button[aria-label^="Skip — clear rating"]:visible').first().click();
+    await choose(page, 'rating', 'Clear Rating');
     await expect(page.getByText('Rating cleared')).toBeVisible();
     expect((await libRow(page, 5551) as { feel: string | null }).feel).toBeNull();
   });
@@ -300,10 +315,10 @@ test.describe('/game/:id — library state controls', () => {
   test('the completion date input appears on Beaten, writes, and clears', async ({ page }) => {
     await page.goto('/game/5551');
     await detailReady(page, 'Stub Complete Edition');
-    await stateControl(page, 'status', 'Backlog').click();
+    await choose(page, 'status', 'Backlog');
     await expect(page.locator('#completed-date-input')).toHaveCount(0);
 
-    await stateControl(page, 'status', 'Beaten').click();
+    await choose(page, 'status', 'Beaten');
     const date = page.locator('#completed-date-input:visible').first();
     await expect(date).toBeVisible();
     await date.fill('2025-02-11');
@@ -353,31 +368,33 @@ test.describe('/game/:id — library state controls', () => {
     expect((await libRow(page, 5551) as { dateCompleted: string | null }).dateCompleted).toBe('sometime last spring');
   });
 
-  test('the Remove from Library button confirms, then removes', async ({ page }) => {
+  test('More offers Remove only while the game is shelved', async ({ page }) => {
     await page.goto('/game/5551');
     await detailReady(page, 'Stub Complete Edition');
-    await stateControl(page, 'status', 'Wishlist').click();
-    await page.locator('button:text-is("Remove from Library"):visible').first().click();
+    await page.getByRole('button', { name: 'More actions' }).click();
+    await expect(page.getByRole('menuitem', { name: 'Remove from Library' })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+
+    await choose(page, 'status', 'Wishlist');
+    await more(page, 'Remove from Library');
     const dialog = page.getByRole('dialog');
     await expect(dialog.getByText(/There is no undo/)).toBeVisible();
     await dialog.getByRole('button', { name: 'Remove' }).click();
     expect(await libRow(page, 5551)).toBeNull();
-    await expect(page.locator('button:text-is("Remove from Library")')).toHaveCount(0);
   });
 
   test('FINDING 1 — a game with no release date offers only Unreleased, so it can never be Playing or Beaten', async ({ page }) => {
     await page.goto('/game/5552');
     await detailReady(page, 'Bare Stub Entry');
-    // Every ordinary status control is absent.
-    for (const s of ['Playing', 'Backlog', 'Wishlist', 'Beaten', 'Dropped']) {
-      await expect(stateControl(page, 'status', s)).toHaveCount(0);
-    }
+    // There is no status menu at all: the segment is a single add.
+    await expect(page.getByRole('button', { name: 'Add to library', exact: true })).toHaveCount(0);
     // The only control offered writes the Unreleased shelf.
-    await stateControl(page, 'status', 'Unreleased').click();
+    await page.getByRole('button', { name: 'Add to library as Unreleased' }).click();
     await expect(page.getByText('Added to library')).toBeVisible();
     expect((await libRow(page, 5552) as { status: string }).status).toBe('Unreleased');
-    // And there is no route back: re-clicking removes rather than re-shelving.
-    await expect(stateControl(page, 'status', 'Playing')).toHaveCount(0);
+    // And there is still no route to any other shelf.
+    await expect(trigger(page, 'status')).toHaveAttribute('aria-label', 'Status: Unreleased');
+    await expect(page.getByRole('menuitemradio', { name: 'Playing' })).toHaveCount(0);
   });
 });
 
@@ -392,14 +409,14 @@ test.describe('/game/:id — notes and review', () => {
     await page.goto('/game/5551');
     await detailReady(page, 'Stub Complete Edition');
     await expect(page.locator('#game-user-notes')).toHaveCount(0);
-    await stateControl(page, 'status', 'Backlog').click();
+    await choose(page, 'status', 'Backlog');
     await expect(page.locator('#game-user-notes')).toBeVisible();
   });
 
   test('typing shows Cancel/Save, Save persists, and the counter tracks length', async ({ page }) => {
     await page.goto('/game/5551');
     await detailReady(page, 'Stub Complete Edition');
-    await stateControl(page, 'status', 'Backlog').click();
+    await choose(page, 'status', 'Backlog');
     const ta = page.locator('#game-user-notes');
     await expect(page.getByRole('button', { name: 'Save' })).toHaveCount(0);
     await ta.fill('Left off at the second act.');
@@ -413,7 +430,7 @@ test.describe('/game/:id — notes and review', () => {
   test('Cancel reverts the textarea to the stored value and drops the draft', async ({ page }) => {
     await page.goto('/game/5551');
     await detailReady(page, 'Stub Complete Edition');
-    await stateControl(page, 'status', 'Backlog').click();
+    await choose(page, 'status', 'Backlog');
     const ta = page.locator('#game-user-notes');
     await ta.fill('saved text');
     await page.getByRole('button', { name: 'Save' }).click();
@@ -426,7 +443,7 @@ test.describe('/game/:id — notes and review', () => {
   test('an unsaved draft survives a reload and announces itself', async ({ page }) => {
     await page.goto('/game/5551');
     await detailReady(page, 'Stub Complete Edition');
-    await stateControl(page, 'status', 'Backlog').click();
+    await choose(page, 'status', 'Backlog');
     await page.locator('#game-user-notes').fill('a draft nobody saved');
     await page.reload();
     await detailReady(page, 'Stub Complete Edition');
@@ -437,7 +454,7 @@ test.describe('/game/:id — notes and review', () => {
   test('the textarea is hard-capped at 1000 characters', async ({ page }) => {
     await page.goto('/game/5551');
     await detailReady(page, 'Stub Complete Edition');
-    await stateControl(page, 'status', 'Backlog').click();
+    await choose(page, 'status', 'Backlog');
     const ta = page.locator('#game-user-notes');
     await ta.fill('x'.repeat(1200));
     expect((await ta.inputValue()).length).toBe(1000);
@@ -447,7 +464,7 @@ test.describe('/game/:id — notes and review', () => {
   test('the heading and placeholder switch to Review on a Beaten game', async ({ page }) => {
     await page.goto('/game/5551');
     await detailReady(page, 'Stub Complete Edition');
-    await stateControl(page, 'status', 'Beaten').click();
+    await choose(page, 'status', 'Beaten');
     await expect(page.getByRole('heading', { level: 2, name: 'Review' })).toBeVisible();
     await expect(page.locator('#game-user-notes')).toHaveAttribute('placeholder', 'Write your review…');
     await page.locator('#game-user-notes').fill('finished it');
@@ -455,29 +472,29 @@ test.describe('/game/:id — notes and review', () => {
     await expect(page.getByText('Review saved')).toBeVisible();
   });
 
-  test('FINDING 2 — removing a game strands a note draft that toasts on every later visit', async ({ page }) => {
+  test('removing a game discards its notes and leaves no draft behind', async ({ page }) => {
     await page.goto('/game/5551');
     await detailReady(page, 'Stub Complete Edition');
-    await stateControl(page, 'status', 'Backlog').click();
+    await choose(page, 'status', 'Backlog');
     await page.locator('#game-user-notes').fill('notes that were saved');
     await page.getByRole('button', { name: 'Save' }).click();
     await expect(page.getByText('Notes saved')).toBeVisible();
 
-    // Remove the game. The notes section unmounts, but `notes` state is untouched
-    // and notesDirty flips true against a null libEntry, so a draft is written.
-    await page.locator('button:text-is("Remove from Library"):visible').first().click();
+    /* This was FINDING 2: the notes section unmounted but `notes` state did
+       not, so the draft effect wrote the removed notes out as an unsaved draft
+       and every later visit announced it. Remove now clears both. */
+    await more(page, 'Remove from Library');
     await page.getByRole('dialog').getByRole('button', { name: 'Remove' }).click();
     await expect(page.getByText('Removed from library')).toBeVisible();
 
     const draftKeys = await page.evaluate(() =>
-      Object.keys(localStorage).filter(k => k.toLowerCase().includes('note')));
-    expect(draftKeys.length).toBeGreaterThan(0);
+      Object.keys(localStorage).filter(k => k.startsWith('lh_note_draft')));
+    expect(draftKeys).toEqual([]);
 
-    // Every subsequent visit announces a draft for a game that is not shelved and
-    // shows no textarea to put it in.
     await page.reload();
     await detailReady(page, 'Stub Complete Edition');
-    await expect(page.getByText('Restored an unsaved draft of your notes')).toBeVisible();
+    await page.waitForTimeout(500);
+    await expect(page.getByText('Restored an unsaved draft of your notes')).toHaveCount(0);
     await expect(page.locator('#game-user-notes')).toHaveCount(0);
   });
 });
@@ -492,7 +509,8 @@ test.describe('/game/:id — platforms and collections', () => {
   test('a platform chip links, relabels, and unlinks', async ({ page }) => {
     await page.goto('/game/5551');
     await detailReady(page, 'Stub Complete Edition');
-    await stateControl(page, 'status', 'Backlog').click();
+    await choose(page, 'status', 'Backlog');
+    await page.locator('button[aria-label^="Platforms:"]').click();
     const chip = page.locator('button[aria-label^="Mark PC"]:visible').first();
     await expect(chip).toBeVisible();
     await chip.click();
@@ -509,48 +527,44 @@ test.describe('/game/:id — platforms and collections', () => {
     await page.goto('/game/5551');
     await detailReady(page, 'Stub Complete Edition');
     expect(await libRow(page, 5551)).toBeNull();
+    await page.locator('button[aria-label^="Platforms:"]').click();
     await page.locator('button[aria-label^="Mark PC"]:visible').first().click();
     await expect(page.getByText('Added to Backlog and linked PC')).toBeVisible();
     expect((await libRow(page, 5551) as { status: string }).status).toBe('Backlog');
   });
 
-  test('FINDING 11 — the Collections block exists only in the desktop rail, so a phone cannot file a game at all', async ({ page }) => {
+  test('the Collections menu files the game in and out, at every width', async ({ page }) => {
+    /* This was FINDING 11: the block lived only in the desktop rail, so a phone
+       could not file a game at all. The tracker bar renders once, everywhere. */
     await seed(page, {
       [KEYS.collections]: [{ id: 'p3-col', name: 'Phase 3 Collection', games: [], createdAt: 1700000000000 }],
     });
     await page.goto('/game/5551');
     await detailReady(page, 'Stub Complete Edition');
 
-    const toggle = page.locator('button[aria-label="Add to collection Phase 3 Collection"]');
-    // It is in the DOM at every width — the aside is `hidden lg:block`, not unmounted.
-    await expect(toggle).toHaveCount(1);
-
-    const wide = await page.evaluate(() => window.matchMedia('(min-width: 1024px)').matches);
-    if (!wide) {
-      /* Below lg the only render site (GameDetail.jsx:971, inside `rail`, inside
-         the `hidden lg:block` aside at :1328) is display:none. Completion date
-         and the Owned On chips are duplicated into the mobile block at :1219 and
-         :1222; collections is the one control that was not. */
-      await expect(toggle).toBeHidden();
-      await expect(page.locator('.lg\\:hidden').getByText('Collections')).toHaveCount(0);
-      return;
-    }
-
-    const add = page.locator('button[aria-label="Add to collection Phase 3 Collection"]:visible').first();
-    await add.click();
-    await expect(page.getByText('Added to "Phase 3 Collection"')).toBeVisible();
+    const open = page.locator('button[aria-label^="Collections:"]');
+    await expect(open).toBeVisible();
+    await open.click();
+    const item = page.getByRole('menuitemradio', { name: 'Phase 3 Collection' });
+    await item.click();
+    // Announced to assistive tech rather than toasted: a toast covered the menu.
+    const live = page.locator("#app-live-region");
+    await expect(live).toHaveText('Added to "Phase 3 Collection"');
     const members = await page.evaluate(() =>
       JSON.parse(localStorage.getItem('moctale_collections') || '[]')[0].games);
     expect(members.map(String)).toContain('5551');
 
-    await page.locator('button[aria-label="Remove from collection Phase 3 Collection"]:visible').first().click();
-    await expect(page.getByText('Removed from "Phase 3 Collection"')).toBeVisible();
+    // The menu stays open for a second choice.
+    await expect(item).toHaveAttribute('aria-checked', 'true');
+    await item.click();
+    await expect(live).toHaveText('Removed from "Phase 3 Collection"');
+    await expect(item).toHaveAttribute('aria-checked', 'false');
   });
 
-  test('the Collections block is absent when there are no local collections', async ({ page }) => {
+  test('the Collections segment is absent when there are no local collections', async ({ page }) => {
     await page.goto('/game/5551');
     await detailReady(page, 'Stub Complete Edition');
-    await expect(page.locator('button[aria-label^="Add to collection"]')).toHaveCount(0);
+    await expect(page.locator('button[aria-label^="Collections:"]')).toHaveCount(0);
   });
 });
 
@@ -670,7 +684,7 @@ test.describe('/game/:id — failure and edges', () => {
     await stubIgdb(page, STUBS);
     await page.goto('/game/5552');
     await detailReady(page, 'Bare Stub Entry');
-    await expect(page.locator('section:has(h2:text-is("Index"))').getByText('TBA')).toBeVisible();
+    await expect(page.locator('section:has(h2:text-is("Details"))').getByText('TBA')).toBeVisible();
     // Rows with nothing to say are absent, not blank.
     await expect(page.getByText('Developer', { exact: true })).toHaveCount(0);
     await expect(page.getByText('Genres', { exact: true })).toHaveCount(0);
@@ -683,8 +697,8 @@ test.describe('/game/:id — failure and edges', () => {
     const overflow = await page.evaluate(() =>
       document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(1);
-    await stateControl(page, 'status', 'Backlog').click();
-    await page.locator('button:text-is("Remove from Library"):visible').first().click();
+    await choose(page, 'status', 'Backlog');
+    await more(page, 'Remove from Library');
     await expect(page.getByRole('dialog').getByText(`Remove ${LONG_NAME}?`)).toBeVisible();
   });
 
@@ -693,7 +707,7 @@ test.describe('/game/:id — failure and edges', () => {
     await page.goto('/game/5551');
     await detailReady(page, 'Stub Complete Edition');
     await expect(page.getByText('Not enough on your shelves yet to compare')).toBeVisible();
-    await expect(page.getByText(/Too few ratings to say|\/ 100 ·/)).toBeVisible();
+    await expect(page.getByText('4,200 ratings')).toBeVisible();
   });
 
   test('Before You Decide is hidden entirely once the game is Beaten', async ({ page }) => {
@@ -701,7 +715,7 @@ test.describe('/game/:id — failure and edges', () => {
     await page.goto('/game/5551');
     await detailReady(page, 'Stub Complete Edition');
     await expect(page.getByRole('heading', { name: 'Before You Decide' })).toBeVisible();
-    await stateControl(page, 'status', 'Beaten').click();
+    await choose(page, 'status', 'Beaten');
     await expect(page.getByRole('heading', { name: 'Before You Decide' })).toHaveCount(0);
   });
 
@@ -709,8 +723,9 @@ test.describe('/game/:id — failure and edges', () => {
     await stubIgdb(page, [{ ...GAME_FULL, id: 5555, name: 'Thin Sample Stub', total_rating: 97, total_rating_count: 4 }]);
     await page.goto('/game/5555');
     await detailReady(page, 'Thin Sample Stub');
-    await expect(page.getByText('Too few ratings to say · 4')).toBeVisible();
-    await expect(page.getByText('97 / 100')).toHaveCount(0);
+    await expect(page.getByText('Too few ratings to say')).toBeVisible();
+    await expect(page.getByText(/^4 ratings so far/)).toBeVisible();
+    await expect(page.getByText('97', { exact: true })).toHaveCount(0);
   });
 });
 

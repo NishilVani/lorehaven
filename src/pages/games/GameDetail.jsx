@@ -1,21 +1,31 @@
 import PageHeader from '../../components/ui/PageHeader';
 import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from 'react';
 import EmptyPlate from '../../components/ui/EmptyPlate';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import useSwipe from '../../hooks/useSwipe';
-import { Play } from 'lucide-react';
+import { Play, Download, Share2, ThumbsUp, ThumbsDown, Bookmark, ArrowRightLeft, X } from 'lucide-react';
 import { getGameById, getGamesByIds, getGamesProfile, getFranchisesByIds, getCollectionsByIds, getEventsByGameId } from '../../services/igdb';
 import { buildTaste, eraBonus, isScenicArtwork } from '../../services/discover';
 import { reasonsFor } from '../../services/pickNext';
 import {
   getLibrary, getPrefs, saveToLibrary, removeFromLibrary, getUserOwnedPlatforms, getUserCustomPlatforms,
   getCollections, getCollectionsWithGame, addGameToCollection, removeGameFromCollection,
+  getRecFeedbackIndex, setRecFeedback, saveFranchise, removeFranchise, isFranchiseSaved,
 } from '../../services/db';
 import { toDateInputValue, readNoteDraft, writeNoteDraft, clearNoteDraft } from '../../services/libraryFields';
+import { downloadUrlAsFile, safeFilename } from '../../services/saveImage';
 import { getShortPlatformName } from '../../components/platforms/platformLogoUtils';
 import { toast } from '../../components/ui/toastBus';
+import { announce } from '../../components/ui/useAnnounce';
 import { Skeleton } from '../../components/ui/Skeleton';
 import AwardsSection from '../../components/GameDetail/AwardsSection';
+import TrackerBar from '../../components/GameDetail/TrackerBar';
+import LeadBlock from '../../components/GameDetail/LeadBlock';
+import { leadMode } from '../../components/GameDetail/leadMode';
+import NotesEditor from '../../components/GameDetail/NotesEditor';
+import MediaStrip from '../../components/GameDetail/MediaStrip';
+import { SectionHeader, IndexRow, IndexLinks, TagLink } from '../../components/GameDetail/parts';
+import TransferDataModal from '../../components/games/TransferDataModal';
 import Dialog from '../../components/ui/Dialog';
 import { statusColor, priorityColor, PRIORITIES as PRIORITY_KEYS, feelColor, FEELS as FEEL_KEYS } from '../../constants/stateColors';
 import useConfirm from '../../hooks/useConfirm';
@@ -67,123 +77,51 @@ const RATING_FLOOR = 30;
    support. */
 const TASTE_FLOOR = 10;
 
-/** The public score with the confidence behind it, or an honest refusal. */
-function ratingRead(game) {
+/** The public score with the confidence behind it, or an honest refusal.
+    Critics ride along in the caption when there are enough of them to mean
+    something: IGDB fetched aggregated_rating all along and the page never said
+    it, so a game the critics and the players split on read as one number. */
+const CRITIC_FLOOR = 5;
+function scoreRead(game) {
   const count = game.total_rating_count || 0;
-  if (game.total_rating && count >= RATING_FLOOR) {
-    return `${Math.round(game.total_rating)} / 100 · ${count.toLocaleString()} ratings`;
-  }
-  if (count > 0) return `Too few ratings to say · ${count}`;
-  return null;
+  if (!count) return null;
+  if (!game.total_rating || count < RATING_FLOOR) return { thin: true, count, floor: RATING_FLOOR };
+  const crit = game.aggregated_rating_count >= CRITIC_FLOOR && game.aggregated_rating
+    ? `Critics ${Math.round(game.aggregated_rating)} from ${game.aggregated_rating_count} reviews`
+    : null;
+  return { value: Math.round(game.total_rating), count, critics: crit };
 }
 
-/* ── Small editorial primitives ── */
-function SectionHeader({ children }) {
-  return (
-    <div className="flex items-center gap-3 mb-4">
-      <h2 className="lh-display text-[22px] lg:text-[28px] text-white/80 m-0">{children}</h2>
-      <div className="flex-1 h-px bg-white/15" />
-    </div>
-  );
+/* How many hours, said three ways. `normal` is the figure; the others are the
+   caption. `any` covers the game IGDB only measured one way. */
+function lengthRead(ttb) {
+  if (!ttb) return null;
+  const h = (s) => Math.round(s / 3600);
+  const normal = ttb.normally ? h(ttb.normally) : null;
+  const rushed = ttb.hastily ? h(ttb.hastily) : null;
+  const full = ttb.completely ? h(ttb.completely) : null;
+  if (normal == null && rushed == null && full == null) return null;
+  const range = [rushed != null && `${rushed}h rushed`, full != null && `${full}h to complete everything`]
+    .filter(Boolean).join(' · ') || 'Main story, at a normal pace.';
+  return { normal, any: normal ?? rushed ?? full, range };
 }
 
-function IndexRow({ label, value }) {
-  if (!value) return null;
-  return (
-    <div className="flex items-baseline justify-between gap-6 px-3 py-2.5 border-t first:border-t-0 border-white/10">
-      <span className="lh-label text-white/60 shrink-0">{label}</span>
-      <span className="text-sm text-white text-right min-w-0">{value}</span>
-    </div>
-  );
+/* "4 months ago". addedAt is stamped on first insert only, so entries older
+   than the field have none and the line is absent rather than invented. */
+function agoText(ms, now) {
+  if (!ms) return null;
+  const days = Math.floor((now - ms) / 86400000);
+  if (days < 1) return 'Added today';
+  if (days < 2) return 'Added yesterday';
+  if (days < 45) return `Added ${days} days ago`;
+  const months = Math.round(days / 30.4);
+  if (months < 18) return `Added ${months} months ago`;
+  return `Added ${Math.round(months / 12)} years ago`;
 }
 
-/* Index row whose values link out — genres, companies, franchises, events… */
-function IndexLinks({ label, items }) {
-  if (!items || items.length === 0) return null;
-  return (
-    <div className="flex items-baseline justify-between gap-6 px-3 py-2.5 border-t first:border-t-0 border-white/10">
-      <span className="lh-label text-white/60 shrink-0">{label}</span>
-      <span className="text-sm text-right min-w-0">
-        {items.map((it, i) => (
-          <span key={`${it.id ?? it.label}-${i}`}>
-            {i > 0 && <span className="text-white/50"> · </span>}
-            {/* p-1 -m-1 lifts the hit box from 18px to 26px in BOTH axes (WCAG 2.5.8)
-                without moving the row: padding on an inline box grows the target and
-                the hover fill, and the negative margin cancels the layout effect. The
-                same trick is used on the Back button and Discover's See-All links.
-                Both axes are needed — short platform abbreviations like "PC" were
-                18px WIDE, so vertical padding alone still failed. */}
-            <Link
-              to={it.to}
-              className="text-white underline decoration-white/30 underline-offset-4 p-1 -m-1 hover:bg-white hover:text-black hover:decoration-transparent focus-visible:bg-white focus-visible:text-black focus-visible:decoration-transparent focus-visible:outline-none transition-colors"
-            >
-              {it.label}
-            </Link>
-          </span>
-        ))}
-      </span>
-    </div>
-  );
-}
-
-/* Mobile: one colored selector cell in a horizontal strip */
-/* `group` matters: this same cell renders the status, priority AND rating strips, so
-   a hardcoded "Set status to" announced "Set status to Perfection" on the rating row. */
-/* `activeLabel` overrides the name when the cell is already set, because the
-   status cells stop being "set X" once they are active — they remove the game. */
-function StripCell({ label, color, active, onClick, group = 'status', activeLabel }) {
-  return (
-    <button
-      onClick={onClick}
-      aria-pressed={active}
-      aria-label={active && activeLabel ? `${label} — ${activeLabel}` : `Set ${group} to ${label}`}
-      /* Each cell draws its own right and bottom rule; the container draws only top
-         and left. That way the 1px grid stays exact however the row wraps, with no
-         doubled edge and no missing divider between rows. */
-      className="flex items-center gap-2 px-3.5 py-2.5 border-r border-b border-white/15 whitespace-nowrap shrink-0 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white focus-visible:z-10"
-      style={active ? { backgroundColor: color, color: 'var(--lh-on-state)' } : {}}
-    >
-      <span className="w-2 h-2 shrink-0 pointer-events-none" style={{ backgroundColor: active ? 'var(--lh-on-state)' : color }} />
-      <span className={`lh-label pointer-events-none ${active ? '' : 'text-white/60'}`}>{label}</span>
-    </button>
-  );
-}
-
-/* Mobile: compact label/value fact next to the poster */
-function Fact({ label, value }) {
-  if (!value) return null;
-  return (
-    <div>
-      <div className="lh-label text-white/60">{label}</div>
-      <div className="text-sm text-white mt-0.5">{value}</div>
-    </div>
-  );
-}
-
-/* One colored selector row — used by status, priority and rating stacks */
-function StateRow({ label, color, active, onClick, group = 'status', activeLabel }) {
-  return (
-    <button
-      onClick={onClick}
-      aria-pressed={active}
-      aria-label={active && activeLabel ? `${label} — ${activeLabel}` : `Set ${group} to ${label}`}
-      className="flex items-center justify-between w-full px-3 py-2.5 border-t first:border-t-0 border-white/10 hover:bg-white/5 transition-colors cursor-pointer group focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white focus-visible:z-10"
-      style={active ? { backgroundColor: color, color: 'var(--lh-on-state)' } : {}}
-    >
-      <span className="flex items-center gap-2.5 pointer-events-none">
-        <span className="w-2 h-2 shrink-0" style={{ backgroundColor: active ? 'var(--lh-on-state)' : color }} />
-        <span className={`lh-label ${active ? '' : 'text-white/60 group-hover:text-white group-focus-visible:text-white transition-colors'}`}>{label}</span>
-      </span>
-      {/* The slot says what a click does. On an active status row that is
-          "Remove"; on an active priority or rating row it is "Clear", because
-          re-clicking those clears the value. The row previously read "Playing | Set" while its
-          accessible name read "Remove ... from library", which is both an affordance
-          lie and a WCAG 2.5.3 Label-in-Name failure (voice control saying "click
-          Playing" could not reach it). */}
-      {active && <span className="lh-label pointer-events-none">{group === 'status' ? 'Remove' : 'Clear'}</span>}
-    </button>
-  );
-}
+/* The live site, not wherever this build happens to be served from: a Tauri
+   build lives at tauri://localhost and a link to that is a link to nothing. */
+const SHARE_ORIGIN = 'https://lorehaven.app';
 
 export default function GameDetail() {
   const { id } = useParams();
@@ -272,7 +210,10 @@ export default function GameDetail() {
       platformLinks: game.platforms?.map(p => ({ id: p.id, label: p.abbreviation || p.name, to: `/games/platform/${p.id}` })) || [],
       modeLinks: game.game_modes?.map(m => ({ id: m.id, label: m.name, to: `/games/mode/${m.id}` })) || [],
       engineLinks: game.game_engines?.map(e => ({ id: e.id, label: e.name, to: `/games/engine/${e.id}` })) || [],
-      rating: ratingRead(game),
+      score: scoreRead(game),
+      length: lengthRead(game.game_time_to_beat),
+      themeLinks: game.themes?.map(t => ({ id: t.id, label: t.name, to: `/games/theme/${t.id}` })) || [],
+      perspectives: game.player_perspectives?.map(p => p.name).join(', ') || null,
       media: [
         ...(game.videos?.filter(v => v.video_id).slice(0, 6) || []).map(v => ({ type: 'video', id: v.video_id, name: v.name })),
         ...(game.screenshots?.slice(0, 12) || []).map(s => ({ type: 'image', id: s.image_id })),
@@ -472,19 +413,29 @@ export default function GameDetail() {
       cover_id: game.cover?.image_id || null,
       cover_width: game.cover?.width || null,
       cover_height: game.cover?.height || null,
+      /* What the card menus write on an add, so a game shelved from this page
+         shows its studio and year on the shelf before the next IGDB sync. */
+      dev: derived.dev || null,
+      release_year: derived.year || null,
+      first_release_date: game.first_release_date || null,
+      total_rating: game.total_rating || null,
     };
     const updated = { ...base, ...changes };
     saveToLibrary(updated);
     setLibEntry(updated);
     return updated;
-  }, [libEntry, game]);
+  }, [libEntry, game, derived]);
 
   const handleStatus = (status) => {
-    /* Re-clicking the status you are already on removes the game, matching the
-       Unreleased row below and the toggle-off that priority and rating already
-       have. handleRemove confirms first — this destroys notes, rating, priority
-       and the completion date with no undo. */
-    if (libEntry?.status === status) return handleRemove();
+    /* Choosing the status you are already on does nothing. It used to remove
+       the game, which no other surface did: on a card, Remove is its own item at
+       the end of the menu. Here it is too, at the end of More. */
+    if (libEntry?.status === status) return;
+    if (!libEntry) {
+      persist({ status });
+      toast(`Added to ${status}`);
+      return;
+    }
     /* Beaten keeps its priority; leaving Beaten still drops the completion date.
        v1 cleared the priority here, and GameCard had already decided otherwise —
        it suppresses the planning badge on a finished game while keeping the
@@ -541,14 +492,18 @@ export default function GameDetail() {
     toast(libEntry?.status === 'Beaten' ? 'Review saved' : 'Notes saved');
   };
 
+  /* null clears. Choosing the value already set leaves it set: the menus carry
+     an explicit Clear item, as the card menus do. */
   const handlePriority = (priority) => {
-    const next = libEntry?.priority === priority ? null : priority;
+    if (priority && libEntry?.priority === priority) return;
+    const next = priority;
     persist({ priority: next });
     toast(next ? `Priority: ${next}` : 'Priority cleared');
   };
 
   const handleFeel = (feel) => {
-    const next = libEntry?.feel === feel ? null : feel;
+    if (feel && libEntry?.feel === feel) return;
+    const next = feel;
     persist({ feel: next });
     toast(next ? `Rated: ${next}` : 'Rating cleared');
   };
@@ -560,6 +515,11 @@ export default function GameDetail() {
     () => {
       removeFromLibrary(game.id);
       setLibEntry(null);
+      /* The notes go with the entry. Left in state they no longer matched a
+         saved copy, so the draft effect wrote them out as an unsaved draft and
+         every later visit announced one for a game that had no notes field. */
+      setNotes('');
+      clearNoteDraft(id);
       toast('Removed from library');
     },
   );
@@ -612,56 +572,210 @@ export default function GameDetail() {
   const [myCollections] = useState(getCollections);
   const [inCollections, setInCollections] = useState(
     () => new Set(getCollectionsWithGame(id).map(String)));
+  /* Announced, not toasted. The collections menu stays open for the next pick
+     and shows its own check marks; on a phone it opens upward from the docked
+     bar, which is exactly where the toast stack rises, so a toast per pick
+     covered the item you were about to tap next. */
   const toggleCollection = (col) => {
     const key = String(col.id);
     if (inCollections.has(key)) {
       removeGameFromCollection(col.id, game.id);
       setInCollections(prev => { const n = new Set(prev); n.delete(key); return n; });
-      toast(`Removed from "${col.name}"`);
+      announce(`Removed from "${col.name}"`);
     } else {
       addGameToCollection(col.id, game.id);
       setInCollections(prev => new Set(prev).add(key));
-      toast(`Added to "${col.name}"`);
+      announce(`Added to "${col.name}"`);
     }
   };
 
-  /* ── Completion date — Beaten only (rendered in rail + mobile controls) ── */
-  const completedBlock = libEntry?.status === 'Beaten' && (
-    <div>
-      <label htmlFor="completed-date-input" className="lh-label text-white/60 mb-2 block">Completed On</label>
-      <input
-        id="completed-date-input"
-        type="date"
-        aria-label="Completion Date"
-        value={libEntry.dateCompleted || ''}
-        onChange={(e) => handleDate(e.target.value)}
-        className="w-full bg-black border border-white/40 px-3 py-2.5 lh-label text-white [color-scheme:dark] focus:border-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white cursor-pointer"
-      />
-    </div>
+  /* ── Completion date — Beaten only, shown in the Your Record figures ── */
+  const completedInput = libEntry?.status === 'Beaten' && (
+    <input
+      id="completed-date-input"
+      type="date"
+      aria-label="Completion Date"
+      value={libEntry.dateCompleted || ''}
+      onChange={(e) => handleDate(e.target.value)}
+      className="w-full bg-black border border-white/40 px-3 py-2.5 lh-label text-white [color-scheme:dark] focus:border-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white cursor-pointer"
+    />
   );
 
-  const collectionsBlock = myCollections.length > 0 && (
-    <div>
-      <div className="lh-label text-white/60 mb-2">Collections</div>
-      <div className="border border-white/15 flex flex-col">
-        {myCollections.map((c, i) => {
-          const active = inCollections.has(String(c.id));
-          return (
-            <button
-              key={`${c.id}-${i}`}
-              onClick={() => toggleCollection(c)}
-              aria-label={`${active ? 'Remove from' : 'Add to'} collection ${c.name}`}
-              className={`flex items-center justify-between gap-2 w-full px-3 py-2.5 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white focus-visible:z-10 ${i > 0 ? 'border-t border-white/10' : ''} ${active ? 'bg-white text-black' : 'text-white/60 hover:text-white'
-                }`}
-            >
-              <span className="lh-label truncate pointer-events-none">{c.name}</span>
-              {active && <span className="lh-label shrink-0 pointer-events-none">Added</span>}
-            </button>
-          );
-        })}
-      </div>
-    </div>
+  /* ── Tracker bar wiring ── */
+  const [platformsOpen, setPlatformsOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
+
+  /* The bar docks to the bottom of the screen below lg, which is the corner
+     toasts rise from. Lift the stack clear of it for as long as this page is
+     mounted; Toast.jsx ignores the value at lg, where the bar is inline. */
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty('--toast-bottom', 'calc(4.5rem + env(safe-area-inset-bottom))');
+    return () => root.style.removeProperty('--toast-bottom');
+  }, []);
+
+  const swatchIcon = (color) => <div className="w-2.5 h-2.5" style={{ backgroundColor: color }} />;
+
+  const statusOptions = STATUSES.map(s => ({
+    label: s.key,
+    color: s.color,
+    icon: swatchIcon(s.color),
+    isActive: libEntry?.status === s.key,
+    onClick: () => handleStatus(s.key),
+  }));
+
+  /* Priority while there is something left to decide, rating once it is done. */
+  const isBeaten = libEntry?.status === 'Beaten';
+  const secondSegment = !libEntry ? null : isBeaten ? {
+    caption: 'Your Rating',
+    value: libEntry.feel || 'Not rated',
+    swatch: libEntry.feel ? feelColor(libEntry.feel) : null,
+    ariaLabel: `Rating: ${libEntry.feel || 'not rated'}`,
+    options: [
+      ...FEELS.map(f => ({
+        label: f.key, color: f.color, icon: swatchIcon(f.color),
+        isActive: libEntry.feel === f.key, onClick: () => handleFeel(f.key),
+      })),
+      ...(libEntry.feel ? [{ label: 'Clear Rating', icon: X, dividerAbove: true, onClick: () => handleFeel(null) }] : []),
+    ],
+  } : {
+    caption: 'Priority',
+    value: libEntry.priority || 'Not set',
+    swatch: libEntry.priority ? priorityColor(libEntry.priority) : null,
+    ariaLabel: `Priority: ${libEntry.priority || 'not set'}`,
+    options: [
+      ...PRIORITIES.map(p => ({
+        label: p.key, color: p.color, icon: swatchIcon(p.color),
+        isActive: libEntry.priority === p.key, onClick: () => handlePriority(p.key),
+      })),
+      ...(libEntry.priority ? [{ label: 'Clear Priority', icon: X, dividerAbove: true, onClick: () => handlePriority(null) }] : []),
+    ],
+  };
+
+  const ownedNames = (libEntry?.user_platforms || []).map(getShortPlatformName);
+  const platformsLabel = ownedNames.length === 0
+    ? 'Not marked'
+    : ownedNames.length <= 2 ? ownedNames.join(', ') : `${ownedNames.slice(0, 2).join(', ')} +${ownedNames.length - 2}`;
+
+  /* Absent with no collections, as the old block was: an empty menu offering to
+     file a game into nothing is clutter, and Collections is one click away. */
+  const collectionsSegment = myCollections.length > 0 ? {
+    label: inCollections.size === 0 ? 'None' : inCollections.size === 1
+      ? (myCollections.find(c => inCollections.has(String(c.id)))?.name || 'In 1')
+      : `In ${inCollections.size}`,
+    options: myCollections.map(c => ({
+      label: c.name,
+      isActive: inCollections.has(String(c.id)),
+      onClick: () => toggleCollection(c),
+    })),
+  } : null;
+
+  const [feedback, setFeedback] = useState(() => getRecFeedbackIndex().get(String(id)) || null);
+  const giveFeedback = (verdict) => {
+    const next = feedback === verdict ? null : verdict;
+    setRecFeedback({ id: game.id, name: game.name, cover_id: game.cover?.image_id || null }, next);
+    setFeedback(next);
+    toast(next === 'interested' ? 'Marked Interested' : next === 'not_interested' ? 'Explore will stop suggesting it' : 'Feedback cleared');
+  };
+
+  const franchise = connections.franchises[0] || null;
+  const [franchiseSaved, setFranchiseSaved] = useState(false);
+  useEffect(() => {
+    /* eslint-disable-next-line react-hooks/set-state-in-effect -- reads storage once the franchise lands */
+    if (franchise) setFranchiseSaved(isFranchiseSaved(franchise.id));
+  }, [franchise]);
+  const toggleFranchise = () => {
+    if (franchiseSaved) {
+      removeFranchise(franchise.id);
+      setFranchiseSaved(false);
+      toast(`Removed ${franchise.name} from Collections`);
+    } else if (saveFranchise(franchise)) {
+      setFranchiseSaved(true);
+      toast(`Saved ${franchise.name} to Collections`);
+    }
+  };
+
+  /* The system share sheet where there is one (phones, Safari), the clipboard
+     everywhere else. Always the live site's address. */
+  const shareGame = async () => {
+    const url = `${SHARE_ORIGIN}/game/${game.id}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: game.name, url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      toast('Link copied');
+    } catch (err) {
+      if (err?.name === 'AbortError') return;      // the sheet was dismissed
+      toast('Could not copy the link', 'error');
+    }
+  };
+
+  const moreOptions = [
+    { label: 'Share Link', icon: Share2, onClick: shareGame },
+    ...(franchise ? [{
+      label: franchiseSaved ? 'Unsave Franchise' : 'Save Franchise',
+      icon: Bookmark,
+      onClick: toggleFranchise,
+    }] : []),
+    ...(!libEntry ? [
+      { label: 'Interested', icon: ThumbsUp, isActive: feedback === 'interested', dividerAbove: true, onClick: () => giveFeedback('interested') },
+      { label: 'Not Interested', icon: ThumbsDown, isActive: feedback === 'not_interested', onClick: () => giveFeedback('not_interested') },
+    ] : []),
+    ...(libEntry ? [
+      { label: 'Transfer Data', icon: ArrowRightLeft, dividerAbove: true, onClick: () => setTransferOpen(true) },
+      { label: 'Remove from Library', icon: X, variant: 'danger', dividerAbove: true, onClick: handleRemove },
+    ] : []),
+  ];
+
+  /* ── Lead block inputs ── */
+  const mode = game ? leadMode(libEntry, isUnreleased) : null;
+  const priorityPeers = libEntry?.priority
+    ? getLibrary().filter(e => e.priority === libEntry.priority && e.status !== 'Beaten' && e.status !== 'Dropped').length
+    : 0;
+  const releaseFigure = (() => {
+    if (!game?.first_release_date) return { date: null };
+    const when = new Date(game.first_release_date * 1000);
+    const days = Math.ceil((when.getTime() - nowMs) / 86400000);
+    return {
+      date: when.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
+      detail: days > 1 ? `In ${days} days.` : days === 1 ? 'Tomorrow.' : 'Today.',
+    };
+  })();
+  /* follows, falling back to hypes: IGDB counts both, and for a game that is
+     not out yet they measure the same thing, people waiting on it. */
+  const anticipation = (game?.follows || game?.hypes) ? {
+    value: (game.follows || game.hypes).toLocaleString(),
+    detail: 'People following it on IGDB.',
+  } : null;
+  const firstEvent = connections.events[0] || null;
+  const shownAt = firstEvent ? {
+    name: firstEvent.name,
+    detail: [
+      firstEvent.start_time && new Date(firstEvent.start_time * 1000).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+      connections.events.length > 1 && `and ${connections.events.length - 1} more`,
+    ].filter(Boolean).join(' · ') || 'An industry event.',
+  } : null;
+
+  const notesEditor = libEntry && (
+    <NotesEditor
+      value={notes}
+      onChange={setNotes}
+      dirty={notesDirty}
+      onSave={handleSaveNotes}
+      onCancel={() => setNotes(libEntry.notes || '')}
+      review={isBeaten}
+      placeholder={libEntry.status === 'Dropped' ? 'Why you stopped, in case you come back…' : undefined}
+    />
   );
+
+  const saveMedia = async (m) => {
+    const { outcome, where } = await downloadUrlAsFile(img(m.id, '1080p'), `${safeFilename(game.name)} — ${m.id}.jpg`);
+    if (outcome === 'saved') toast(where && where !== 'browser' ? `Saved to ${where}` : 'Image downloaded');
+    else if (outcome === 'handoff') toast('Opened outside the app — save it from there');
+    else toast('Download failed. Check your connection and try again', 'error');
+  };
 
   /* Media lightbox — top-level. Previously nested inside collectionsBlock, which
      gated it behind `myCollections.length > 0` AND the desktop-only right rail,
@@ -801,6 +915,18 @@ export default function GameDetail() {
                 <span className="lh-label text-white/70">Media</span>
                 <span className="lh-label text-white/60 tabular-nums ml-3">{Math.min(mediaIdx, derived.media.length - 1) + 1} / {derived.media.length}</span>
                 <div className="flex-1" />
+                {/* Save the plate on screen. Videos are YouTube's to keep. Same
+                    helper as Wallpapers, so it lands in the same place on every host. */}
+                {derived.media[mediaIdx]?.type === 'image' && (
+                  <button
+                    onClick={() => saveMedia(derived.media[mediaIdx])}
+                    aria-label={`Save image ${mediaIdx + 1}`}
+                    className="lh-label h-12 px-4 border-l border-white/15 text-white/60 hover:bg-white hover:text-black focus-visible:bg-white focus-visible:text-black focus-visible:outline-none transition-colors cursor-pointer flex items-center gap-2"
+                  >
+                    <Download aria-hidden="true" className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Save</span>
+                  </button>
+                )}
                 <button onClick={() => { setMediaModalOpen(false); setVideoPlaying(false); }} className="lh-label h-12 -mr-4 px-4 border-l border-white/15 text-white/60 hover:bg-white hover:text-black focus-visible:bg-white focus-visible:text-black focus-visible:outline-none transition-colors cursor-pointer">Close</button>
               </header>
               <div
@@ -872,108 +998,6 @@ export default function GameDetail() {
     );
   })();
 
-  /* ── Action rail (rendered on desktop aside + inline on mobile) ── */
-  const rail = game && (
-    <div className="flex flex-col gap-5">
-      {/* Framed cover */}
-      {game.cover?.image_id && (
-        <div className="border border-white/20 bg-black">
-          <img
-            src={img(game.cover.image_id, 'cover_big')}
-            alt={game.name}
-            className="w-full aspect-[3/4] object-cover block"
-          />
-        </div>
-      )}
-
-      {/* Status */}
-      <div>
-        <div className="lh-label text-white/60 mb-2">Status</div>
-        <div className="border border-white/15 flex flex-col">
-          {isUnreleased ? (
-            <StateRow
-              label="Unreleased"
-              color={statusColor('Unreleased')}
-              active={!!libEntry}
-              onClick={() => libEntry ? handleRemove() : (persist({ status: 'Unreleased' }), toast('Added to library'))}
-            />
-          ) : (
-            STATUSES.map(s => (
-              <StateRow
-                key={s.key}
-                label={s.key}
-                color={s.color}
-                active={libEntry?.status === s.key}
-                activeLabel={`remove ${game.name} from library`}
-                onClick={() => handleStatus(s.key)}
-              />
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* Priority — everything except Beaten */}
-      {libEntry && libEntry.status !== 'Beaten' && (
-        <div>
-          <div className="lh-label text-white/60 mb-2">Priority</div>
-          <div className="border border-white/15 flex flex-col">
-            {PRIORITIES.map(p => (
-              <StateRow
-                group="priority"
-                activeLabel={`clear priority for ${game.name}`}
-                key={p.key}
-                label={p.key}
-                color={p.color}
-                active={libEntry?.priority === p.key}
-                onClick={() => handlePriority(p.key)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Rating — Beaten only */}
-      {libEntry?.status === 'Beaten' && (
-        <div>
-          <div className="lh-label text-white/60 mb-2">Rating</div>
-          <div className="border border-white/15 flex flex-col">
-            {FEELS.map(f => (
-              <StateRow
-                group="rating"
-                activeLabel={`clear rating for ${game.name}`}
-                key={f.key}
-                label={f.key}
-                color={f.color}
-                active={libEntry?.feel === f.key}
-                onClick={() => handleFeel(f.key)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {completedBlock}
-
-      <PlatformSection
-        game={game}
-        userPlatforms={userPlatforms}
-        selectedKeys={selectedPlatKeys}
-        onToggle={togglePlatform}
-      />
-
-      {collectionsBlock}
-
-      {libEntry && (
-        <button
-          onClick={handleRemove}
-          className="lh-label w-full px-3 py-2.5 border border-white/15 text-[var(--destructive)] hover:bg-[var(--destructive-hover)] hover:text-black focus-visible:bg-[var(--destructive-hover)] focus-visible:text-black focus-visible:outline-none transition-colors cursor-pointer text-left"
-        >
-          Remove from Library
-        </button>
-      )}
-    </div>
-  );
-
   /* ── Loading skeleton ── */
   if (loading) {
     return (
@@ -1017,19 +1041,22 @@ export default function GameDetail() {
 
   const heroMedia = derived.media?.find(m => m.type === 'image') || null;
   const hasHeroStage = Boolean(derived.heroId || heroMedia || derived.media?.length);
+  const openMedia = (i) => { setMediaIdx(i); setVideoPlaying(false); setMediaModalOpen(true); };
+  /* Notes follow the lead block where the lead is about something else; while
+     playing or once done, the lead block carries them itself. */
+  const notesSection = libEntry && (mode === 'plan' || mode === 'waiting');
+  const hasConnections = connections.franchises.length > 0 || connections.collections.length > 0 || connections.events.length > 0;
 
   return (
-    <div className="min-h-screen bg-black text-white animate-in fade-in duration-500">
+    /* pb clears the docked tracker bar below lg, so the last section is never
+       stuck under it. 3.5rem is the bar's own height. */
+    <div className="min-h-screen bg-black text-white animate-in fade-in duration-500 pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:pb-0">
       <ConfirmDialog {...confirmProps} />
 
-
       {hasHeroStage && (
-        /* min-h floors the hero at 200px: the mobile cover block below is pulled up a
-           FIXED 48px over this section, so on a short viewport (landscape, small
-           webview) a 24vh hero shrinks until that band covers the media button's
-           glyph. Measured at 740x360: the hero was 86px and the glyph's centre hit
-           the cover block, not the button. */
-        <section className="relative w-full h-[24vh] min-h-[200px] md:h-[44vh] border-b border-white/15 bg-neutral-900 overflow-hidden lg:-mt-8">
+        /* min-h floors the hero at 200px so the cover pulled up over its bottom
+           edge never reaches the media button's glyph on a short viewport. */
+        <section className="relative w-full h-[28vh] min-h-[200px] md:h-[44vh] border-b border-white/15 bg-neutral-900 overflow-hidden lg:-mt-8">
           {derived.heroId || heroMedia ? (
             <img src={img(derived.heroId || heroMedia.id, '1080p')} alt={game.name} className="w-full h-full object-cover block" />
           ) : (
@@ -1037,24 +1064,17 @@ export default function GameDetail() {
           )}
           {derived.media.length > 0 && (
             <button
-              onClick={() => { setMediaIdx(0); setVideoPlaying(false); setMediaModalOpen(true); }}
+              onClick={() => openMedia(0)}
               aria-label={`Open ${game.name} media`}
-              /* z-20 so an interactive layer outranks a decorative one: the mobile
-                 cover block below is `relative z-10` and this section creates no
-                 stacking context, so without it the block hit-tests above the
-                 button and eats every tap in the hero's bottom 48px. */
+              /* z-20 so an interactive layer outranks the cover pulled up over the
+                 hero's bottom-left, which is `relative z-10`. */
               className="group absolute inset-0 z-20 flex items-center justify-center cursor-pointer focus-visible:outline-none"
             >
               <span className="w-16 h-16 bg-black border border-white/50 flex items-center justify-center text-white group-hover:bg-white group-hover:text-black group-focus-visible:bg-white group-focus-visible:text-black transition-colors">
                 <Play className="w-7 h-7 ml-0.5" fill="currentColor" />
               </span>
-              {/* right-4, not left-4. The mobile cover block is pulled up -mt-20 over
-                  the hero's bottom-left, so a left-anchored chip landed ON the poster —
-                  measured 91x21px of overlap at 375px, covering 83% of the cover's
-                  width across its top band. The product's whole thesis is that cover
-                  art is the only colour against black; a chrome label sitting on it is
-                  the one place that must not break. The poster is left-anchored, so
-                  the right edge is free at every width. */}
+              {/* Right, not left: the cover sits on the hero's bottom-left, and cover
+                  art is the one colour on the page a chrome label must not cover. */}
               <span className="absolute bottom-4 right-4 lh-label px-2 py-1 bg-black border border-white/25 text-white/70">Media · {derived.media.length}</span>
             </button>
           )}
@@ -1063,228 +1083,100 @@ export default function GameDetail() {
 
       <div className="content-container py-8">
 
-        {/* ── Mobile: poster overlaps the hero, quick facts alongside ── */}
-        {game.cover?.image_id && (
-          <div className={`lg:hidden flex gap-4 items-stretch relative z-10 mb-8 ${hasHeroStage ? '-mt-20' : ''}`}>
-            <div className="w-28 shrink-0 border border-white/20 bg-black self-start">
+        {/* ── Masthead: the poster beside the title, the way Explore's hero sets a
+            game. The cover is pulled up over the hero so the two read as one
+            plate; the title column starts below the art, so no type sits on it. */}
+        <div className="flex gap-4 md:gap-8 items-start mb-8">
+          {game.cover?.image_id && (
+            <div className={`relative z-10 w-24 sm:w-32 lg:w-44 shrink-0 border border-white/20 bg-black ${hasHeroStage ? '-mt-20 md:-mt-28' : ''}`}>
               <img
                 src={img(game.cover.image_id, 'cover_big')}
                 alt={game.name}
                 className="w-full aspect-[3/4] object-cover block"
               />
             </div>
-            {/* pt reserves the hero band (80px pull − 32px page padding) so text never sits on the image */}
-            <div className={`flex-1 min-w-0 flex flex-col justify-end gap-2.5 pb-1 ${hasHeroStage ? 'pt-12' : ''}`}>
-              {/* Released only. The public rating moved into Before You Decide,
-                  which on a phone renders a few hundred pixels below this — the
-                  same number twice on one screen, once as a caption and once as
-                  evidence. Evidence wins. */}
-              <Fact label="Released" value={derived.released || 'TBA'} />
-              
-            </div>
-          </div>
-        )}
+          )}
+          <PageHeader
+            className="min-w-0 flex-1"
+            back={{ label: 'Back', onClick: () => navigate(-1), ariaLabel: 'Go back to previous page' }}
+            titleClassName="text-3xl sm:text-4xl md:text-5xl lg:text-6xl"
+            title={game.name}
+            meta={[derived.year || 'TBA', derived.dev, derived.genres]}
+          />
+        </div>
 
-        {/* ── Title block — typography as architecture ── */}
-        <PageHeader
-          back={{ label: 'Back', onClick: () => navigate(-1), ariaLabel: 'Go back to previous page' }}
-          titleClassName="text-4xl md:text-6xl lg:text-7xl"
-          title={game.name}
-          meta={[derived.year, derived.dev, derived.genres]}
+        <TrackerBar
+          status={libEntry?.status || null}
+          statusColor={libEntry ? statusColor(libEntry.status) : null}
+          statusOptions={statusOptions}
+          onAddUnreleased={isUnreleased ? () => { persist({ status: 'Unreleased' }); toast('Added to library'); } : null}
+          second={secondSegment}
+          platformsLabel={platformsLabel}
+          onOpenPlatforms={() => setPlatformsOpen(true)}
+          collections={collectionsSegment}
+          moreOptions={moreOptions}
         />
 
-        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-12 lg:items-start">
+        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-12 lg:items-start">
 
-          {/* ── Left column ── */}
+          {/* ── Main column: the answer for you, then the game itself ── */}
           <div className="min-w-0">
+            <LeadBlock
+              mode={mode}
+              score={derived.score}
+              length={derived.length}
+              verdict={verdict}
+              libEntry={libEntry}
+              notes={notesEditor}
+              completed={completedInput}
+              priority={libEntry?.priority || null}
+              priorityColor={libEntry?.priority ? priorityColor(libEntry.priority) : null}
+              priorityPeers={priorityPeers}
+              feel={libEntry?.feel || null}
+              feelColor={libEntry?.feel ? feelColor(libEntry.feel) : null}
+              addedText={agoText(libEntry?.addedAt, nowMs)}
+              release={releaseFigure}
+              anticipation={anticipation}
+              shownAt={shownAt}
+            />
 
-            {/* ── Before you decide ────────────────────────────────────────
-                The case, above the decision. This page used to open with the
-                status strip — the control came before any reason to touch it —
-                and filed the two facts that actually decide the question, length
-                and rating, as rows 8 and 9 of a nine-row metadata table below
-                the fold.
-
-                Everything here is counted: the rating carries its own sample
-                size, the length is IGDB's, and the shelf lines are read off your
-                own library. A line with nothing true to say is absent, never
-                hedged. Hidden once a game is beaten — there is nothing left to
-                decide, and the page goes back to being a record. */}
-            {libEntry?.status !== 'Beaten'
-              && (derived.rating || derived.ttbAll || verdict?.fit || verdict?.neighbours?.length) && (
-              <section className="mb-10">
-                <SectionHeader>Before You Decide</SectionHeader>
-                <div className="border border-white/15">
-                  {/* Taste first: whether this is for someone who plays what you
-                      play is the question underneath the other two. The words are
-                      reasonsFor's, verbatim, so this page, Pick For Me and Explore
-                      cannot phrase your taste three different ways. */}
-                  {verdict?.fit?.thin && (
-                    <IndexRow label="Your Taste" value="Not enough on your shelves yet to compare" />
-                  )}
-                  {(verdict?.fit?.reasons || []).map((r, i) => (
-                    <IndexRow key={r} label={i === 0 ? 'Your Taste' : ''} value={r} />
-                  ))}
-                  {verdict?.fit && !verdict.fit.thin && verdict.fit.reasons.length === 0 && (
-                    /* An honest negative. A page that can only ever argue for
-                       adding a game is a storefront. */
-                    <IndexRow label="Your Taste" value="Nothing here matches what you usually play" />
-                  )}
-                  <IndexRow label="Rated" value={derived.rating} />
-                  <IndexRow label="Length" value={derived.ttbAll} />
-                  <IndexRow label="Your Queue" value={verdict?.against} />
-                  {(verdict?.neighbours || []).map((line, i) => (
-                    <IndexRow key={line} label={i === 0 ? 'Your Shelf' : ''} value={line} />
-                  ))}
-                </div>
+            {notesSection && (
+              <section className="mb-12" aria-labelledby="notes-heading">
+                <SectionHeader id="notes-heading">Notes</SectionHeader>
+                {notesEditor}
               </section>
             )}
 
-            {/* Summary — magazine body */}
-            {game.summary && (
-              <section className="mb-10">
-                <SectionHeader>Overview</SectionHeader>
-                <p className="text-[15px] leading-relaxed text-white/70 max-w-prose">
-                  {game.summary}
-                </p>
-              </section>
-            )}
+            <MediaStrip media={derived.media} name={game.name} onOpen={openMedia} />
 
-            {/* ── Mobile controls — states as horizontal strips ── */}
-            <div className="lg:hidden mb-10 space-y-5">
-
-              {/* Status strip */}
-              <div>
-                <div className="lh-label text-white/60 mb-2">Status</div>
-                <div className="flex flex-wrap sm:flex-nowrap sm:overflow-x-auto sm:no-scrollbar border-t border-l border-white/15">
-                  {isUnreleased ? (
-                    <StripCell
-                      label="Unreleased"
-                      color={statusColor('Unreleased')}
-                      active={!!libEntry}
-                      onClick={() => libEntry ? handleRemove() : (persist({ status: 'Unreleased' }), toast('Added to library'))}
-                    />
-                  ) : (
-                    STATUSES.map(s => (
-                      <StripCell
-                        key={s.key}
-                        label={s.key}
-                        color={s.color}
-                        active={libEntry?.status === s.key}
-                        activeLabel={`remove ${game.name} from library`}
-                        onClick={() => handleStatus(s.key)}
-                      />
-                    ))
-                  )}
-                </div>
-              </div>
-
-              {/* Priority strip — everything except Beaten */}
-              {libEntry && libEntry.status !== 'Beaten' && (
-                <div>
-                  <div className="lh-label text-white/60 mb-2">Priority</div>
-                  <div className="flex flex-wrap sm:flex-nowrap sm:overflow-x-auto sm:no-scrollbar border-t border-l border-white/15">
-                    {PRIORITIES.map(p => (
-                      <StripCell
-                        group="priority"
-                        activeLabel={`clear priority for ${game.name}`}
-                        key={p.key}
-                        label={p.key}
-                        color={p.color}
-                        active={libEntry?.priority === p.key}
-                        onClick={() => handlePriority(p.key)}
-                      />
+            {(game.summary || derived.themeLinks.length > 0) && (
+              <section className="mb-12" aria-labelledby="overview-heading">
+                <SectionHeader id="overview-heading">Overview</SectionHeader>
+                {game.summary && (
+                  <p className="text-[15px] leading-relaxed text-white/70 max-w-prose m-0">{game.summary}</p>
+                )}
+                {(derived.themeLinks.length > 0 || derived.perspectives) && (
+                  <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2 mt-5">
+                    {derived.themeLinks.length > 0 && <span className="lh-label text-white/60">Themes</span>}
+                    {derived.themeLinks.map(t => (
+                      <span key={t.id} className="text-sm"><TagLink to={t.to}>{t.label}</TagLink></span>
                     ))}
+                    {derived.perspectives && (
+                      <span className="text-sm text-white/70">{derived.perspectives}</span>
+                    )}
                   </div>
-                </div>
-              )}
-
-              {/* Rating strip — Beaten only */}
-              {libEntry?.status === 'Beaten' && (
-                <div>
-                  <div className="lh-label text-white/60 mb-2">Rating</div>
-                  <div className="flex flex-wrap sm:flex-nowrap sm:overflow-x-auto sm:no-scrollbar border-t border-l border-white/15">
-                    {FEELS.map(f => (
-                      <StripCell
-                        group="rating"
-                        activeLabel={`clear rating for ${game.name}`}
-                        key={f.key}
-                        label={f.key}
-                        color={f.color}
-                        active={libEntry?.feel === f.key}
-                        onClick={() => handleFeel(f.key)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {completedBlock}
-
-              <PlatformSection
-                game={game}
-                userPlatforms={userPlatforms}
-                selectedKeys={selectedPlatKeys}
-                onToggle={togglePlatform}
-              />
-
-              {libEntry && (
-                <button
-                  onClick={handleRemove}
-                  className="lh-label w-full px-3 py-2.5 border border-white/15 text-[var(--destructive)] hover:bg-[var(--destructive-hover)] hover:text-black transition-colors cursor-pointer text-left"
-                >
-                  Remove from Library
-                </button>
-              )}
-            </div>
-
-            {/* Notes / Review — personal marginalia on the library entry */}
-            {libEntry && (
-              <section className="mb-10">
-                <SectionHeader>{libEntry.status === 'Beaten' ? 'Review' : 'Notes'}</SectionHeader>
-                <textarea
-                  id="game-user-notes"
-                  aria-label={libEntry.status === 'Beaten' ? 'Review notes' : 'Personal game notes'}
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  maxLength={1000}
-                  placeholder={libEntry.status === 'Beaten'
-                    ? 'Write your review…'
-                    : 'Where you left off, things to remember…'}
-                  className="w-full min-h-28 bg-black border border-white/40 p-3 text-[15px] leading-relaxed text-white/80 placeholder:text-white/50 focus:border-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white outline-none resize-y block"
-                />
-                <div className="flex items-center justify-between mt-2">
-                  {/* --warning, not text-amber-400. Approaching the limit is the
-                      "recoverable problem worth looking at" role the token exists
-                      for, and a Tailwind amber is that role in disguise — it drifts
-                      the moment the token moves. Measured 14.56:1 on black. */}
-                  <span className={`lh-label tabular-nums ${notes.length >= 950 ? 'text-[var(--warning)] font-bold' : 'text-white/60'}`}>
-                    {notes.length}/1000
-                  </span>
-                  {notesDirty && (
-                    <div className="flex">
-                      <button
-                        onClick={() => setNotes(libEntry.notes || '')}
-                        className="lh-label px-3 py-2 border border-white/15 text-white/60 hover:text-white focus-visible:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white transition-colors cursor-pointer"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleSaveNotes}
-                        className="lh-label px-3 py-2 border border-l-0 border-white/15 bg-white text-black hover:bg-white/70 focus-visible:bg-white/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white transition-colors cursor-pointer"
-                      >
-                        Save
-                      </button>
-                    </div>
-                  )}
-                </div>
+                )}
               </section>
             )}
 
+            {/* Awards — standalone table: prominent year + ceremony, wins on the right */}
+            <AwardsSection gameId={game.id} />
+          </div>
 
-            {/* Index — metadata as a bordered table; entries link to their category pages */}
-            <section className="mb-10">
-              <SectionHeader>Index</SectionHeader>
+          {/* ── Reference column: the record of the game, for looking things up ── */}
+          <div className="min-w-0">
+            <section className="mb-12" aria-labelledby="details-heading">
+              <SectionHeader id="details-heading">Details</SectionHeader>
               <div className="border border-white/15">
                 <IndexRow label="Released" value={derived.released || 'TBA'} />
                 <IndexLinks label="Developer" items={derived.devLink} />
@@ -1296,13 +1188,9 @@ export default function GameDetail() {
               </div>
             </section>
 
-            {/* Awards — standalone table: prominent year + ceremony, wins on the right */}
-            <AwardsSection gameId={game.id} />
-
-            {/* Appears In — franchise, collections, events */}
-            {(connections.franchises.length > 0 || connections.collections.length > 0 || connections.events.length > 0) && (
-              <section className="mb-10">
-                <SectionHeader>Appears In</SectionHeader>
+            {hasConnections && (
+              <section className="mb-12" aria-labelledby="appears-heading">
+                <SectionHeader id="appears-heading">Appears In</SectionHeader>
                 <div className="border border-white/15">
                   <IndexLinks
                     label="Franchise"
@@ -1319,15 +1207,54 @@ export default function GameDetail() {
                 </div>
               </section>
             )}
-
           </div>
-
-          {/* ── Right rail (desktop) ── */}
-          <aside className="hidden lg:block lg:sticky lg:top-8">
-            {rail}
-          </aside>
         </div>
       </div>
+
+      {/* Platforms: where it runs, where it is sold, and which of those are
+          yours. A dialog rather than a section, because it is a control you set
+          once, and the page used to render the whole area twice over. */}
+      {platformsOpen && (
+        <Dialog
+          open
+          onClose={() => setPlatformsOpen(false)}
+          label={`Platforms for ${game.name}`}
+          panelClassName="w-full max-w-lg max-h-[85dvh] flex flex-col"
+          alignClassName="items-end sm:items-center justify-center"
+          className="p-0 sm:p-4"
+        >
+          <header className="h-12 shrink-0 flex items-center border-b border-white/15 pl-4">
+            <span className="lh-label text-white/70">Platforms</span>
+            <div className="flex-1" />
+            <button
+              onClick={() => setPlatformsOpen(false)}
+              className="lh-label h-12 px-4 border-l border-white/15 text-white/60 hover:bg-white hover:text-black focus-visible:bg-white focus-visible:text-black focus-visible:outline-none transition-colors cursor-pointer"
+            >
+              Done
+            </button>
+          </header>
+          <div className="p-4 overflow-y-auto">
+            <PlatformSection
+              game={game}
+              userPlatforms={userPlatforms}
+              selectedKeys={selectedPlatKeys}
+              onToggle={togglePlatform}
+            />
+          </div>
+        </Dialog>
+      )}
+
+      {transferOpen && libEntry && (
+        <TransferDataModal
+          sourceGame={libEntry}
+          onClose={() => setTransferOpen(false)}
+          onComplete={() => {
+            setTransferOpen(false);
+            setLibEntry(getLibrary().find(g => String(g.id) === String(id)) || null);
+            toast('Data transferred');
+          }}
+        />
+      )}
 
       {mediaLightbox}
     </div>

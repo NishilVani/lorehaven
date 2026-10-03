@@ -44,8 +44,10 @@ export const ToastContainer = () => {
       role="status"
       aria-live="polite"
       /* --toast-right lets a page that docks something in this corner move the
-         stack clear of it; Duplicates sets it while its preview rail is open. */
-      className="fixed right-[var(--toast-right,1rem)] bottom-4 flex flex-col-reverse gap-3 pointer-events-none"
+         stack clear of it; Duplicates sets it while its preview rail is open.
+         --toast-bottom does the same below lg for a page with a bottom bar; the
+         game page sets it while its tracker bar is docked there. */
+      className="fixed right-[var(--toast-right,1rem)] bottom-[var(--toast-bottom,1rem)] lg:bottom-4 flex flex-col-reverse gap-3 pointer-events-none"
       /* Bottom-right, one anchor. Top-anchored, the toast sat on the header's
          action buttons at desktop and covered the back link and half the h1 at
          375; three phases specified three different top offsets, one of them an
