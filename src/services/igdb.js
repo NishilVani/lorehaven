@@ -308,11 +308,15 @@ export const searchExternalGameSources = async (query) => {
     }
 };
 
-/* v3: added websites.url and websites.type for the store links. A new namespace
-   rather than a KV_CACHE_VERSION bump, so only game pages refetch, not every
-   cached list. Without it a page cached before this change would show no store
-   links for up to a week. */
-export const getGameById = withCache('gameById.v3', TTL.WEEK, async (id) => {
+/* v4: the game's family and neighbours -- the original it is a version of
+   (parent_game, version_parent, version_title), its expansions, DLC, remakes and
+   remasters, IGDB's similar games -- plus the storyline and every per-platform
+   release date. All expanded fields on this one /games call, so the page costs
+   no extra request. v3 added websites for the store links. Each bump is a new
+   namespace rather than a KV_CACHE_VERSION bump, so only game pages refetch;
+   without it a page cached before the change shows none of it for a week. */
+const RELATED = (k) => `${k}.name, ${k}.cover.image_id, ${k}.first_release_date, ${k}.game_type`;
+export const getGameById = withCache('gameById.v4', TTL.WEEK, async (id) => {
 
     try {
         const response = await fetch('/api/games', {
@@ -320,7 +324,7 @@ export const getGameById = withCache('gameById.v3', TTL.WEEK, async (id) => {
             headers: {
                 'Content-Type': 'text/plain'
             },
-            body: `fields name, game_type, cover.image_id, cover.width, cover.height, artworks.image_id, artworks.width, artworks.height, artworks.alpha_channel, artworks.artwork_type, screenshots.image_id, screenshots.width, screenshots.height, videos.name, videos.video_id, summary, genres.name, themes.name, game_modes.name, player_perspectives.name, platforms.id, platforms.name, platforms.abbreviation, platforms.platform_logo.image_id, age_ratings.rating, age_ratings.category, game_engines.name, first_release_date, total_rating, total_rating_count, aggregated_rating, aggregated_rating_count, hypes, follows, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, franchise, franchises, collection, collections, external_games.category, external_games.external_game_source, external_games.uid, external_games.url, websites.url, websites.type; where id = ${id};`
+            body: `fields name, game_type, cover.image_id, cover.width, cover.height, artworks.image_id, artworks.width, artworks.height, artworks.alpha_channel, artworks.artwork_type, screenshots.image_id, screenshots.width, screenshots.height, videos.name, videos.video_id, summary, genres.name, themes.name, game_modes.name, player_perspectives.name, platforms.id, platforms.name, platforms.abbreviation, platforms.platform_logo.image_id, age_ratings.rating, age_ratings.category, game_engines.name, first_release_date, total_rating, total_rating_count, aggregated_rating, aggregated_rating_count, hypes, follows, involved_companies.company.name, involved_companies.developer, involved_companies.publisher, franchise, franchises, collection, collections, external_games.category, external_games.external_game_source, external_games.uid, external_games.url, websites.url, websites.type, storyline, version_title, ${RELATED('parent_game')}, ${RELATED('version_parent')}, ${RELATED('similar_games')}, ${RELATED('dlcs')}, ${RELATED('expansions')}, ${RELATED('standalone_expansions')}, ${RELATED('remakes')}, ${RELATED('remasters')}, release_dates.date, release_dates.human, release_dates.platform.abbreviation, release_dates.platform.name; where id = ${id};`
         });
 
         const data = await response.json();

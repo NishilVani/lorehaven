@@ -119,7 +119,34 @@ const LONG_NAME =
   'Definitive Remastered Anniversary Ultimate Game of the Year Edition Part Two';
 const GAME_LONG = { id: 5554, name: LONG_NAME, first_release_date: 1431993600 };
 
-const STUBS = [GAME_FULL, GAME_BARE, GAME_BROKEN_IMG, GAME_LONG];
+/** An expansion with relatives on every side: the phase-two fields. */
+const rel = (id: number, name: string, year: number) =>
+  ({ id, name, first_release_date: Date.UTC(year, 0, 1) / 1000, cover: { image_id: `cov${id}` } });
+const GAME_FAMILY = {
+  ...GAME_FULL,
+  id: 5557,
+  name: 'Stub Expansion',
+  game_type: 2,
+  parent_game: rel(5551, 'Stub Complete Edition', 2015),
+  storyline: 'The long version of the story, which the page keeps folded away.',
+  expansions: [rel(7002, 'Second Expansion', 2017), rel(7001, 'First Expansion', 2016)],
+  remasters: [rel(7003, 'Stub Remastered', 2022)],
+  dlcs: Array.from({ length: 14 }, (_, i) => rel(7100 + i, `Pack ${i + 1}`, 2016)),
+  similar_games: [rel(7201, 'Neighbour One', 2014), rel(7202, 'Neighbour Two', 2018)],
+  release_dates: [
+    { date: 1431993600, human: 'May 19, 2015', platform: { abbreviation: 'PC' } },
+    { date: 1431993600, human: 'May 19, 2015', platform: { abbreviation: 'PC' } },
+    { date: 1611792000, human: 'Jan 28, 2021', platform: { abbreviation: 'Switch' } },
+  ],
+  websites: [
+    { type: 1, url: 'https://stub.example/official' },
+    { type: 3, url: 'https://en.wikipedia.org/wiki/Stub' },
+    { type: 13, url: 'https://store.steampowered.com/app/1' },
+    { type: 14, url: 'javascript:alert(1)' },
+  ],
+};
+
+const STUBS = [GAME_FULL, GAME_BARE, GAME_BROKEN_IMG, GAME_LONG, GAME_FAMILY];
 
 /** GameDetail is done when the skeleton is gone and the h1 is the game name. */
 async function detailReady(page: Page, name: string | RegExp) {
@@ -1195,6 +1222,84 @@ async function stubConnections(page: Page) {
     return json([]);
   });
 }
+
+test.describe('/game/:id — family, story, dates and links', () => {
+  test.beforeEach(async ({ page }) => { await stubIgdb(page, STUBS); });
+
+  test('an expansion says what it expands, linked to the original', async ({ page }) => {
+    await page.goto('/game/5557');
+    await detailReady(page, 'Stub Expansion');
+    await expect(page.getByText('Expansion for')).toBeVisible();
+    // An <a>, unlike the Original card below it, which is a GameCard.
+    await expect(page.locator('a[href="/game/5551"]', { hasText: 'Stub Complete Edition' })).toBeVisible();
+  });
+
+  test('The Family groups relatives in release order and caps a long DLC row', async ({ page }) => {
+    await page.goto('/game/5557');
+    await detailReady(page, 'Stub Expansion');
+    const family = page.locator('section:has(h2:text-is("The Family"))');
+    await expect(family).toBeVisible();
+    for (const h of ['Original', 'Expansions', 'Remakes and Remasters', 'DLC']) {
+      await expect(family.getByRole('heading', { level: 3, name: h })).toBeVisible();
+    }
+    // Expansions sorted by release date, not IGDB's order.
+    const exp = family.locator('div:has(> div > h3:text-is("Expansions")) li [role="link"]');
+    await expect(exp).toHaveCount(2);
+    await expect(exp.nth(0)).toHaveAttribute('aria-label', 'First Expansion');
+    await expect(exp.nth(1)).toHaveAttribute('aria-label', 'Second Expansion');
+    // Fourteen DLC: twelve cards and a tile counting the rest.
+    const dlc = family.locator('div:has(> div > h3:text-is("DLC"))');
+    await expect(dlc.locator('li [role="link"]')).toHaveCount(12);
+    await expect(dlc.getByText('And 2 more on IGDB')).toBeVisible();
+  });
+
+  test('a relative card opens that game', async ({ page }) => {
+    await page.goto('/game/5557');
+    await detailReady(page, 'Stub Expansion');
+    await page.locator('section:has(h2:text-is("The Family")) [role="link"][aria-label="Stub Remastered"]').click();
+    await expect(page).toHaveURL(/\/game\/7003$/);
+  });
+
+  test('Similar Games lists IGDB\'s neighbours', async ({ page }) => {
+    await page.goto('/game/5557');
+    await detailReady(page, 'Stub Expansion');
+    const similar = page.locator('section:has(h2:text-is("Similar Games"))');
+    await expect(similar.locator('[role="link"][aria-label="Neighbour One"]')).toBeVisible();
+    await expect(similar.locator('[role="link"][aria-label="Neighbour Two"]')).toBeVisible();
+  });
+
+  test('the storyline is folded until asked for', async ({ page }) => {
+    await page.goto('/game/5557');
+    await detailReady(page, 'Stub Expansion');
+    const story = page.getByText('The long version of the story');
+    await expect(story).toBeHidden();
+    await page.getByText('Read the story').click();
+    await expect(story).toBeVisible();
+    await page.getByText('Hide the story').click();
+    await expect(story).toBeHidden();
+  });
+
+  test('Details lists each platform once when the dates differ, and only web links', async ({ page }) => {
+    await page.goto('/game/5557');
+    await detailReady(page, 'Stub Expansion');
+    const details = page.locator('section:has(h2:text-is("Details"))');
+    await expect(details.getByText('By Platform')).toBeVisible();
+    await expect(details.getByText('Jan 28, 2021')).toBeVisible();
+    await expect(details.getByText('May 19, 2015', { exact: false })).toHaveCount(2); // Released + PC, once each
+    await expect(details.getByRole('link', { name: 'Official Site' })).toHaveAttribute('href', 'https://stub.example/official');
+    await expect(details.getByRole('link', { name: 'Wikipedia' })).toBeVisible();
+    // A store link belongs to the store rows; a javascript: URL is never a link.
+    await expect(details.getByRole('link', { name: 'Reddit' })).toHaveCount(0);
+  });
+
+  test('a game whose platforms all released together shows no By Platform row and no Family', async ({ page }) => {
+    await page.goto('/game/5551');
+    await detailReady(page, 'Stub Complete Edition');
+    await expect(page.getByText('By Platform')).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'The Family' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Similar Games' })).toHaveCount(0);
+  });
+});
 
 test.describe('/game/:id — Appears In', () => {
   test('franchise, collection and event links each leave for their own route', async ({ page }) => {

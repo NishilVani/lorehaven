@@ -24,6 +24,9 @@ import LeadBlock from '../../components/GameDetail/LeadBlock';
 import { leadMode } from '../../components/GameDetail/leadMode';
 import NotesEditor from '../../components/GameDetail/NotesEditor';
 import MediaStrip from '../../components/GameDetail/MediaStrip';
+import RelatedRow from '../../components/GameDetail/RelatedRow';
+import { versionOf, familyOf, similarOf, releasesByPlatform, datesDiffer, linksOf } from '../../components/GameDetail/related';
+import ExternalLink from '../../components/ui/ExternalLink';
 import { SectionHeader, IndexRow, IndexLinks, TagLink } from '../../components/GameDetail/parts';
 import TransferDataModal from '../../components/games/TransferDataModal';
 import Dialog from '../../components/ui/Dialog';
@@ -214,6 +217,11 @@ export default function GameDetail() {
       length: lengthRead(game.game_time_to_beat),
       themeLinks: game.themes?.map(t => ({ id: t.id, label: t.name, to: `/games/theme/${t.id}` })) || [],
       perspectives: game.player_perspectives?.map(p => p.name).join(', ') || null,
+      version: versionOf(game),
+      family: familyOf(game),
+      similar: similarOf(game),
+      platformDates: releasesByPlatform(game),
+      links: linksOf(game),
       media: [
         ...(game.videos?.filter(v => v.video_id).slice(0, 6) || []).map(v => ({ type: 'video', id: v.video_id, name: v.name })),
         ...(game.screenshots?.slice(0, 12) || []).map(s => ({ type: 'image', id: s.image_id })),
@@ -738,9 +746,14 @@ export default function GameDetail() {
     if (!game?.first_release_date) return { date: null };
     const when = new Date(game.first_release_date * 1000);
     const days = Math.ceil((when.getTime() - nowMs) / 86400000);
+    /* When the platforms do not all land together, the caption says where it
+       lands when, which is the thing someone waiting on one platform wants. */
+    const split = datesDiffer(derived.platformDates || [])
+      ? derived.platformDates.map(r => `${r.platform} ${r.human}`).join(' · ')
+      : null;
     return {
       date: when.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
-      detail: days > 1 ? `In ${days} days.` : days === 1 ? 'Tomorrow.' : 'Today.',
+      detail: split || (days > 1 ? `In ${days} days.` : days === 1 ? 'Tomorrow.' : 'Today.'),
     };
   })();
   /* follows, falling back to hypes: IGDB counts both, and for a game that is
@@ -1096,13 +1109,24 @@ export default function GameDetail() {
               />
             </div>
           )}
-          <PageHeader
-            className="min-w-0 flex-1"
-            back={{ label: 'Back', onClick: () => navigate(-1), ariaLabel: 'Go back to previous page' }}
-            titleClassName="text-3xl sm:text-4xl md:text-5xl lg:text-6xl"
-            title={game.name}
-            meta={[derived.year || 'TBA', derived.dev, derived.genres]}
-          />
+          <div className="min-w-0 flex-1">
+            <PageHeader
+              className="mb-0"
+              back={{ label: 'Back', onClick: () => navigate(-1), ariaLabel: 'Go back to previous page' }}
+              titleClassName="text-3xl sm:text-4xl md:text-5xl lg:text-6xl"
+              title={game.name}
+              meta={[derived.year || 'TBA', derived.dev, derived.genres]}
+            />
+            {/* What this is a version of: an edition, a remaster, an expansion.
+                The page used to present Blood and Wine with nothing saying it
+                needs The Witcher 3 to play. */}
+            {derived.version && (
+              <p className="text-sm text-white/70 mt-3 mb-0">
+                {derived.version.prefix}{' '}
+                <TagLink to={`/game/${derived.version.game.id}`}>{derived.version.game.name}</TagLink>
+              </p>
+            )}
+          </div>
         </div>
 
         <TrackerBar
@@ -1149,11 +1173,23 @@ export default function GameDetail() {
 
             <MediaStrip media={derived.media} name={game.name} onOpen={openMedia} />
 
-            {(game.summary || derived.themeLinks.length > 0) && (
+            {(game.summary || game.storyline || derived.themeLinks.length > 0) && (
               <section className="mb-12" aria-labelledby="overview-heading">
                 <SectionHeader id="overview-heading">Overview</SectionHeader>
                 {game.summary && (
                   <p className="text-[15px] leading-relaxed text-white/70 max-w-prose m-0">{game.summary}</p>
+                )}
+                {/* The storyline runs to several paragraphs and spoils some of
+                    them, so it waits behind a disclosure rather than doubling
+                    the Overview for everyone. */}
+                {game.storyline && (
+                  <details className="group mt-4 max-w-prose">
+                    <summary className="lh-label text-white/60 hover:text-white cursor-pointer list-none py-2 -my-2 inline-flex items-center gap-2 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white">
+                      <span className="group-open:hidden">Read the story</span>
+                      <span className="hidden group-open:inline">Hide the story</span>
+                    </summary>
+                    <p className="text-[15px] leading-relaxed text-white/70 mt-3 mb-0 whitespace-pre-line">{game.storyline}</p>
+                  </details>
                 )}
                 {(derived.themeLinks.length > 0 || derived.perspectives) && (
                   <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2 mt-5">
@@ -1169,8 +1205,22 @@ export default function GameDetail() {
               </section>
             )}
 
+            {derived.family.length > 0 && (
+              <section className="mb-12" aria-labelledby="family-heading">
+                <SectionHeader id="family-heading">The Family</SectionHeader>
+                {derived.family.map(row => <RelatedRow key={row.label} {...row} />)}
+              </section>
+            )}
+
             {/* Awards — standalone table: prominent year + ceremony, wins on the right */}
             <AwardsSection gameId={game.id} />
+
+            {derived.similar.length > 0 && (
+              <section className="mb-12" aria-labelledby="similar-heading">
+                <SectionHeader id="similar-heading">Similar Games</SectionHeader>
+                <RelatedRow label="From IGDB" games={derived.similar} />
+              </section>
+            )}
           </div>
 
           {/* ── Reference column: the record of the game, for looking things up ── */}
@@ -1179,12 +1229,40 @@ export default function GameDetail() {
               <SectionHeader id="details-heading">Details</SectionHeader>
               <div className="border border-white/15">
                 <IndexRow label="Released" value={derived.released || 'TBA'} />
+                {datesDiffer(derived.platformDates) && (
+                  <IndexRow
+                    label="By Platform"
+                    value={
+                      <span className="flex flex-col items-end gap-1">
+                        {derived.platformDates.map(r => (
+                          <span key={r.platform}><span className="text-white/60">{r.platform}</span> {r.human}</span>
+                        ))}
+                      </span>
+                    }
+                  />
+                )}
                 <IndexLinks label="Developer" items={derived.devLink} />
                 <IndexLinks label="Publisher" items={derived.pubLink} />
                 <IndexLinks label="Genres" items={derived.genreLinks} />
                 <IndexLinks label="Platforms" items={derived.platformLinks} />
                 <IndexLinks label="Modes" items={derived.modeLinks} />
                 <IndexLinks label="Engine" items={derived.engineLinks} />
+                {derived.links.length > 0 && (
+                  <IndexRow
+                    label="Links"
+                    value={derived.links.map((l, i) => (
+                      <span key={l.label}>
+                        {i > 0 && <span className="text-white/50"> · </span>}
+                        <ExternalLink
+                          href={l.url}
+                          className="text-white underline decoration-white/30 underline-offset-4 p-1 -m-1 hover:bg-white hover:text-black hover:decoration-transparent focus-visible:bg-white focus-visible:text-black focus-visible:decoration-transparent focus-visible:outline-none transition-colors"
+                        >
+                          {l.label}
+                        </ExternalLink>
+                      </span>
+                    ))}
+                  />
+                )}
               </div>
             </section>
 
