@@ -410,7 +410,7 @@ function answer(path: string, body: string): Answer {
     case '/api/franchises': return franchises(body);
     case '/api/collections': return collections(body);
     case '/api/collection_memberships': return memberships(body);
-    case '/api/events': return events(body);
+    case '/api/showcases': return events(body);
     case '/api/release_dates': return releaseDates(body);
     /* game_time_to_beats, collection_types, external_game_sources and the rest:
        an empty answer is a valid answer, and no spec asserts on them. */

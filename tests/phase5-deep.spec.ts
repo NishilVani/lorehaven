@@ -101,7 +101,7 @@ async function stubIgdb(page: Page, opts: IgdbOpts = {}): Promise<Captured[]> {
 
     if (path.endsWith('/release_dates')) {
       payload = opts.releaseDates ? opts.releaseDates(offset) : [];
-    } else if (path.endsWith('/events')) {
+    } else if (path.endsWith('/showcases')) {
       const byId = /where id = (\d+)/.exec(body);
       if (byId) payload = opts.eventById ? opts.eventById(byId[1]) : [];
       else if (/where games = \(/.test(body)) payload = [];   // getAnnouncedGames' second call
@@ -487,20 +487,20 @@ test.describe('/events', () => {
     await settled(page, 'Events');
     await page.getByRole('button', { name: 'Past' }).click();
     await expect(page.getByRole('button', { name: 'Past' })).toHaveAttribute('aria-pressed', 'true');
-    await expect.poll(() => seen.filter(s => s.path.endsWith('/events')).at(-1)!.body)
+    await expect.poll(() => seen.filter(s => s.path.endsWith('/showcases')).at(-1)!.body)
       .toMatch(/start_time <= \d+/);
-    expect(seen.filter(s => s.path.endsWith('/events')).at(-1)!.body).toMatch(/sort start_time desc/);
+    expect(seen.filter(s => s.path.endsWith('/showcases')).at(-1)!.body).toMatch(/sort start_time desc/);
     await expect(page.getByText('Next up')).toHaveCount(0);
   });
 
   test('19 search debounces to ONE request and narrows the list', async ({ page }) => {
     const seen = await open(page);
     await settled(page, 'Events');
-    const before = seen.filter(s => s.path.endsWith('/events')).length;
+    const before = seen.filter(s => s.path.endsWith('/showcases')).length;
     await page.getByRole('textbox', { name: 'Search events' }).pressSequentially('Direct', { delay: 40 });
     await expect(page.getByText('Stub Direct Beta')).toBeVisible();
     await expect(page.getByText('Stub Showcase Alpha')).toHaveCount(0);
-    const after = seen.filter(s => s.path.endsWith('/events')).length;
+    const after = seen.filter(s => s.path.endsWith('/showcases')).length;
     expect(after - before).toBe(1);            // 6 keystrokes, 1 request
     expect(seen.at(-1)!.body).toMatch(/name ~ \*"Direct"\*/);
   });
@@ -581,7 +581,7 @@ test.describe('/events', () => {
     await seedCreds(page);
     await blockCloud(page);
     let hold: (() => void) | null = null;
-    await page.route('**/api/events', async (route) => {
+    await page.route('**/api/showcases', async (route) => {
       const o = Number(/offset (\d+)/.exec(route.request().postData() || '')?.[1] ?? 0);
       if (o > 0) await new Promise<void>(r => { hold = r; });
       await route.fulfill({

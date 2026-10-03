@@ -42,6 +42,17 @@ const ALLOWED = new Set([
   'game_modes', 'game_time_to_beats', 'release_dates', 'multiquery',
 ]);
 
+/* Paths the app calls under another name, and the IGDB endpoint each stands for.
+ *
+ * Content blockers drop any request whose path looks like analytics, and
+ * EasyPrivacy-style lists match `/api/events` -- the path half the analytics
+ * tools on the web post to. With uBlock Origin or AdGuard on, Firefox reported
+ * every events query as "CORS request did not succeed" with no status, the
+ * game page's Appears In lost its events and /events came up empty; a clean
+ * profile got 200 on every one. The app now asks for `showcases`, which no list
+ * matches. `events` stays allowed for builds already installed. */
+const ALIASES = { showcases: 'events' };
+
 /* ── The token, held here and only here ──────────────────────────────────────
  *
  * A Twitch app-access token lasts about 60 days, so almost every exchange this
@@ -222,7 +233,8 @@ async function throughCache(kind, path, body, ctx, send) {
   return new Response(res.body, { status: res.status, headers });
 }
 
-async function igdb(path, req, env, ctx) {
+async function igdb(requested, req, env, ctx) {
+  const path = ALIASES[requested] || requested;
   if (!ALLOWED.has(path)) return json(404, { error: 'unknown endpoint' });
   const body = await req.text();
 
@@ -320,4 +332,4 @@ export async function handle(req, env, ctx) {
   }
 }
 
-export const __test = { getToken, dropToken, ALLOWED, throughCache, cacheKeyFor, EDGE_TTL_S };
+export const __test = { getToken, dropToken, ALLOWED, ALIASES, throughCache, cacheKeyFor, EDGE_TTL_S };

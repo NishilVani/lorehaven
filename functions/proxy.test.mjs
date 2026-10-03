@@ -32,6 +32,14 @@ const check = (label, ok, detail = '') => { if (!ok) bad++; console.log(`${ok ? 
   const res = await post('/api/genres', 'fields name; limit 1;');
   check('an allowed endpoint the app does call is forwarded', res.ok, String(res.status));
 }
+{
+  /* The events endpoint under the name content blockers do not match. */
+  const res = await post('/api/showcases', 'fields name; where games = (1942); limit 1;');
+  const rows = await res.json().catch(() => null);
+  check('/api/showcases is forwarded to IGDB events', res.ok && Array.isArray(rows), String(res.status));
+  const legacy = await post('/api/events', 'fields name; limit 1;');
+  check('/api/events still answers for installed builds', legacy.ok, String(legacy.status));
+}
 
 // --- shape and method -------------------------------------------------------
 {

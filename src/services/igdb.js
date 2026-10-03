@@ -1177,7 +1177,7 @@ export const getEvents = withCache('getEvents', TTL.DAY, async (limit = 24, offs
            your shelves without a second request. */
         const bodyQuery = `fields name, description, start_time, end_time, live_stream_url, event_logo.image_id, games; limit ${limit}; offset ${offset}; ${whereClause} sort start_time ${sortOrder};`;
 
-        const response = await fetch('/api/events', {
+        const response = await fetch('/api/showcases', {
             method: 'POST',
             headers: {
                 'Content-Type': 'text/plain'
@@ -1196,7 +1196,7 @@ export const getEvents = withCache('getEvents', TTL.DAY, async (limit = 24, offs
 export const getEventById = withCache('getEventById', TTL.WEEK, async (id) => {
 
     try {
-        const response = await fetch('/api/events', {
+        const response = await fetch('/api/showcases', {
             method: 'POST',
             headers: {
                 'Content-Type': 'text/plain'
@@ -1219,7 +1219,7 @@ export const getEventsByGameId = withCache('getEventsByGameId', TTL.WEEK, async 
     if (!gameId) return [];
 
     try {
-        const response = await fetch('/api/events', {
+        const response = await fetch('/api/showcases', {
             method: 'POST',
             headers: {
                 'Content-Type': 'text/plain'
@@ -1881,7 +1881,7 @@ export const getAnnouncedGames = withCache('getAnnouncedGames', TTL.SIXH, async 
         if (data.length > 0) {
             try {
                 const gameIds = data.map(g => g.id);
-                const eventsRes = await fetch('/api/events', {
+                const eventsRes = await fetch('/api/showcases', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'text/plain'
@@ -1908,7 +1908,7 @@ export const getAnnouncedGames = withCache('getAnnouncedGames', TTL.SIXH, async 
                 }
             } catch (err) {
                 console.error('Failed to fetch events for announced games:', err);
-                apiFailure('/api/events', String(err?.message || err), 'request');
+                apiFailure('/api/showcases', String(err?.message || err), 'request');
             }
         }
         
