@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-  <color name="ic_launcher_background">#fff</color>
+  <!-- Black, the icon's own plate. The foreground layer is the white mark alone,
+       sized for the adaptive-icon safe zone; see scripts/android_icon.mjs. -->
+  <color name="ic_launcher_background">#000000</color>
 </resources>
