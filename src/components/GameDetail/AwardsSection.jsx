@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useGameAwards } from '../../hooks/useGameAwards';
 
@@ -42,6 +42,7 @@ function CategoryList({ row, cats, tone }) {
 
 export default function AwardsSection({ gameId }) {
   const { awards, loading } = useGameAwards(gameId);
+  const [showAll, setShowAll] = useState(false);
 
   // Group by ceremony + year so each row carries one prominent year.
   const rows = useMemo(() => {
@@ -59,7 +60,21 @@ export default function AwardsSection({ gameId }) {
     );
   }, [awards]);
 
+  /* Collapsed, the table keeps the ceremonies the game did best at, still in
+     year order. A heavily awarded game ran to twenty-odd rows, which on a phone
+     was longer than the rest of the page put together — and newest-first put a
+     2020 audience award above Game of the Year. */
+  const PREVIEW = 5;
+  const preview = useMemo(() => {
+    if (rows.length <= PREVIEW + 1) return rows;
+    const keep = new Set([...rows]
+      .sort((x, y) => y.wins.length - x.wins.length || y.noms.length - x.noms.length || y.year - x.year)
+      .slice(0, PREVIEW).map(r => r.key));
+    return rows.filter(r => keep.has(r.key));
+  }, [rows]);
+
   if (loading || rows.length === 0) return null;
+  const shown = showAll ? rows : preview;
 
   const totalWins = rows.reduce((n, r) => n + r.wins.length, 0);
   const totalNoms = rows.reduce((n, r) => n + r.noms.length, 0);
@@ -71,7 +86,7 @@ export default function AwardsSection({ gameId }) {
   ].filter(Boolean).join(' · ');
 
   return (
-    <section className="mb-10">
+    <section className="mb-12">
       {/* Header — title, summary, rule */}
       <div className="flex items-center gap-3 mb-4">
         <h2 className="lh-display text-[22px] lg:text-[28px] text-white/80 m-0">Awards</h2>
@@ -80,7 +95,7 @@ export default function AwardsSection({ gameId }) {
       </div>
 
       <div className="border border-white/15">
-        {rows.map((r, i) => (
+        {shown.map((r, i) => (
           <div
             key={r.key}
             className={`grid grid-cols-[84px_minmax(0,1fr)] gap-x-4 gap-y-2 items-baseline px-3 py-3 ${i > 0 ? 'border-t border-white/10' : ''}`}
@@ -111,6 +126,16 @@ export default function AwardsSection({ gameId }) {
           </div>
         ))}
       </div>
+      {preview.length < rows.length && (
+        <button
+          type="button"
+          onClick={() => setShowAll(v => !v)}
+          aria-expanded={showAll}
+          className="lh-label w-full px-3 py-3 border border-t-0 border-white/15 text-white/60 hover:bg-white hover:text-black focus-visible:bg-white focus-visible:text-black focus-visible:outline-none transition-colors cursor-pointer text-left"
+        >
+          {showAll ? 'Show fewer' : `Show all ${rows.length} ceremonies`}
+        </button>
+      )}
     </section>
   );
 }

@@ -177,7 +177,8 @@ test('game detail: setting Beaten persists, and Before You Decide reacts to it',
     .toBeVisible({ timeout: 20000 });
   await expect(page.getByRole('heading', { name: 'Before You Decide' })).toBeVisible();
 
-  await page.locator('button[aria-label="Set status to Beaten"]:visible').first().click();
+  await page.getByRole('button', { name: 'Add to library' }).click();
+  await page.getByRole('menu').getByRole('menuitemradio', { name: 'Beaten', exact: true }).click();
 
   // Did the click take at all? This is the half that must hold everywhere.
   await expect

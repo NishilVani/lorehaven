@@ -3,6 +3,7 @@ import { FEEL_ORDER, PRIORITY_ORDER } from '../../services/libraryStats';
 import { statusColor, feelColor, feelTextColor, priorityColor } from '../../constants/stateColors';
 import { Card, Swatch, Legend, ScrollX } from './parts';
 import { MONTH_GAP, MONTH_TICK_CELL, monthNameClass } from './monthAxis';
+import Figure from '../../components/ui/Figure';
 
 /* Band B — the library in numbers.
  *
@@ -54,31 +55,7 @@ function ScaleRow({ label, count, of, color, textColor }) {
   );
 }
 
-/* `pending` is the case where the figure has no basis at all — not a small
-   number, an absent one. It renders the dash instead of the value, which is
-   what Backlog weight already did for an empty backlog shelf and what the other
-   two cards did not: a library of one game printed "0 h" and "0%" at 72px, and
-   a fresh library built the way Explore invites you to build one — every game
-   wishlisted, none shelved — printed "you finish 0% of the games you commit to"
-   about someone who had not yet committed to any.
-
-   The dash is the file's own existing answer and it stays at full white rather
-   than dimming to `state-none`: at 11px-to-72px this is the value slot, and a
-   value slot at 2.4:1 is unreadable exactly when it is carrying the news that
-   there is nothing to read. The caption below it does the explaining, and it
-   leads with what would fill the card. */
-function Figure({ label, value, unit, detail, className = '', big, pending }) {
-  return (
-    <div className={`border border-white/15 p-4 lg:p-6 min-w-0 ${className}`}>
-      <div className="lh-label text-white/60">{label}</div>
-      <div className={`lh-display text-white leading-none tabular-nums mt-3 ${big ? 'text-5xl lg:text-7xl' : 'text-4xl lg:text-5xl'}`}>
-        {pending ? <span className="lh-label text-white/40">Not enough data</span> : value}
-        {!pending && unit && <span className={`text-white/60 ${big ? 'text-3xl lg:text-5xl' : 'text-2xl lg:text-3xl'}`}> {unit}</span>}
-      </div>
-      <p className="text-[13px] text-white/60 mt-4 m-0 leading-[1.6]">{detail}</p>
-    </div>
-  );
-}
+/* Figure lives in components/ui now; the game page states its numbers the same way. */
 
 /** "about nine months" — a backlog measured in hours means nothing until it is
  *  measured in the only currency that matters, which is how long it will take
