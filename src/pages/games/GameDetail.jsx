@@ -1,10 +1,10 @@
 import PageHeader from '../../components/ui/PageHeader';
 import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from 'react';
 import EmptyPlate from '../../components/ui/EmptyPlate';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import useSwipe from '../../hooks/useSwipe';
 import { Play, Download, Share2, ThumbsUp, ThumbsDown, Bookmark, ArrowRightLeft, X } from 'lucide-react';
-import { getGameById, getGamesByIds, getGamesProfile, getFranchisesByIds, getCollectionsByIds, getEventsByGameId } from '../../services/igdb';
+import { getGameById, getGamesByIds, getGamesProfile, getFranchisesByIds, getGamesByFranchiseId, getCollectionsByIds, getEventsByGameId } from '../../services/igdb';
 import { buildTaste, eraBonus, isScenicArtwork } from '../../services/discover';
 import { reasonsFor } from '../../services/pickNext';
 import {
@@ -25,7 +25,7 @@ import { leadMode } from '../../components/GameDetail/leadMode';
 import NotesEditor from '../../components/GameDetail/NotesEditor';
 import MediaStrip from '../../components/GameDetail/MediaStrip';
 import RelatedRow from '../../components/GameDetail/RelatedRow';
-import { versionOf, familyOf, similarOf, releasesByPlatform, datesDiffer, linksOf } from '../../components/GameDetail/related';
+import { versionOf, familyOf, similarOf, seriesOf, releasesByPlatform, datesDiffer, linksOf } from '../../components/GameDetail/related';
 import ExternalLink from '../../components/ui/ExternalLink';
 import { SectionHeader, IndexRow, IndexLinks, TagLink } from '../../components/GameDetail/parts';
 import TransferDataModal from '../../components/games/TransferDataModal';
@@ -283,6 +283,22 @@ export default function GameDetail() {
     })();
     return () => { cancelled = true; };
   }, [game]);
+
+  /* ── The series — the franchise's other games, for the Family section ──
+     The same cached query the franchise page makes, so opening the franchise
+     from here costs nothing more. Only the first franchise: a game filed under
+     three franchises gets the one IGDB lists first, and the header link. */
+  const [franchiseGames, setFranchiseGames] = useState([]);
+  const franchiseId = connections.franchises[0]?.id;
+  useEffect(() => {
+    if (!franchiseId) return;
+    let cancelled = false;
+    (async () => {
+      const { games } = await getGamesByFranchiseId(franchiseId).catch(() => ({ games: [] }));
+      if (!cancelled) setFranchiseGames(games || []);
+    })();
+    return () => { cancelled = true; };
+  }, [franchiseId]);
 
   /* ── The read and the cost ──────────────────────────────────────────────
      The two questions anyone actually brings to this page: what do I already
@@ -687,6 +703,7 @@ export default function GameDetail() {
   };
 
   const franchise = connections.franchises[0] || null;
+  const series = game ? seriesOf(game, franchiseGames, derived.family || []) : { games: [], more: 0 };
   const [franchiseSaved, setFranchiseSaved] = useState(false);
   useEffect(() => {
     /* eslint-disable-next-line react-hooks/set-state-in-effect -- reads storage once the franchise lands */
@@ -1058,7 +1075,9 @@ export default function GameDetail() {
   /* Notes follow the lead block where the lead is about something else; while
      playing or once done, the lead block carries them itself. */
   const notesSection = libEntry && (mode === 'plan' || mode === 'waiting');
-  const hasConnections = connections.franchises.length > 0 || connections.collections.length > 0 || connections.events.length > 0;
+  /* Franchise moved to The Family, where the rest of the series is shown. */
+  const otherFranchises = connections.franchises.slice(1);
+  const hasConnections = otherFranchises.length > 0 || connections.collections.length > 0 || connections.events.length > 0;
 
   return (
     /* pb clears the docked tracker bar below lg, so the last section is never
@@ -1205,10 +1224,34 @@ export default function GameDetail() {
               </section>
             )}
 
-            {derived.family.length > 0 && (
+            {(derived.family.length > 0 || franchise) && (
               <section className="mb-12" aria-labelledby="family-heading">
-                <SectionHeader id="family-heading">The Family</SectionHeader>
-                {derived.family.map(row => <RelatedRow key={row.label} {...row} />)}
+                <SectionHeader
+                  id="family-heading"
+                  aside={franchise && (
+                    <Link
+                      to={`/franchise/${franchise.id}`}
+                      className="lh-label text-white/60 hover:text-white focus-visible:text-white underline decoration-white/30 underline-offset-4 py-2 -my-2 shrink-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white transition-colors"
+                    >
+                      Part of {franchise.name}
+                    </Link>
+                  )}
+                >
+                  The Family
+                </SectionHeader>
+                {/* One strip, always one row high. The series sits before DLC:
+                    the next game in a franchise is more often what someone is
+                    looking for than the fifth costume pack. */}
+                <RelatedRow groups={[
+                  ...derived.family.filter(g => g.label !== 'DLC'),
+                  ...(series.games.length > 0 ? [{
+                    label: `More from ${franchise.name}`,
+                    games: series.games,
+                    more: series.more,
+                    moreTo: `/franchise/${franchise.id}`,
+                  }] : []),
+                  ...derived.family.filter(g => g.label === 'DLC'),
+                ]} />
               </section>
             )}
 
@@ -1218,7 +1261,8 @@ export default function GameDetail() {
             {derived.similar.length > 0 && (
               <section className="mb-12" aria-labelledby="similar-heading">
                 <SectionHeader id="similar-heading">Similar Games</SectionHeader>
-                <RelatedRow label="From IGDB" games={derived.similar} />
+                <RelatedRow groups={[{ label: 'Picked by IGDB', games: derived.similar }]} />
+          
               </section>
             )}
           </div>
@@ -1270,9 +1314,10 @@ export default function GameDetail() {
               <section className="mb-12" aria-labelledby="appears-heading">
                 <SectionHeader id="appears-heading">Appears In</SectionHeader>
                 <div className="border border-white/15">
+                  {/* Only the franchises after the first; the first heads The Family. */}
                   <IndexLinks
-                    label="Franchise"
-                    items={connections.franchises.map(f => ({ id: f.id, label: f.name, to: `/franchise/${f.id}` }))}
+                    label="Other Franchises"
+                    items={otherFranchises.map(f => ({ id: f.id, label: f.name, to: `/franchise/${f.id}` }))}
                   />
                   <IndexLinks
                     label="Collections"

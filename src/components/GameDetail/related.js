@@ -103,3 +103,15 @@ export function linksOf(game) {
     })
     .filter(Boolean);
 }
+
+/* The rest of the series: the franchise's other MAIN games, in release order.
+   Franchise lists carry every DLC, pack and bundle IGDB files under the name, so
+   a Mario page would otherwise be a strip of costume packs; only main games and
+   the kinds that stand on their own are kept. Anything already shown in the
+   family strip above is left out rather than shown twice. */
+const STANDALONE = new Set([0, 4, 8, 9, 10]);   // main, standalone exp., remake, remaster, expanded
+export function seriesOf(game, franchiseGames, familyRows) {
+  const seen = new Set([game.id, ...familyRows.flatMap(r => r.games.map(g => g.id))]);
+  const list = uniq((franchiseGames || []).filter(g => STANDALONE.has(g.game_type ?? 0)), seen).sort(byDate);
+  return { games: list.slice(0, ROW_CAP).map(toCard), more: Math.max(0, list.length - ROW_CAP) };
+}

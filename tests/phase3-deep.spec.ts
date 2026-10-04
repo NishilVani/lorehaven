@@ -1243,14 +1243,54 @@ test.describe('/game/:id — family, story, dates and links', () => {
       await expect(family.getByRole('heading', { level: 3, name: h })).toBeVisible();
     }
     // Expansions sorted by release date, not IGDB's order.
-    const exp = family.locator('div:has(> div > h3:text-is("Expansions")) li [role="link"]');
+    const exp = family.locator('[data-group="Expansions"] li [role="link"]');
     await expect(exp).toHaveCount(2);
     await expect(exp.nth(0)).toHaveAttribute('aria-label', 'First Expansion');
     await expect(exp.nth(1)).toHaveAttribute('aria-label', 'Second Expansion');
     // Fourteen DLC: twelve cards and a tile counting the rest.
-    const dlc = family.locator('div:has(> div > h3:text-is("DLC"))');
+    const dlc = family.locator('[data-group="DLC"]');
     await expect(dlc.locator('li [role="link"]')).toHaveCount(12);
     await expect(dlc.getByText('And 2 more on IGDB')).toBeVisible();
+  });
+
+  test('the groups share one strip, so a lone original costs no extra row', async ({ page }) => {
+    await page.goto('/game/5557');
+    await detailReady(page, 'Stub Expansion');
+    const family = page.locator('section:has(h2:text-is("The Family"))');
+    const tops = await family.locator('[data-group]').evaluateAll(els => els.map(e => Math.round(e.getBoundingClientRect().top)));
+    expect(tops.length).toBe(4);
+    expect(new Set(tops).size).toBe(1);
+    // DLC comes last.
+    const order = await family.locator('[data-group]').evaluateAll(els => els.map(e => e.getAttribute('data-group')));
+    expect(order.at(-1)).toBe('DLC');
+  });
+
+  test('the rest of the series joins the strip, main games only, linked to the franchise', async ({ page }) => {
+    await page.route('**/api/**', async route => {
+      const path = new URL(route.request().url()).pathname;
+      const body = route.request().postData() || '';
+      const json = (v: unknown) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(v) });
+      if (path === '/api/games' && /where id = 5557;/.test(body)) return json([{ ...GAME_FAMILY, franchises: [31] }]);
+      if (path === '/api/franchises' && /fields id, name, games/.test(body)) return json([{ id: 31, name: 'Stub Saga', games: [5557, 5551, 7401, 7402, 7403] }]);
+      if (path === '/api/franchises') return json([{ id: 31, name: 'Stub Saga' }]);
+      if (path === '/api/games' && /where id = \(/.test(body)) {
+        return json([
+          { ...rel(5551, 'Stub Complete Edition', 2015), game_type: 0 },     // already the Original: not repeated
+          { ...rel(7401, 'Saga Two', 2019), game_type: 0 },
+          { ...rel(7402, 'Saga Costume Pack', 2019), game_type: 1 },        // DLC of another game: left out
+          { ...rel(7403, 'Saga Zero', 2010), game_type: 0 },
+        ]);
+      }
+      return json([]);
+    });
+    await page.goto('/game/5557');
+    await detailReady(page, 'Stub Expansion');
+    const family = page.locator('section:has(h2:text-is("The Family"))');
+    await expect(family.getByRole('link', { name: 'Part of Stub Saga' })).toHaveAttribute('href', '/franchise/31');
+    const series = family.locator('[data-group="More from Stub Saga"] [role="link"]');
+    await expect(series).toHaveCount(2);
+    await expect(series.nth(0)).toHaveAttribute('aria-label', 'Saga Zero');
+    await expect(series.nth(1)).toHaveAttribute('aria-label', 'Saga Two');
   });
 
   test('a relative card opens that game', async ({ page }) => {
@@ -1302,18 +1342,19 @@ test.describe('/game/:id — family, story, dates and links', () => {
 });
 
 test.describe('/game/:id — Appears In', () => {
-  test('franchise, collection and event links each leave for their own route', async ({ page }) => {
+  test('collection and event links each leave for their own route; the franchise heads The Family', async ({ page }) => {
     await stubConnections(page);
     await page.goto('/game/5561');
     await detailReady(page, 'Connected Stub');
     const section = page.locator('section:has(h2:text-is("Appears In"))');
     await expect(section).toBeVisible({ timeout: 20000 });
 
-    await expect(section.getByRole('link', { name: 'Stub Franchise' })).toHaveAttribute('href', '/franchise/24');
+    // The franchise heads The Family now, where the rest of the series is.
+    await expect(section.getByRole('link', { name: 'Stub Franchise' })).toHaveCount(0);
     await expect(section.getByRole('link', { name: 'Stub Collection' })).toHaveAttribute('href', '/collection/igdb/77');
     await expect(section.getByRole('link', { name: 'Stub Showcase' })).toHaveAttribute('href', '/event/88');
 
-    await section.getByRole('link', { name: 'Stub Franchise' }).click();
+    await page.locator('section:has(h2:text-is("The Family"))').getByRole('link', { name: 'Part of Stub Franchise' }).click();
     await expect(page).toHaveURL(/\/franchise\/24$/);
   });
 
