@@ -7,6 +7,22 @@ infinite-scroll audit, with the measurement behind every claim.
 
 ## Where this stands
 
+- **Search: built on `feature/smart-search`.** Hybrid local + IGDB search.
+  `src/services/search/`: `normalize.js` (shared by build and app), `engine.js`
+  (typo-tolerant, prefix, popularity/library ranking, completion, context-checked
+  suggestions), `localIndex.js` (lazy-loads `searchIndex.json`, ~90 KB gz: 3,000
+  most-rated main games + abbreviations, 300 franchises, 300 studios, 6,000-word
+  dictionary; plus your library and opened games), `merge.js` (one ranked list
+  per tab from device, index and IGDB). IGDB gets the corrected query plus a
+  prefix query (`searchGamesRanked`). Overlay: instant suggestions, ghost text
+  (Tab), ARIA 1.2 combobox, autocorrect with "search instead", Playing Now and
+  Popular when empty. Fixed: search opened from a URL never loaded the library;
+  result tabs were 11px targets. Index refresh: `npm run build:search`, and
+  `.github/workflows/refresh-search-index.yml` opens a PR weekly (needs "Allow
+  GitHub Actions to create and approve pull requests"). Verified: engine unit
+  tests, search.spec 12/12 and overlay specs 29/29 on chromium + Mobile Chrome,
+  npm test, lint, build, themes, axe 12/12 clean with search open and typed.
+
 - **Game page redesign, phase 1: built on `feature/game-page-redesign`, uncommitted.**
   Plan: phase 1 restructure with data already fetched (this); phase 2 new IGDB
   fields on `getGameById` (similar games, DLC/expansions, remakes and parent,
