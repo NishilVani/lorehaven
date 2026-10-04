@@ -106,6 +106,13 @@ test.describe('/import/steam', () => {
     expect((byId['72'].user_platforms as Row[]).map(p => p.id)).toEqual(['custom_store_steam']);
     expect(byId.custom_steam_431960).toBeUndefined();
 
+    /* Play time reaches the saved entry, as unix ms: owned games carry Steam's
+       total and last-played, the wishlisted one carries none. */
+    expect(byId['71'].play).toMatchObject({ steam: { minutes: 120, lastPlayed: 1600000000 * 1000 } });
+    expect(byId['1942'].play).toMatchObject({ steam: { minutes: 5400, lastPlayed: 1700000000 * 1000 } });
+    expect(byId['72'].play).toMatchObject({ steam: { minutes: 0, lastPlayed: null } });
+    expect(byId['1877'].play).toBeUndefined();
+
     /* exact: the done card carries its own "Undo Import" beside the toast's Undo. */
     await expect(page.getByRole('button', { name: 'Undo Import' })).toBeVisible();
     await page.getByRole('button', { name: 'Undo', exact: true }).click();
@@ -114,6 +121,7 @@ test.describe('/import/steam', () => {
     const undone = await library(page);
     expect(undone.map((g: Row) => String(g.id))).toEqual(['71']);
     expect((undone[0].user_platforms as Row[]).map(p => p.id)).toEqual([6]);
+    expect(undone[0].play ?? null).toBeNull();   // Undo takes back play time it never had
   });
 
   test('Set Status applies to every selected game, including a ticked item IGDB does not have', async ({ page }) => {

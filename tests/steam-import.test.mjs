@@ -87,15 +87,36 @@ const picked = rows.map(r => {
   return r;
 });
 
+/* Play time: Steam's total and last-played, kept on every owned game the import
+   writes, as unix ms, stamped with when the import read it. */
+const NOW = 1800000000000;
+const steamPlay = (minutes, lastPlayedSec) => ({ steam: { minutes, lastPlayed: lastPlayedSec ? lastPlayedSec * 1000 : null, at: NOW } });
+
 {
-  const { entries, skipped } = planSteamImport(picked);
+  const { entries, skipped } = planSteamImport(picked, NOW);
   assert.strictEqual(skipped, 0);
   assert.deepStrictEqual(entries, [
-    { id: 72, name: 'Portal 2', cover_id: 'c72', status: 'Backlog', user_platforms: [STEAM_PLATFORM], is_custom: false },
-    { id: 1942, name: 'The Witcher 3: Wild Hunt', cover_id: 'c1942', status: 'Beaten', user_platforms: [STEAM_PLATFORM], is_custom: false },
-    { id: 71, user_platforms: [PC, STEAM_PLATFORM] },
-    { id: 'custom_steam_431960', name: 'Wallpaper Engine', status: 'Playing', user_platforms: [STEAM_PLATFORM], is_custom: true },
-  ], 'a game already in the library only gains Steam; its status and everything else stay');
+    { id: 72, name: 'Portal 2', cover_id: 'c72', status: 'Backlog', user_platforms: [STEAM_PLATFORM], is_custom: false, play: steamPlay(0, null) },
+    { id: 1942, name: 'The Witcher 3: Wild Hunt', cover_id: 'c1942', status: 'Beaten', user_platforms: [STEAM_PLATFORM], is_custom: false, play: steamPlay(5460, 1710000000) },
+    { id: 71, user_platforms: [PC, STEAM_PLATFORM], play: steamPlay(120, 1600000000) },
+    { id: 'custom_steam_431960', name: 'Wallpaper Engine', status: 'Playing', user_platforms: [STEAM_PLATFORM], is_custom: true, play: steamPlay(30, 1650000000) },
+  ], 'a game already in the library only gains Steam and its play time; its status and everything else stay');
+}
+
+{
+  /* Each source owns its half of `play`: importing Steam keeps what Xbox said. */
+  const xbox = { lastPlayed: 1690000000000, at: 1700000000000 };
+  const lib = [{ id: 71, name: 'Portal', status: 'Beaten', play: { xbox } }];
+  const rows = buildSteamRows({ owned, wishlist, matches, library: lib }).rows;
+  const { entries } = planSteamImport(rows.map(r => (r.key === 'igdb:71' ? r : { ...r, selected: false })), NOW);
+  assert.deepStrictEqual(entries[0].play, { xbox, ...steamPlay(120, 1600000000) });
+}
+
+{
+  /* A wishlisted game was never played: it gets no play time at all. */
+  const wl = buildSteamRows({ owned: [], wishlist: [{ appid: 1091500 }], matches, library: [] }).rows;
+  const { entries } = planSteamImport(wl, NOW);
+  assert.ok(entries.length === 1 && !('play' in entries[0]));
 }
 
 {
@@ -107,15 +128,15 @@ const picked = rows.map(r => {
 {
   const withSteam = [{ id: 71, name: 'Portal', status: 'Beaten', user_platforms: [PC, STEAM_PLATFORM] }];
   const again = buildSteamRows({ owned, wishlist, matches, library: withSteam }).rows;
-  const { entries } = planSteamImport(again.map(r => (r.key === 'igdb:71' ? { ...r, status: 'Playing' } : { ...r, selected: false })));
-  assert.deepStrictEqual(entries, [{ id: 71, user_platforms: [PC, STEAM_PLATFORM], status: 'Playing' }],
+  const { entries } = planSteamImport(again.map(r => (r.key === 'igdb:71' ? { ...r, status: 'Playing' } : { ...r, selected: false })), NOW);
+  assert.deepStrictEqual(entries, [{ id: 71, user_platforms: [PC, STEAM_PLATFORM], play: steamPlay(120, 1600000000), status: 'Playing' }],
     're-importing never lists Steam twice, and a status picked for a library game replaces it');
 }
 
 {
   const { entries } = planSteamImport(picked);
   const undo = importUndo(entries, library);
-  assert.deepStrictEqual(undo.restore, [{ id: 71, user_platforms: [PC] }], 'a library game gets back exactly what the import touched');
+  assert.deepStrictEqual(undo.restore, [{ id: 71, user_platforms: [PC], play: null }], 'a library game gets back exactly what the import touched, and loses play time it never had');
   assert.deepStrictEqual(undo.removeIds, [72, 1942, 'custom_steam_431960'], 'games the import added are removed');
 }
 
@@ -143,11 +164,11 @@ const picked = rows.map(r => {
   assert.strictEqual(linked.playtimeMinutes, 30, 'and its playtime');
   assert.strictEqual(linked.existing, null, 'nothing in an empty library to find');
 
-  const { entries } = planSteamImport([{ ...linked, status: 'Backlog' }]);
+  const { entries } = planSteamImport([{ ...linked, status: 'Backlog' }], NOW);
   assert.deepStrictEqual(entries, [{
     id: 4242, name: 'Wallpaper Engine', cover_id: 'wp1', status: 'Backlog',
-    user_platforms: [STEAM_PLATFORM], is_custom: false,
-  }], 'a matched row imports the real IGDB game, never a custom entry');
+    user_platforms: [STEAM_PLATFORM], is_custom: false, play: steamPlay(30, 1650000000),
+  }], 'a matched row imports the real IGDB game, never a custom entry, and keeps its play time');
 
   const back = unlinkRowFromIgdb(linked, []);
   assert.strictEqual(back.key, 'steam:431960', 'undoing the match returns the row to its Steam key');
@@ -166,9 +187,9 @@ const picked = rows.map(r => {
   const lib = [{ id: 4242, name: 'Wallpaper Engine', status: 'Playing', user_platforms: [] }];
   const linked = linkRowToIgdb(wallpaper, { id: 4242, name: 'Wallpaper Engine' }, lib);
   assert.strictEqual(linked.existing?.status, 'Playing', 'the library entry is found by the game id');
-  const { entries } = planSteamImport([linked]);
-  assert.deepStrictEqual(entries, [{ id: 4242, user_platforms: [STEAM_PLATFORM] }],
-    'so the import only marks Steam on the game already there');
+  const { entries } = planSteamImport([linked], NOW);
+  assert.deepStrictEqual(entries, [{ id: 4242, user_platforms: [STEAM_PLATFORM], play: steamPlay(30, 1650000000) }],
+    'so the import only marks Steam, and its play time, on the game already there');
 }
 
 {

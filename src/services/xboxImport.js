@@ -1,7 +1,7 @@
 // Xbox import -- turn what an Xbox account has played into review rows, and the
 // rows the owner ticked into library writes.
 //
-// Pure, with one pure import, so tests/xbox-import.test.mjs runs it in node. The
+// Pure, with pure imports only, so tests/xbox-import.test.mjs runs it in node. The
 // page does the fetching -- the Worker for the played list, IGDB for the matches
 // -- and hands the results in.
 //
@@ -12,6 +12,7 @@
 // result is how a library ends up holding the wrong edition.
 
 import { normalizePlat, platKey } from './platformMatch.js';
+import { withXboxPlay } from './playtime.js';
 
 /* The Xbox store exactly as DEFAULT_CUSTOM_PLATFORMS defines it, so an imported
    game marks the same row the game page toggles. The design called this store
@@ -110,16 +111,23 @@ const platformsFor = (row) => {
  * built from its title id, so importing again updates it instead of adding a
  * second copy.
  */
-export function planXboxImport(rows) {
+export function planXboxImport(rows, now = Date.now()) {
   const entries = [];
   let skipped = 0;
+  /* The last time Xbox saw the game played, kept beside any Steam play time the
+     entry already has. Xbox reports no minutes, and a title it never saw
+     played carries no date, in which case nothing is written. */
+  const playFor = (row, prev) => {
+    const play = withXboxPlay(prev?.play, row, now);
+    return play && play !== prev?.play ? { play } : {};
+  };
   for (const row of rows) {
     if (!row.selected) continue;
     if (!rowReady(row)) { skipped++; continue; }
     const plats = platformsFor(row);
     if (row.existing) {
       const list = row.existing.user_platforms || [];
-      const entry = { id: row.existing.id, user_platforms: [...list, ...plats.filter(p => !has(list, p))] };
+      const entry = { id: row.existing.id, user_platforms: [...list, ...plats.filter(p => !has(list, p))], ...playFor(row, row.existing) };
       if (row.status && row.status !== row.existing.status) entry.status = row.status;
       entries.push(entry);
     } else if (row.igdb) {
@@ -130,6 +138,7 @@ export function planXboxImport(rows) {
         status: row.status,
         user_platforms: plats,
         is_custom: false,
+        ...playFor(row, null),
       });
     } else {
       entries.push({
@@ -138,6 +147,7 @@ export function planXboxImport(rows) {
         status: row.status,
         user_platforms: plats,
         is_custom: true,
+        ...playFor(row, null),
       });
     }
   }
