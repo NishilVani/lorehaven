@@ -1,10 +1,10 @@
 import PageHeader from '../../components/ui/PageHeader';
 import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from 'react';
 import EmptyPlate from '../../components/ui/EmptyPlate';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import useSwipe from '../../hooks/useSwipe';
 import { Play, Download, Share2, ThumbsUp, ThumbsDown, Bookmark, ArrowRightLeft, X } from 'lucide-react';
-import { getGameById, getGamesByIds, getGamesProfile, getFranchisesByIds, getCollectionsByIds, getEventsByGameId } from '../../services/igdb';
+import { getGameById, getGamesByIds, getGamesProfile, getFranchisesByIds, getSeriesTimeline, getCollectionsByIds, getEventsByGameId } from '../../services/igdb';
 import { buildTaste, eraBonus, isScenicArtwork } from '../../services/discover';
 import { reasonsFor } from '../../services/pickNext';
 import {
@@ -14,6 +14,7 @@ import {
 } from '../../services/db';
 import { toDateInputValue, readNoteDraft, writeNoteDraft, clearNoteDraft } from '../../services/libraryFields';
 import { downloadUrlAsFile, safeFilename } from '../../services/saveImage';
+import { playSummary } from '../../services/playtime';
 import { getShortPlatformName } from '../../components/platforms/platformLogoUtils';
 import { toast } from '../../components/ui/toastBus';
 import { announce } from '../../components/ui/useAnnounce';
@@ -24,6 +25,11 @@ import LeadBlock from '../../components/GameDetail/LeadBlock';
 import { leadMode } from '../../components/GameDetail/leadMode';
 import NotesEditor from '../../components/GameDetail/NotesEditor';
 import MediaStrip from '../../components/GameDetail/MediaStrip';
+import RelatedRow from '../../components/GameDetail/RelatedRow';
+import { versionOf, familyOf, similarOf, timelineOf, releasesByPlatform, datesDiffer, linksOf } from '../../components/GameDetail/related';
+import SeriesTimeline from '../../components/GameDetail/SeriesTimeline';
+import FamilyBento from '../../components/GameDetail/FamilyBento';
+import ExternalLink from '../../components/ui/ExternalLink';
 import { SectionHeader, IndexRow, IndexLinks, TagLink } from '../../components/GameDetail/parts';
 import TransferDataModal from '../../components/games/TransferDataModal';
 import Dialog from '../../components/ui/Dialog';
@@ -214,6 +220,11 @@ export default function GameDetail() {
       length: lengthRead(game.game_time_to_beat),
       themeLinks: game.themes?.map(t => ({ id: t.id, label: t.name, to: `/games/theme/${t.id}` })) || [],
       perspectives: game.player_perspectives?.map(p => p.name).join(', ') || null,
+      version: versionOf(game),
+      family: familyOf(game),
+      similar: similarOf(game),
+      platformDates: releasesByPlatform(game),
+      links: linksOf(game),
       media: [
         ...(game.videos?.filter(v => v.video_id).slice(0, 6) || []).map(v => ({ type: 'video', id: v.video_id, name: v.name })),
         ...(game.screenshots?.slice(0, 12) || []).map(s => ({ type: 'image', id: s.image_id })),
@@ -275,6 +286,22 @@ export default function GameDetail() {
     })();
     return () => { cancelled = true; };
   }, [game]);
+
+  /* ── The series — the franchise's games as a timeline, for the Family section ──
+     getSeriesTimeline, not the franchise page's query: that one carries every
+     edition and re-release IGDB files under the name. Only the first franchise: a game filed under
+     three franchises gets the one IGDB lists first, and the header link. */
+  const [franchiseGames, setFranchiseGames] = useState([]);
+  const franchiseId = connections.franchises[0]?.id;
+  useEffect(() => {
+    if (!franchiseId) return;
+    let cancelled = false;
+    (async () => {
+      const games = await getSeriesTimeline(franchiseId).catch(() => []);
+      if (!cancelled) setFranchiseGames(games || []);
+    })();
+    return () => { cancelled = true; };
+  }, [franchiseId]);
 
   /* ── The read and the cost ──────────────────────────────────────────────
      The two questions anyone actually brings to this page: what do I already
@@ -679,6 +706,7 @@ export default function GameDetail() {
   };
 
   const franchise = connections.franchises[0] || null;
+  const timeline = game && franchise ? timelineOf(game, franchiseGames) : null;
   const [franchiseSaved, setFranchiseSaved] = useState(false);
   useEffect(() => {
     /* eslint-disable-next-line react-hooks/set-state-in-effect -- reads storage once the franchise lands */
@@ -738,9 +766,14 @@ export default function GameDetail() {
     if (!game?.first_release_date) return { date: null };
     const when = new Date(game.first_release_date * 1000);
     const days = Math.ceil((when.getTime() - nowMs) / 86400000);
+    /* When the platforms do not all land together, the caption says where it
+       lands when, which is the thing someone waiting on one platform wants. */
+    const split = datesDiffer(derived.platformDates || [])
+      ? derived.platformDates.map(r => `${r.platform} ${r.human}`).join(' · ')
+      : null;
     return {
       date: when.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
-      detail: days > 1 ? `In ${days} days.` : days === 1 ? 'Tomorrow.' : 'Today.',
+      detail: split || (days > 1 ? `In ${days} days.` : days === 1 ? 'Tomorrow.' : 'Today.'),
     };
   })();
   /* follows, falling back to hypes: IGDB counts both, and for a game that is
@@ -1045,7 +1078,9 @@ export default function GameDetail() {
   /* Notes follow the lead block where the lead is about something else; while
      playing or once done, the lead block carries them itself. */
   const notesSection = libEntry && (mode === 'plan' || mode === 'waiting');
-  const hasConnections = connections.franchises.length > 0 || connections.collections.length > 0 || connections.events.length > 0;
+  /* Franchise moved to The Family, where the rest of the series is shown. */
+  const otherFranchises = connections.franchises.slice(1);
+  const hasConnections = otherFranchises.length > 0 || connections.collections.length > 0 || connections.events.length > 0;
 
   return (
     /* pb clears the docked tracker bar below lg, so the last section is never
@@ -1096,13 +1131,24 @@ export default function GameDetail() {
               />
             </div>
           )}
-          <PageHeader
-            className="min-w-0 flex-1"
-            back={{ label: 'Back', onClick: () => navigate(-1), ariaLabel: 'Go back to previous page' }}
-            titleClassName="text-3xl sm:text-4xl md:text-5xl lg:text-6xl"
-            title={game.name}
-            meta={[derived.year || 'TBA', derived.dev, derived.genres]}
-          />
+          <div className="min-w-0 flex-1">
+            <PageHeader
+              className="mb-0"
+              back={{ label: 'Back', onClick: () => navigate(-1), ariaLabel: 'Go back to previous page' }}
+              titleClassName="text-3xl sm:text-4xl md:text-5xl lg:text-6xl"
+              title={game.name}
+              meta={[derived.year || 'TBA', derived.dev, derived.genres]}
+            />
+            {/* What this is a version of: an edition, a remaster, an expansion.
+                The page used to present Blood and Wine with nothing saying it
+                needs The Witcher 3 to play. */}
+            {derived.version && (
+              <p className="text-sm text-white/70 mt-3 mb-0">
+                {derived.version.prefix}{' '}
+                <TagLink to={`/game/${derived.version.game.id}`}>{derived.version.game.name}</TagLink>
+              </p>
+            )}
+          </div>
         </div>
 
         <TrackerBar
@@ -1138,6 +1184,8 @@ export default function GameDetail() {
               release={releaseFigure}
               anticipation={anticipation}
               shownAt={shownAt}
+              play={playSummary(libEntry)}
+              now={nowMs}
             />
 
             {notesSection && (
@@ -1149,11 +1197,23 @@ export default function GameDetail() {
 
             <MediaStrip media={derived.media} name={game.name} onOpen={openMedia} />
 
-            {(game.summary || derived.themeLinks.length > 0) && (
+            {(game.summary || game.storyline || derived.themeLinks.length > 0) && (
               <section className="mb-12" aria-labelledby="overview-heading">
                 <SectionHeader id="overview-heading">Overview</SectionHeader>
                 {game.summary && (
                   <p className="text-[15px] leading-relaxed text-white/70 max-w-prose m-0">{game.summary}</p>
+                )}
+                {/* The storyline runs to several paragraphs and spoils some of
+                    them, so it waits behind a disclosure rather than doubling
+                    the Overview for everyone. */}
+                {game.storyline && (
+                  <details className="group mt-4 max-w-prose">
+                    <summary className="lh-label text-white/60 hover:text-white cursor-pointer list-none py-2 -my-2 inline-flex items-center gap-2 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white">
+                      <span className="group-open:hidden">Read the story</span>
+                      <span className="hidden group-open:inline">Hide the story</span>
+                    </summary>
+                    <p className="text-[15px] leading-relaxed text-white/70 mt-3 mb-0 whitespace-pre-line">{game.storyline}</p>
+                  </details>
                 )}
                 {(derived.themeLinks.length > 0 || derived.perspectives) && (
                   <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2 mt-5">
@@ -1169,8 +1229,43 @@ export default function GameDetail() {
               </section>
             )}
 
+            {(derived.family.length > 0 || franchise) && (
+              <section className="mb-12" aria-labelledby="family-heading">
+                <SectionHeader
+                  id="family-heading"
+                  /* One way to the franchise. The timeline heading is that link
+                     when there is a timeline; without one, this is. */
+                  aside={franchise && !timeline && (
+                    <Link
+                      to={`/franchise/${franchise.id}`}
+                      className="lh-label text-white/60 hover:text-white focus-visible:text-white underline decoration-white/30 underline-offset-4 py-2 -my-2 shrink-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white transition-colors"
+                    >
+                      Part of {franchise.name}
+                    </Link>
+                  )}
+                >
+                  The Family
+                </SectionHeader>
+                {/* Where it sits in the series, then what it is related to. */}
+                {timeline && (
+                  <div className={derived.family.length > 0 ? 'mb-8' : ''}>
+                    <SeriesTimeline timeline={timeline} franchise={franchise} gameName={game.name} />
+                  </div>
+                )}
+                <FamilyBento groups={derived.family} />
+              </section>
+            )}
+
             {/* Awards — standalone table: prominent year + ceremony, wins on the right */}
             <AwardsSection gameId={game.id} />
+
+            {derived.similar.length > 0 && (
+              <section className="mb-12" aria-labelledby="similar-heading">
+                <SectionHeader id="similar-heading">Similar Games</SectionHeader>
+                <RelatedRow groups={[{ label: 'Picked by IGDB', games: derived.similar }]} />
+          
+              </section>
+            )}
           </div>
 
           {/* ── Reference column: the record of the game, for looking things up ── */}
@@ -1179,12 +1274,40 @@ export default function GameDetail() {
               <SectionHeader id="details-heading">Details</SectionHeader>
               <div className="border border-white/15">
                 <IndexRow label="Released" value={derived.released || 'TBA'} />
+                {datesDiffer(derived.platformDates) && (
+                  <IndexRow
+                    label="By Platform"
+                    value={
+                      <span className="flex flex-col items-end gap-1">
+                        {derived.platformDates.map(r => (
+                          <span key={r.platform}><span className="text-white/60">{r.platform}</span> {r.human}</span>
+                        ))}
+                      </span>
+                    }
+                  />
+                )}
                 <IndexLinks label="Developer" items={derived.devLink} />
                 <IndexLinks label="Publisher" items={derived.pubLink} />
                 <IndexLinks label="Genres" items={derived.genreLinks} />
                 <IndexLinks label="Platforms" items={derived.platformLinks} />
                 <IndexLinks label="Modes" items={derived.modeLinks} />
                 <IndexLinks label="Engine" items={derived.engineLinks} />
+                {derived.links.length > 0 && (
+                  <IndexRow
+                    label="Links"
+                    value={derived.links.map((l, i) => (
+                      <span key={l.label}>
+                        {i > 0 && <span className="text-white/50"> · </span>}
+                        <ExternalLink
+                          href={l.url}
+                          className="text-white underline decoration-white/30 underline-offset-4 p-1 -m-1 hover:bg-white hover:text-black hover:decoration-transparent focus-visible:bg-white focus-visible:text-black focus-visible:decoration-transparent focus-visible:outline-none transition-colors"
+                        >
+                          {l.label}
+                        </ExternalLink>
+                      </span>
+                    ))}
+                  />
+                )}
               </div>
             </section>
 
@@ -1192,9 +1315,10 @@ export default function GameDetail() {
               <section className="mb-12" aria-labelledby="appears-heading">
                 <SectionHeader id="appears-heading">Appears In</SectionHeader>
                 <div className="border border-white/15">
+                  {/* Only the franchises after the first; the first heads The Family. */}
                   <IndexLinks
-                    label="Franchise"
-                    items={connections.franchises.map(f => ({ id: f.id, label: f.name, to: `/franchise/${f.id}` }))}
+                    label="Other Franchises"
+                    items={otherFranchises.map(f => ({ id: f.id, label: f.name, to: `/franchise/${f.id}` }))}
                   />
                   <IndexLinks
                     label="Collections"

@@ -1,7 +1,7 @@
 // Steam import -- turn a Steam library and wishlist into review rows, and the
 // rows the owner ticked into library writes.
 //
-// Pure, with one pure import, so tests/steam-import.test.mjs runs it in node.
+// Pure, with pure imports only, so tests/steam-import.test.mjs runs it in node.
 // The page does the fetching (profile, owned games, wishlist, IGDB matches) and
 // hands the results in.
 //
@@ -10,6 +10,7 @@
 // search result is how a library ends up holding the wrong edition of a game.
 
 import { normalizePlat, platKey } from './platformMatch.js';
+import { withSteamPlay } from './playtime.js';
 
 /* The Steam store exactly as DEFAULT_CUSTOM_PLATFORMS defines it, so an
    imported game marks the same Steam the game page toggles. */
@@ -89,15 +90,19 @@ const hasSteam = (list) => (list || []).some(p => platKey(p) === platKey(STEAM_P
  * A Steam item IGDB does not have becomes a custom entry with an id built from
  * its app id, so importing again updates it instead of adding a second copy.
  */
-export function planSteamImport(rows) {
+export function planSteamImport(rows, now = Date.now()) {
   const entries = [];
   let skipped = 0;
+  /* Play time is kept for games Steam says you own: its total and the last
+     time it was played. A wishlisted game has neither. The Xbox half of
+     `play`, if the entry has one, is carried over untouched. */
+  const playFor = (row, prev) => (row.source === 'owned' ? { play: withSteamPlay(prev?.play, row, now) } : {});
   for (const row of rows) {
     if (!row.selected) continue;
     if (!rowReady(row)) { skipped++; continue; }
     if (row.existing) {
       const list = row.existing.user_platforms || [];
-      const entry = { id: row.existing.id, user_platforms: hasSteam(list) ? list : [...list, STEAM_PLATFORM] };
+      const entry = { id: row.existing.id, user_platforms: hasSteam(list) ? list : [...list, STEAM_PLATFORM], ...playFor(row, row.existing) };
       if (row.status && row.status !== row.existing.status) entry.status = row.status;
       entries.push(entry);
     } else if (row.igdb) {
@@ -108,6 +113,7 @@ export function planSteamImport(rows) {
         status: row.status,
         user_platforms: [STEAM_PLATFORM],
         is_custom: false,
+        ...playFor(row, null),
       });
     } else {
       entries.push({
@@ -116,6 +122,7 @@ export function planSteamImport(rows) {
         status: row.status,
         user_platforms: [STEAM_PLATFORM],
         is_custom: true,
+        ...playFor(row, null),
       });
     }
   }

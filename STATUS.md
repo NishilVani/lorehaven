@@ -40,6 +40,32 @@ infinite-scroll audit, with the measurement behind every claim.
   axe clean on /game/1942 at 1280 and 375. Pre-existing, not from this branch:
   `text-white/40` in `LibraryNumbers.jsx:326` and `EmptyPlate.jsx:13` fail contrast.
 
+- **Game page redesign, phase 2: built on `feature/game-page-phase2`, stacked
+  on phase 1's PR.** `getGameById` is `gameById.v4` and asks for storyline,
+  version_title, parent_game, version_parent, similar_games, dlcs, expansions,
+  standalone_expansions, remakes, remasters and release_dates on the same call
+  (field names checked live against The Witcher 3 and its relatives). Reads in
+  `src/components/GameDetail/related.js`; rows of GameCards in `RelatedRow.jsx`.
+  Toast z dropped to 10040, under menus: on phones the rating toast covered the
+  rating menu reopening from the docked bar. Verified: game-page Playwright
+  106/106 on chromium + Mobile Chrome, phases 2/4/5/12 on chromium 211 passed
+  (2 skipped), npm test, lint 0 errors, build, themes 861/861, axe clean on
+  /game/1942 and /game/13166 at 1280 and 375. Phase 3 (store Steam/Xbox
+  playtime and lastPlayed) is next.
+
+- **Game page redesign, phase 3: built on `feature/game-page-phase3`, stacked
+  on phase 2.** Steam and Xbox imports keep play time on the library entry as
+  `play: { steam: { minutes, lastPlayed, at }, xbox: { lastPlayed, at } }`
+  (unix ms; `at` is when the import read it). `src/services/playtime.js` holds
+  the shape and the reads. Each import replaces only its own half. Additive and
+  sync-safe: entries are stored whole, the per-item merge never rebuilds them
+  field by field, and every edit path spreads the existing entry, so older
+  installs keep the field; no compatLevel bump. Undo is generic and clears it.
+  The lead block shows Played / Took You (Steam minutes, dated by that import)
+  and Last Played. Verified: steam/xbox/playtime unit tests, steam-import spec
+  14/14 incl. the saved `play`, game-page Playwright 120/120, npm test, lint,
+  build, themes.
+
 - **Android icon safe zone: built on `fix/android-icon-safe-zone` (worktree
   `../moctale-icon`), uncommitted.** `scripts/android_icon.mjs` renders the
   launcher set from `src-tauri/icons/android-mark.svg`: mark alone on the
