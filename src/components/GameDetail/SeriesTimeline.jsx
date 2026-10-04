@@ -16,7 +16,7 @@ const img = (id) => `https://images.igdb.com/igdb/image/upload/t_cover_big/${id}
 export default function SeriesTimeline({ timeline, franchise, gameName }) {
   const railRef = useRef(null);
   const markRef = useRef(null);
-  const { entries, highlightId, highlightIsSelf, before, after, total } = timeline;
+  const { entries, highlightId, highlightIsSelf, before, after, total, role } = timeline;
 
   /* Centre the highlight in the rail, horizontally only. scrollIntoView would
      also scroll the page to it, which on open is a jump nobody asked for. */
@@ -55,14 +55,14 @@ export default function SeriesTimeline({ timeline, franchise, gameName }) {
               <div className="h-6 flex items-end px-1.5">
                 {here && (
                   <span className="lh-label px-1.5 py-0.5 bg-white text-black">
-                    {highlightIsSelf ? 'This game' : 'Its original'}
+                    {highlightIsSelf ? 'This game' : role.marker}
                   </span>
                 )}
               </div>
               <Link
                 to={`/game/${g.id}`}
                 aria-current={here && highlightIsSelf ? 'page' : undefined}
-                aria-label={`${g.name}, ${year}${entry ? `, in your library: ${entry.status}` : ''}${here && !highlightIsSelf ? `, the original of ${gameName}` : ''}`}
+                aria-label={`${g.name}, ${year}${entry ? `, in your library: ${entry.status}` : ''}${here && !highlightIsSelf ? `, ${role.phrase} ${gameName}` : ''}`}
                 className="group block px-1.5 pt-2 focus-visible:outline-none"
               >
                 <div className={`aspect-[3/4] bg-neutral-900 overflow-hidden ${here ? 'border-2 border-white' : 'border border-white/15 group-hover:border-white/60 group-focus-visible:border-white'} transition-colors`}>

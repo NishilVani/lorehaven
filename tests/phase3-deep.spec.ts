@@ -146,7 +146,10 @@ const GAME_FAMILY = {
   ],
 };
 
-const STUBS = [GAME_FULL, GAME_BARE, GAME_BROKEN_IMG, GAME_LONG, GAME_FAMILY];
+/** A remaster: its parent is its Original, where an expansion's is its Base Game. */
+const GAME_REMASTER = { ...GAME_FULL, id: 5558, name: 'Stub Remaster', game_type: 9, parent_game: rel(5551, 'Stub Complete Edition', 2015) };
+
+const STUBS = [GAME_FULL, GAME_BARE, GAME_BROKEN_IMG, GAME_LONG, GAME_FAMILY, GAME_REMASTER];
 
 /** GameDetail is done when the skeleton is gone and the h1 is the game name. */
 async function detailReady(page: Page, name: string | RegExp) {
@@ -1239,7 +1242,7 @@ test.describe('/game/:id — family, story, dates and links', () => {
     await detailReady(page, 'Stub Expansion');
     const family = page.locator('section:has(h2:text-is("The Family"))');
     await expect(family).toBeVisible();
-    for (const h of ['Original', 'Expansions', 'Remakes and Remasters', 'DLC']) {
+    for (const h of ['Base Game', 'Expansions', 'Remakes and Remasters', 'DLC']) {
       await expect(family.getByRole('heading', { level: 3, name: h })).toBeVisible();
     }
     // Expansions sorted by release date, not IGDB's order.
@@ -1258,7 +1261,7 @@ test.describe('/game/:id — family, story, dates and links', () => {
     await detailReady(page, 'Stub Expansion');
     const family = page.locator('section:has(h2:text-is("The Family"))');
     const order = await family.locator('[data-group]').evaluateAll(els => els.map(e => e.getAttribute('data-group')));
-    expect(order).toEqual(['Remakes and Remasters', 'Original', 'Expansions', 'DLC']);
+    expect(order).toEqual(['Remakes and Remasters', 'Base Game', 'Expansions', 'DLC']);
 
     /* The first bento let tiles shrink to their contents, so rows ended in
        empty space. Group the tiles by row and check each row spans the grid,
@@ -1279,7 +1282,7 @@ test.describe('/game/:id — family, story, dates and links', () => {
     }
 
     // A lone relative is a feature: the title in display type beside its cover.
-    await expect(family.locator('[data-group="Original"] .lh-display')).toHaveText('Stub Complete Edition');
+    await expect(family.locator('[data-group="Base Game"] .lh-display')).toHaveText('Stub Complete Edition');
   });
 
   test('the timeline lines the series up in release order and marks where this game sits', async ({ page }) => {
@@ -1317,14 +1320,31 @@ test.describe('/game/:id — family, story, dates and links', () => {
     await expect(entries).toHaveCount(3);
     await expect(entries.nth(0)).toHaveAccessibleName(/^Saga Zero, 2010/);
     // An expansion is not on the series line, so its original is marked instead.
-    await expect(entries.nth(1)).toHaveAccessibleName(/^Stub Complete Edition, 2015, the original of Stub Expansion/);
-    await expect(line.getByText('Its original')).toBeVisible();
+    await expect(entries.nth(1)).toHaveAccessibleName(/^Stub Complete Edition, 2015, the base game of Stub Expansion/);
+    await expect(line.getByText('Its base game')).toBeVisible();
     // Your status, in words, not only a coloured tick.
     await expect(entries.nth(2)).toHaveAccessibleName(/Saga Two, 2019, in your library: Beaten/);
     await expect(line.getByText('· Beaten')).toBeVisible();
 
     await entries.nth(0).click();
     await expect(page).toHaveURL(/\/game\/7403$/);
+  });
+
+  test("an expansion's parent is its Base Game, a remaster's is its Original", async ({ page }) => {
+    /* Wolfenstein: The Old Blood, a standalone expansion, showed The New Order
+       under "Original", as if Old Blood were its remake. */
+    await page.goto('/game/5557');
+    await detailReady(page, 'Stub Expansion');
+    let family = page.locator('section:has(h2:text-is("The Family"))');
+    await expect(family.locator('[data-group="Base Game"]')).toBeVisible();
+    await expect(family.locator('[data-group="Original"]')).toHaveCount(0);
+
+    await page.goto('/game/5558');
+    await detailReady(page, 'Stub Remaster');
+    family = page.locator('section:has(h2:text-is("The Family"))');
+    await expect(family.locator('[data-group="Original"]')).toContainText('Stub Complete Edition');
+    await expect(family.locator('[data-group="Base Game"]')).toHaveCount(0);
+    await expect(page.getByText('Remaster of')).toBeVisible();
   });
 
   test('a relative card opens that game', async ({ page }) => {

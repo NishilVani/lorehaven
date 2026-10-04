@@ -22,6 +22,18 @@ const RELATION = {
   10: 'Expanded edition of', 11: 'Port of', 12: 'Fork of', 13: 'Pack for', 14: 'Update for',
 };
 
+/* What to call the game this one hangs off. A remake, remaster, port or edition
+   has an ORIGINAL; an expansion, DLC, pack or mod has a BASE GAME. The bento
+   called every parent "Original", so Wolfenstein: The Old Blood -- a standalone
+   expansion, type 4 -- presented The New Order as if Old Blood were its remake. */
+const BASE_GAME_TYPES = new Set([1, 2, 4, 5, 6, 7, 13, 14]);
+export function parentRole(game) {
+  if (!game.version_parent?.id && BASE_GAME_TYPES.has(game.game_type)) {
+    return { group: 'Base Game', marker: 'Its base game', phrase: 'the base game of' };
+  }
+  return { group: 'Original', marker: 'Its original', phrase: 'the original of' };
+}
+
 /** { prefix, game } naming what this game is a version of, or null. */
 export function versionOf(game) {
   if (game.version_parent?.id) {
@@ -58,7 +70,7 @@ export function familyOf(game) {
   const others = uniq([...(game.ports || []), ...(game.expanded_games || []), ...(game.bundles || [])], seen).sort(byDate);
   return [
     capped('Remakes and Remasters', versions),
-    capped('Original', original),
+    capped(parentRole(game).group, original),
     capped('Expansions', expansions),
     capped('DLC', dlc),
     capped('Others', others),
@@ -147,5 +159,6 @@ export function timelineOf(game, franchiseGames) {
     after: Math.max(0, all.length - start - WINDOW),
     highlightId,
     highlightIsSelf: highlightId === game.id,
+    role: parentRole(game),
   };
 }
