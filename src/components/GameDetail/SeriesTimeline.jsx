@@ -30,17 +30,15 @@ export default function SeriesTimeline({ timeline, franchise, gameName }) {
 
   return (
     <div>
-      <div className="flex items-baseline justify-between gap-4 mb-3">
-        <h3 className="lh-label text-white/60 m-0">Timeline · {franchise.name} · {total} games</h3>
-        {(before > 0 || after > 0) && (
-          <Link
-            to={`/franchise/${franchise.id}`}
-            className="lh-label text-white/60 hover:text-white focus-visible:text-white underline decoration-white/30 underline-offset-4 py-2 -my-2 shrink-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white transition-colors"
-          >
-            See all {total}
-          </Link>
-        )}
-      </div>
+      {/* The heading is the section's one link to the franchise. */}
+      <h3 className="m-0 mb-3">
+        <Link
+          to={`/franchise/${franchise.id}`}
+          className="lh-label text-white/60 hover:text-white focus-visible:text-white underline decoration-white/30 underline-offset-4 py-2 -my-2 inline-block focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white transition-colors"
+        >
+          {franchise.name} · {total} games{before > 0 || after > 0 ? ` · showing ${entries.length}` : ''}
+        </Link>
+      </h3>
       <ol
         ref={railRef}
         aria-label={`${franchise.name} in release order`}

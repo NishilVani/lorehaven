@@ -117,15 +117,20 @@ export function linksOf(game) {
  * is on the line, and otherwise the game it belongs to: an expansion is not on
  * the series timeline, but its original is, and that is where it sits.
  *
+ * The list comes from getSeriesTimeline, which already drops editions, ports,
+ * remasters and undated entries on IGDB's side; the same rule is applied to
+ * this game, so an edition is never placed on the line -- its version parent
+ * is marked instead. Remasters stay off: a 2024 re-release of a 1998 game,
+ * placed in 2024, is what made the series look like it ran backwards.
+ *
  * A long franchise is windowed around the highlight rather than truncated at
- * the start, so the timeline always shows this game's neighbours. Undated
- * entries go last, in name order. */
-const STANDALONE = new Set([0, 4, 8, 9, 10]);   // main, standalone exp., remake, remaster, expanded
+ * the start, so the timeline always shows this game's neighbours. */
+const ON_LINE = new Set([0, 4, 8]);   // main game, standalone expansion, remake
 const WINDOW = 30;
 export function timelineOf(game, franchiseGames) {
   const seen = new Set();
-  const own = STANDALONE.has(game.game_type ?? 0) ? [game] : [];
-  const all = uniq([...own, ...(franchiseGames || []).filter(g => STANDALONE.has(g.game_type ?? 0))], seen)
+  const onLine = (g) => ON_LINE.has(g.game_type ?? 0) && !g.version_parent && g.first_release_date;
+  const all = uniq([...[game].filter(onLine), ...(franchiseGames || []).filter(onLine)], seen)
     .sort((a, b) => byDate(a, b) || String(a.name).localeCompare(String(b.name)));
   if (all.length < 2) return null;
   const anchor = game.version_parent?.id || game.parent_game?.id;

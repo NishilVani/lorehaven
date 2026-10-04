@@ -887,6 +887,34 @@ export const getRelatedFranchises = withCache('getRelatedFranchises', TTL.WEEK, 
  * Step 2: feed those IDs into getGamesByIds().
  * Used by FranchisePage.
  */
+/* A franchise as a release timeline, for the game page.
+ *
+ * Not getGamesByFranchiseId: IGDB files every re-release under the franchise
+ * as if it were a game -- collector's and steelbook editions, cloud and Z
+ * versions, the 2024 re-releases of the first three Resident Evils -- and most
+ * are tagged as main games, so a timeline built from that list put "Resident
+ * Evil 3: Cloud Version" (2022) after the Resident Evil 4 remake (2023) and
+ * read as the series running backwards. Editions carry version_parent, so
+ * they are filtered here, on IGDB's side, along with everything that is not a
+ * main game, a standalone expansion or a remake, and anything undated. For
+ * Resident Evil that is 57 games out of 120, in release order. */
+export const getSeriesTimeline = withCache('seriesTimeline.v1', TTL.WEEK, async (franchiseId) => {
+    if (!franchiseId) return [];
+    try {
+        const response = await fetch('/api/games', {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: `fields name, game_type, first_release_date, cover.image_id; where franchises = (${Number(franchiseId)}) & version_parent = null & game_type = (0,4,8) & first_release_date != null; sort first_release_date asc; limit 500;`,
+        });
+        const data = await response.json();
+        return Array.isArray(data) ? data.filter(g => g.id !== undefined) : [];
+    } catch (error) {
+        console.error('Fetch series timeline error:', error);
+        apiFailure('request', String(error?.message || error), 'request');
+        return [];
+    }
+});
+
 export const getGamesByFranchiseId = withCache('getGamesByFranchiseId', TTL.WEEK, async (franchiseId) => {
     if (!franchiseId) return { franchiseName: '', games: [] };
 

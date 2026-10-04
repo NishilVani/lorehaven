@@ -1230,8 +1230,8 @@ test.describe('/game/:id — family, story, dates and links', () => {
     await page.goto('/game/5557');
     await detailReady(page, 'Stub Expansion');
     await expect(page.getByText('Expansion for')).toBeVisible();
-    // An <a>, unlike the Original card below it, which is a GameCard.
-    await expect(page.locator('a[href="/game/5551"]', { hasText: 'Stub Complete Edition' })).toBeVisible();
+    // The line under the title, not the Original tile in The Family, which links there too.
+    await expect(page.locator('p', { hasText: 'Expansion for' }).locator('a[href="/game/5551"]')).toHaveText('Stub Complete Edition');
   });
 
   test('The Family groups relatives in release order and caps a long DLC tile', async ({ page }) => {
@@ -1243,26 +1243,43 @@ test.describe('/game/:id — family, story, dates and links', () => {
       await expect(family.getByRole('heading', { level: 3, name: h })).toBeVisible();
     }
     // Expansions sorted by release date, not IGDB's order.
-    const exp = family.locator('[data-group="Expansions"] li [role="link"]');
+    const exp = family.locator('[data-group="Expansions"] li a');
     await expect(exp).toHaveCount(2);
-    await expect(exp.nth(0)).toHaveAttribute('aria-label', 'First Expansion');
-    await expect(exp.nth(1)).toHaveAttribute('aria-label', 'Second Expansion');
-    // Fourteen DLC: twelve cards and a tile counting the rest.
+    await expect(exp.nth(0)).toContainText('First Expansion');
+    await expect(exp.nth(1)).toContainText('Second Expansion');
+    // Fourteen DLC: twelve covers and a tile counting the rest.
     const dlc = family.locator('[data-group="DLC"]');
-    await expect(dlc.locator('li [role="link"]')).toHaveCount(12);
+    await expect(dlc.locator('li a')).toHaveCount(12);
     await expect(dlc.getByText('And 2 more on IGDB')).toBeVisible();
   });
 
-  test('the bento puts the groups in order and sizes each tile by its count', async ({ page }) => {
+  test('the bento puts the groups in order, and every row of tiles fills the width', async ({ page }) => {
     await page.goto('/game/5557');
     await detailReady(page, 'Stub Expansion');
     const family = page.locator('section:has(h2:text-is("The Family"))');
     const order = await family.locator('[data-group]').evaluateAll(els => els.map(e => e.getAttribute('data-group')));
     expect(order).toEqual(['Remakes and Remasters', 'Original', 'Expansions', 'DLC']);
-    // A lone original is a small tile; thirteen DLC tiles (twelve and a count) are the widest.
-    const width = (g: string) => family.locator(`[data-group="${g}"]`).evaluate(e => e.getBoundingClientRect().width);
-    expect(await width('Original')).toBeLessThan(await width('DLC'));
-    expect(await width('Original')).toBeLessThan(await width('Expansions'));
+
+    /* The first bento let tiles shrink to their contents, so rows ended in
+       empty space. Group the tiles by row and check each row spans the grid,
+       give or take the 1px rules between them. */
+    const rows = await family.locator('[data-group]').first().evaluate((first) => {
+      const grid = first.parentElement!.getBoundingClientRect();
+      const byRow = new Map<number, number[]>();
+      for (const el of Array.from(first.parentElement!.children)) {
+        const r = el.getBoundingClientRect();
+        const key = Math.round(r.top);
+        byRow.set(key, [...(byRow.get(key) || []), r.left, r.right]);
+      }
+      return [...byRow.values()].map(xs => ({ left: Math.min(...xs) - grid.left, right: grid.right - Math.max(...xs) }));
+    });
+    for (const r of rows) {
+      expect(r.left).toBeLessThanOrEqual(2);
+      expect(r.right).toBeLessThanOrEqual(2);
+    }
+
+    // A lone relative is a feature: the title in display type beside its cover.
+    await expect(family.locator('[data-group="Original"] .lh-display')).toHaveText('Stub Complete Edition');
   });
 
   test('the timeline lines the series up in release order and marks where this game sits', async ({ page }) => {
@@ -1274,14 +1291,16 @@ test.describe('/game/:id — family, story, dates and links', () => {
       const body = route.request().postData() || '';
       const json = (v: unknown) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(v) });
       if (path === '/api/games' && /where id = 5557;/.test(body)) return json([{ ...GAME_FAMILY, franchises: [31] }]);
-      if (path === '/api/franchises' && /fields id, name, games/.test(body)) return json([{ id: 31, name: 'Stub Saga', games: [5557, 5551, 7401, 7402, 7403] }]);
       if (path === '/api/franchises') return json([{ id: 31, name: 'Stub Saga' }]);
-      if (path === '/api/games' && /where id = \(/.test(body)) {
+      /* The timeline's own query: IGDB filters editions, ports, remasters and
+         undated entries itself. A DLC slips through here on purpose, to show
+         the page applies the same rule rather than trusting the answer. */
+      if (path === '/api/games' && /where franchises = \(31\) & version_parent = null/.test(body)) {
         return json([
+          { ...rel(7403, 'Saga Zero', 2010), game_type: 0 },
           { ...rel(5551, 'Stub Complete Edition', 2015), game_type: 0 },
           { ...rel(7401, 'Saga Two', 2019), game_type: 0 },
-          { ...rel(7402, 'Saga Costume Pack', 2019), game_type: 1 },        // DLC: not on the line
-          { ...rel(7403, 'Saga Zero', 2010), game_type: 0 },
+          { ...rel(7402, 'Saga Costume Pack', 2019), game_type: 1 },
         ]);
       }
       return json([]);
@@ -1289,7 +1308,9 @@ test.describe('/game/:id — family, story, dates and links', () => {
     await page.goto('/game/5557');
     await detailReady(page, 'Stub Expansion');
     const family = page.locator('section:has(h2:text-is("The Family"))');
-    await expect(family.getByRole('link', { name: 'Part of Stub Saga' })).toHaveAttribute('href', '/franchise/31');
+    // One way to the franchise: the timeline heading. No second "Part of" link.
+    await expect(family.getByRole('link', { name: /^Stub Saga · 3 games/ })).toHaveAttribute('href', '/franchise/31');
+    await expect(family.getByRole('link', { name: /^Part of/ })).toHaveCount(0);
 
     const line = family.getByRole('list', { name: 'Stub Saga in release order' });
     const entries = line.getByRole('link');
@@ -1309,7 +1330,7 @@ test.describe('/game/:id — family, story, dates and links', () => {
   test('a relative card opens that game', async ({ page }) => {
     await page.goto('/game/5557');
     await detailReady(page, 'Stub Expansion');
-    await page.locator('section:has(h2:text-is("The Family")) [role="link"][aria-label="Stub Remastered"]').click();
+    await page.locator('section:has(h2:text-is("The Family")) [data-group="Remakes and Remasters"] a', { hasText: 'Stub Remastered' }).click();
     await expect(page).toHaveURL(/\/game\/7003$/);
   });
 

@@ -4,7 +4,7 @@ import EmptyPlate from '../../components/ui/EmptyPlate';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import useSwipe from '../../hooks/useSwipe';
 import { Play, Download, Share2, ThumbsUp, ThumbsDown, Bookmark, ArrowRightLeft, X } from 'lucide-react';
-import { getGameById, getGamesByIds, getGamesProfile, getFranchisesByIds, getGamesByFranchiseId, getCollectionsByIds, getEventsByGameId } from '../../services/igdb';
+import { getGameById, getGamesByIds, getGamesProfile, getFranchisesByIds, getSeriesTimeline, getCollectionsByIds, getEventsByGameId } from '../../services/igdb';
 import { buildTaste, eraBonus, isScenicArtwork } from '../../services/discover';
 import { reasonsFor } from '../../services/pickNext';
 import {
@@ -286,9 +286,9 @@ export default function GameDetail() {
     return () => { cancelled = true; };
   }, [game]);
 
-  /* ── The series — the franchise's other games, for the Family section ──
-     The same cached query the franchise page makes, so opening the franchise
-     from here costs nothing more. Only the first franchise: a game filed under
+  /* ── The series — the franchise's games as a timeline, for the Family section ──
+     getSeriesTimeline, not the franchise page's query: that one carries every
+     edition and re-release IGDB files under the name. Only the first franchise: a game filed under
      three franchises gets the one IGDB lists first, and the header link. */
   const [franchiseGames, setFranchiseGames] = useState([]);
   const franchiseId = connections.franchises[0]?.id;
@@ -296,7 +296,7 @@ export default function GameDetail() {
     if (!franchiseId) return;
     let cancelled = false;
     (async () => {
-      const { games } = await getGamesByFranchiseId(franchiseId).catch(() => ({ games: [] }));
+      const games = await getSeriesTimeline(franchiseId).catch(() => []);
       if (!cancelled) setFranchiseGames(games || []);
     })();
     return () => { cancelled = true; };
@@ -1230,7 +1230,9 @@ export default function GameDetail() {
               <section className="mb-12" aria-labelledby="family-heading">
                 <SectionHeader
                   id="family-heading"
-                  aside={franchise && (
+                  /* One way to the franchise. The timeline heading is that link
+                     when there is a timeline; without one, this is. */
+                  aside={franchise && !timeline && (
                     <Link
                       to={`/franchise/${franchise.id}`}
                       className="lh-label text-white/60 hover:text-white focus-visible:text-white underline decoration-white/30 underline-offset-4 py-2 -my-2 shrink-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white transition-colors"
