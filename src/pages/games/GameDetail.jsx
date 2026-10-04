@@ -25,7 +25,9 @@ import { leadMode } from '../../components/GameDetail/leadMode';
 import NotesEditor from '../../components/GameDetail/NotesEditor';
 import MediaStrip from '../../components/GameDetail/MediaStrip';
 import RelatedRow from '../../components/GameDetail/RelatedRow';
-import { versionOf, familyOf, similarOf, seriesOf, releasesByPlatform, datesDiffer, linksOf } from '../../components/GameDetail/related';
+import { versionOf, familyOf, similarOf, timelineOf, releasesByPlatform, datesDiffer, linksOf } from '../../components/GameDetail/related';
+import SeriesTimeline from '../../components/GameDetail/SeriesTimeline';
+import FamilyBento from '../../components/GameDetail/FamilyBento';
 import ExternalLink from '../../components/ui/ExternalLink';
 import { SectionHeader, IndexRow, IndexLinks, TagLink } from '../../components/GameDetail/parts';
 import TransferDataModal from '../../components/games/TransferDataModal';
@@ -703,7 +705,7 @@ export default function GameDetail() {
   };
 
   const franchise = connections.franchises[0] || null;
-  const series = game ? seriesOf(game, franchiseGames, derived.family || []) : { games: [], more: 0 };
+  const timeline = game && franchise ? timelineOf(game, franchiseGames) : null;
   const [franchiseSaved, setFranchiseSaved] = useState(false);
   useEffect(() => {
     /* eslint-disable-next-line react-hooks/set-state-in-effect -- reads storage once the franchise lands */
@@ -1239,19 +1241,13 @@ export default function GameDetail() {
                 >
                   The Family
                 </SectionHeader>
-                {/* One strip, always one row high. The series sits before DLC:
-                    the next game in a franchise is more often what someone is
-                    looking for than the fifth costume pack. */}
-                <RelatedRow groups={[
-                  ...derived.family.filter(g => g.label !== 'DLC'),
-                  ...(series.games.length > 0 ? [{
-                    label: `More from ${franchise.name}`,
-                    games: series.games,
-                    more: series.more,
-                    moreTo: `/franchise/${franchise.id}`,
-                  }] : []),
-                  ...derived.family.filter(g => g.label === 'DLC'),
-                ]} />
+                {/* Where it sits in the series, then what it is related to. */}
+                {timeline && (
+                  <div className={derived.family.length > 0 ? 'mb-8' : ''}>
+                    <SeriesTimeline timeline={timeline} franchise={franchise} gameName={game.name} />
+                  </div>
+                )}
+                <FamilyBento groups={derived.family} />
               </section>
             )}
 

@@ -45,18 +45,23 @@ const capped = (label, list) => ({
   more: Math.max(0, list.length - ROW_CAP),
 });
 
-/** Labelled rows of the game's relatives, empty rows dropped. */
+/** The game's relatives, grouped for the bento grid, empty groups dropped.
+    Order is the owner's: remakes first, then the original, expansions, DLC,
+    and Others -- ports, expanded editions and bundles (GOTY, Complete), which
+    are versions of this game rather than new ones. */
 export function familyOf(game) {
   const seen = new Set([game.id]);
+  const versions = uniq([...(game.remakes || []), ...(game.remasters || [])], seen).sort(byDate);
   const original = uniq([game.version_parent, game.parent_game], seen);
   const expansions = uniq([...(game.expansions || []), ...(game.standalone_expansions || [])], seen).sort(byDate);
-  const versions = uniq([...(game.remakes || []), ...(game.remasters || [])], seen).sort(byDate);
   const dlc = uniq(game.dlcs || [], seen).sort(byDate);
+  const others = uniq([...(game.ports || []), ...(game.expanded_games || []), ...(game.bundles || [])], seen).sort(byDate);
   return [
+    capped('Remakes and Remasters', versions),
     capped('Original', original),
     capped('Expansions', expansions),
-    capped('Remakes and Remasters', versions),
     capped('DLC', dlc),
+    capped('Others', others),
   ].filter(r => r.games.length > 0);
 }
 
@@ -104,14 +109,38 @@ export function linksOf(game) {
     .filter(Boolean);
 }
 
-/* The rest of the series: the franchise's other MAIN games, in release order.
-   Franchise lists carry every DLC, pack and bundle IGDB files under the name, so
-   a Mario page would otherwise be a strip of costume packs; only main games and
-   the kinds that stand on their own are kept. Anything already shown in the
-   family strip above is left out rather than shown twice. */
+/* The series timeline: every main game in the franchise, in release order.
+ *
+ * Franchise lists carry every DLC, pack and bundle IGDB files under the name, so
+ * only main games and the kinds that stand on their own are kept -- a Mario
+ * timeline would otherwise be costume packs. The highlight is this game when it
+ * is on the line, and otherwise the game it belongs to: an expansion is not on
+ * the series timeline, but its original is, and that is where it sits.
+ *
+ * A long franchise is windowed around the highlight rather than truncated at
+ * the start, so the timeline always shows this game's neighbours. Undated
+ * entries go last, in name order. */
 const STANDALONE = new Set([0, 4, 8, 9, 10]);   // main, standalone exp., remake, remaster, expanded
-export function seriesOf(game, franchiseGames, familyRows) {
-  const seen = new Set([game.id, ...familyRows.flatMap(r => r.games.map(g => g.id))]);
-  const list = uniq((franchiseGames || []).filter(g => STANDALONE.has(g.game_type ?? 0)), seen).sort(byDate);
-  return { games: list.slice(0, ROW_CAP).map(toCard), more: Math.max(0, list.length - ROW_CAP) };
+const WINDOW = 30;
+export function timelineOf(game, franchiseGames) {
+  const seen = new Set();
+  const own = STANDALONE.has(game.game_type ?? 0) ? [game] : [];
+  const all = uniq([...own, ...(franchiseGames || []).filter(g => STANDALONE.has(g.game_type ?? 0))], seen)
+    .sort((a, b) => byDate(a, b) || String(a.name).localeCompare(String(b.name)));
+  if (all.length < 2) return null;
+  const anchor = game.version_parent?.id || game.parent_game?.id;
+  const highlightId = all.some(g => g.id === game.id) ? game.id : (all.some(g => g.id === anchor) ? anchor : null);
+  let start = 0;
+  if (all.length > WINDOW) {
+    const at = Math.max(0, all.findIndex(g => g.id === highlightId));
+    start = Math.min(Math.max(0, at - Math.floor(WINDOW / 2)), all.length - WINDOW);
+  }
+  return {
+    entries: all.slice(start, start + WINDOW).map(toCard),
+    total: all.length,
+    before: start,
+    after: Math.max(0, all.length - start - WINDOW),
+    highlightId,
+    highlightIsSelf: highlightId === game.id,
+  };
 }

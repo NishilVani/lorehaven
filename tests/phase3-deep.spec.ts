@@ -1234,7 +1234,7 @@ test.describe('/game/:id — family, story, dates and links', () => {
     await expect(page.locator('a[href="/game/5551"]', { hasText: 'Stub Complete Edition' })).toBeVisible();
   });
 
-  test('The Family groups relatives in release order and caps a long DLC row', async ({ page }) => {
+  test('The Family groups relatives in release order and caps a long DLC tile', async ({ page }) => {
     await page.goto('/game/5557');
     await detailReady(page, 'Stub Expansion');
     const family = page.locator('section:has(h2:text-is("The Family"))');
@@ -1253,19 +1253,22 @@ test.describe('/game/:id — family, story, dates and links', () => {
     await expect(dlc.getByText('And 2 more on IGDB')).toBeVisible();
   });
 
-  test('the groups share one strip, so a lone original costs no extra row', async ({ page }) => {
+  test('the bento puts the groups in order and sizes each tile by its count', async ({ page }) => {
     await page.goto('/game/5557');
     await detailReady(page, 'Stub Expansion');
     const family = page.locator('section:has(h2:text-is("The Family"))');
-    const tops = await family.locator('[data-group]').evaluateAll(els => els.map(e => Math.round(e.getBoundingClientRect().top)));
-    expect(tops.length).toBe(4);
-    expect(new Set(tops).size).toBe(1);
-    // DLC comes last.
     const order = await family.locator('[data-group]').evaluateAll(els => els.map(e => e.getAttribute('data-group')));
-    expect(order.at(-1)).toBe('DLC');
+    expect(order).toEqual(['Remakes and Remasters', 'Original', 'Expansions', 'DLC']);
+    // A lone original is a small tile; thirteen DLC tiles (twelve and a count) are the widest.
+    const width = (g: string) => family.locator(`[data-group="${g}"]`).evaluate(e => e.getBoundingClientRect().width);
+    expect(await width('Original')).toBeLessThan(await width('DLC'));
+    expect(await width('Original')).toBeLessThan(await width('Expansions'));
   });
 
-  test('the rest of the series joins the strip, main games only, linked to the franchise', async ({ page }) => {
+  test('the timeline lines the series up in release order and marks where this game sits', async ({ page }) => {
+    await seed(page, {
+      [KEYS.library]: [{ id: 7401, name: 'Saga Two', status: 'Beaten', is_custom: false }],
+    });
     await page.route('**/api/**', async route => {
       const path = new URL(route.request().url()).pathname;
       const body = route.request().postData() || '';
@@ -1275,9 +1278,9 @@ test.describe('/game/:id — family, story, dates and links', () => {
       if (path === '/api/franchises') return json([{ id: 31, name: 'Stub Saga' }]);
       if (path === '/api/games' && /where id = \(/.test(body)) {
         return json([
-          { ...rel(5551, 'Stub Complete Edition', 2015), game_type: 0 },     // already the Original: not repeated
+          { ...rel(5551, 'Stub Complete Edition', 2015), game_type: 0 },
           { ...rel(7401, 'Saga Two', 2019), game_type: 0 },
-          { ...rel(7402, 'Saga Costume Pack', 2019), game_type: 1 },        // DLC of another game: left out
+          { ...rel(7402, 'Saga Costume Pack', 2019), game_type: 1 },        // DLC: not on the line
           { ...rel(7403, 'Saga Zero', 2010), game_type: 0 },
         ]);
       }
@@ -1287,10 +1290,20 @@ test.describe('/game/:id — family, story, dates and links', () => {
     await detailReady(page, 'Stub Expansion');
     const family = page.locator('section:has(h2:text-is("The Family"))');
     await expect(family.getByRole('link', { name: 'Part of Stub Saga' })).toHaveAttribute('href', '/franchise/31');
-    const series = family.locator('[data-group="More from Stub Saga"] [role="link"]');
-    await expect(series).toHaveCount(2);
-    await expect(series.nth(0)).toHaveAttribute('aria-label', 'Saga Zero');
-    await expect(series.nth(1)).toHaveAttribute('aria-label', 'Saga Two');
+
+    const line = family.getByRole('list', { name: 'Stub Saga in release order' });
+    const entries = line.getByRole('link');
+    await expect(entries).toHaveCount(3);
+    await expect(entries.nth(0)).toHaveAccessibleName(/^Saga Zero, 2010/);
+    // An expansion is not on the series line, so its original is marked instead.
+    await expect(entries.nth(1)).toHaveAccessibleName(/^Stub Complete Edition, 2015, the original of Stub Expansion/);
+    await expect(line.getByText('Its original')).toBeVisible();
+    // Your status, in words, not only a coloured tick.
+    await expect(entries.nth(2)).toHaveAccessibleName(/Saga Two, 2019, in your library: Beaten/);
+    await expect(line.getByText('· Beaten')).toBeVisible();
+
+    await entries.nth(0).click();
+    await expect(page).toHaveURL(/\/game\/7403$/);
   });
 
   test('a relative card opens that game', async ({ page }) => {
