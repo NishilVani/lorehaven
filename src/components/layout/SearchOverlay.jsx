@@ -1,7 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useSearchParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { X, Layers, Gamepad2, Library, HeartPlus, Building2, CircleCheck, BookmarkPlus, BookmarkMinus } from 'lucide-react';
-import { searchGames, searchFranchises, searchIgdbCollections, searchCompanies } from '../../services/igdb';
+import { searchGamesRanked, searchFranchises, searchIgdbCollections, searchCompanies } from '../../services/igdb';
+import { loadLocal, deviceDocs } from '../../services/search/localIndex';
+import { search as searchLocal, completion, suggest, correct } from '../../services/search/engine';
+import { mergeGames, mergeFranchises, mergeCompanies } from '../../services/search/merge';
 import { 
     getCollections, getLibrary, saveToLibrary,
     getSavedFranchises, saveFranchise, removeFranchise,
@@ -43,6 +46,10 @@ const getCollectionCover = (collection) => {
 
 const TABS = ['Games', 'Franchises', 'Collections', 'Companies'];
 
+/* One shared empty list, so a memo that depends on the local documents does
+   not recompute every render before the index has loaded. */
+const NO_DOCS = [];
+
 /* The user agent cannot change while the tab is open, so this is a module
    constant, not state. It used to be seeded by a mount effect, which meant the
    first render of every page always assumed desktop and then corrected itself. */
@@ -60,11 +67,25 @@ export default function SearchOverlay() {
     const query = searchParams.get('q') || '';
 
     const [activeTab, setActiveTab] = useState('Games');
-    const [games, setGames] = useState([]);
-    const [franchises, setFranchises] = useState([]);
+    /* What IGDB returned for the current query. The lists the tabs show are
+       derived further down, by merging these with the local index. */
+    const [igdbGames, setIgdbGames] = useState([]);
+    const [igdbFranchises, setIgdbFranchises] = useState([]);
     const [collections, setCollections] = useState([]);
-    const [companies, setCompanies] = useState([]);
+    const [igdbCompanies, setIgdbCompanies] = useState([]);
     const [loading, setLoading] = useState(false);
+
+    /* The on-device index (services/search). Loaded the first time search
+       opens, as its own chunk, then kept for the session. Until it lands the
+       overlay works exactly as before, on IGDB alone. */
+    const [local, setLocal] = useState(null);
+    /* The suggestion list under the input: which row the arrow keys are on, and
+       whether it has been dismissed (Escape, Enter) since the last keystroke. */
+    const [activeIndex, setActiveIndex] = useState(-1);
+    const [suggestHidden, setSuggestHidden] = useState(false);
+    /* "Search instead for X": the query the person insisted on, exactly as
+       typed, so autocorrect stays out of it. */
+    const [exactQuery, setExactQuery] = useState(null);
     
     // try/catch: corrupt localStorage must not crash the render (no error boundary above us)
     const [recentSearches, setRecentSearches] = useState(() => {
@@ -79,10 +100,55 @@ export default function SearchOverlay() {
 
     const [libraryMap, setLibraryMap] = useState(new Map());
 
+    /* ── Local search: instant, typo-tolerant, ranked ──────────────────────
+       Your library and the games you have opened join the shipped index as
+       documents of their own, so what you have looked at is always findable. */
+    const device = useMemo(() => deviceDocs([...libraryMap.values()], recentGames), [libraryMap, recentGames]);
+    const pool = useMemo(() => (local ? [...device, ...local.docs] : device), [device, local]);
+
+    /* Suggestions follow every keystroke; they never wait for the debounce. */
+    const typed = inputValue.trim();
+    const instant = useMemo(() => (typed ? searchLocal(pool, typed, { limit: 6 }) : []), [pool, typed]);
+    /* Ghost text only when the caret would sit at the end of what was typed:
+       a trailing space means the word is finished, so nothing is completed. */
+    const ghost = !inputValue.endsWith(' ') ? completion(inputValue, instant[0]) : '';
+
+    /* Autocorrect for the committed query. A suggestion checked against what
+       it finds is applied, with "search instead" to undo it; a spelling-only
+       guess is offered as "did you mean" but not applied. */
+    const correction = useMemo(() => {
+        const q = query.trim();
+        if (!local || !q || exactQuery === q) return null;
+        const s = suggest(pool, q, local.dict);
+        if (s) return { query: s.query, auto: true };
+        if (searchLocal(pool, q, { limit: 1 }).length > 0) return null;
+        const spelled = correct(q, local.dict);
+        return spelled ? { query: spelled, auto: false } : null;
+    }, [pool, local, query, exactQuery]);
+    const effective = correction?.auto ? correction.query : query.trim();
+
+    /* The tabs: local and IGDB, merged and ranked as one list each. */
+    const localDocs = local?.docs || NO_DOCS;
+    const games = useMemo(() => (effective ? mergeGames({ device, local: localDocs, igdb: igdbGames, query: effective }) : []), [device, localDocs, igdbGames, effective]);
+    const franchises = useMemo(() => (effective ? mergeFranchises({ local: localDocs, igdb: igdbFranchises, query: effective }) : []), [localDocs, igdbFranchises, effective]);
+    const companies = useMemo(() => (effective ? mergeCompanies({ local: localDocs, igdb: igdbCompanies, query: effective }) : []), [localDocs, igdbCompanies, effective]);
+
+    /* Before anything is typed: what you are playing, and the most-rated games
+       you have not shelved, as one-tap starting points. The empty box used to
+       offer nothing on first use. */
+    const playingNow = useMemo(() => [...libraryMap.values()].filter(g => g.status === 'Playing' && g.name).slice(0, 6), [libraryMap]);
+    const popular = useMemo(() => (local ? local.docs
+        .filter(d => d.kind === 'game' && !libraryMap.has(String(d.id)))
+        .sort((a, b) => (b.pop || 0) - (a.pop || 0))
+        .slice(0, 8) : []), [local, libraryMap]);
+
     // Searching and result counts previously changed with no announcement.
     const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
-    useAnnounce(!isOpen ? null : loading ? 'Searching' :
-        query.trim() ? [plural(games.length, 'game', 'games'), plural(franchises.length, 'franchise', 'franchises'),
+    const showSuggest = !!typed && instant.length > 0 && !suggestHidden && typed !== query;
+    useAnnounce(!isOpen ? null
+        : showSuggest ? plural(instant.length, 'suggestion', 'suggestions')
+        : loading && games.length === 0 ? 'Searching'
+        : query.trim() ? [plural(games.length, 'game', 'games'), plural(franchises.length, 'franchise', 'franchises'),
             plural(collections.length, 'collection', 'collections'), plural(companies.length, 'company', 'companies')].join(', ')
         : null);
     const [savedFranchiseIds, setSavedFranchiseIds] = useState(new Set());
@@ -123,7 +189,7 @@ export default function SearchOverlay() {
        500ms debounce below is not restarted every time the list changes.
        Persistence is not its job — see the effect further down, which is the one
        place the list reaches disk. */
-    /* eslint-disable-next-line react-hooks/preserve-manual-memoization --
+    /* Formerly an eslint-disable for react-hooks/preserve-manual-memoization:
        The compiler bails on this whole component ("Compilation Skipped") because
        of the adjust-state-during-render blocks above, which it does not model,
        and then reports that it could not preserve this useCallback. There is no
@@ -154,7 +220,11 @@ export default function SearchOverlay() {
        effect it opened unbadged and corrected itself a frame later, which is
        exactly when the user is looking at it. All three are synchronous
        localStorage reads. */
-    const [openFor, setOpenFor] = useState(isOpen);
+    /* Starts false, not isOpen: a page loaded with ?search=true is already open
+       on its first render, and seeding this with isOpen skipped the branch below
+       entirely, so search opened from a link or a reload showed no library
+       badges and could not find your own games. */
+    const [openFor, setOpenFor] = useState(false);
     if (openFor !== isOpen) {
         setOpenFor(isOpen);
         if (isOpen) {
@@ -165,10 +235,18 @@ export default function SearchOverlay() {
             setSavedCollectionIds(new Set(getSavedIgdbCollections().map(id => String(id))));
         } else {
             setInputValue('');
-            setGames([]); setFranchises([]); setCollections([]); setCompanies([]);
+            setIgdbGames([]); setIgdbFranchises([]); setCollections([]); setIgdbCompanies([]);
+            setActiveIndex(-1); setSuggestHidden(false); setExactQuery(null);
             setLoading(false);
         }
     }
+
+    useEffect(() => {
+        if (!isOpen || local) return;
+        let alive = true;
+        loadLocal().then(l => { if (alive) setLocal(l); }).catch(err => console.warn('[search] local index unavailable, using IGDB alone', err));
+        return () => { alive = false; };
+    }, [isOpen, local]);
 
     /* What is left in this effect is only DOM: the scroll lock, the
        scrollbar-width compensation, and the deferred focus. No state. */
@@ -202,36 +280,42 @@ export default function SearchOverlay() {
        empty box needs no reset here: the close branch above already clears the
        four lists, and an empty query never reaches the fetch. */
     const [searchFor, setSearchFor] = useState('');
-    if (query.trim().length > 0 && searchFor !== query) {
-        setSearchFor(query);
+    if (effective.length > 0 && searchFor !== effective) {
+        setSearchFor(effective);
         setLoading(true);
     }
 
-    // Fetch results on query changes
+    /* IGDB, for everything the local index does not hold. It is asked the
+       corrected query (IGDB returns nothing for one wrong letter) and, for
+       games, a prefix query on what was typed (it returns nothing for an
+       unfinished word either). */
     useEffect(() => {
-        if (query.trim().length === 0) return;
+        if (effective.length === 0) return;
+        let alive = true;
         const fetchResults = async () => {
             try {
                 const [gameResults, franchiseResults, igdbCollectionResults, companyResults] = await Promise.all([
-                    searchGames(query),
-                    searchFranchises(query),
-                    searchIgdbCollections(query, 10),
-                    searchCompanies(query),
+                    searchGamesRanked(effective, query.trim()),
+                    searchFranchises(effective),
+                    searchIgdbCollections(effective, 10),
+                    searchCompanies(effective),
                 ]);
-                const local = getCollections() || [];
-                const localMatches = local.filter(c => c?.name?.toLowerCase().includes(query.toLowerCase())).map(c => ({...c, isLocal: true}));
-                setGames(gameResults);
-                setFranchises(franchiseResults);
-                setCollections([...localMatches, ...igdbCollectionResults]);
-                setCompanies(companyResults);
+                if (!alive) return;
+                const own = getCollections() || [];
+                const ownMatches = own.filter(c => c?.name?.toLowerCase().includes(effective.toLowerCase())).map(c => ({...c, isLocal: true}));
+                setIgdbGames(gameResults);
+                setIgdbFranchises(franchiseResults);
+                setCollections([...ownMatches, ...igdbCollectionResults]);
+                setIgdbCompanies(companyResults);
             } catch (error) {
                 console.error("Search error:", error);
             } finally {
-                setLoading(false);
+                if (alive) setLoading(false);
             }
         };
         fetchResults();
-    }, [query]);
+        return () => { alive = false; };
+    }, [effective, query]);
 
     // Sync input from URL only on EXTERNAL changes (recent-search click, back/fwd).
     // Guarding on the trim avoids echoing our own trimmed value back over the
@@ -322,6 +406,61 @@ export default function SearchOverlay() {
         saveToLibrary(updated);
         setLibraryMap(prev => { const next = new Map(prev); next.set(String(game.id), updated); return next; });
         toast(priority ? `Priority: ${priority}` : 'Priority cleared');
+    };
+
+    /* Commit a query now, without waiting for the debounce: Enter, a "did you
+       mean", or "search instead". */
+    const commitQuery = (q, { exact = false } = {}) => {
+        const v = q.trim();
+        setInputValue(v);
+        setSuggestHidden(true);
+        setActiveIndex(-1);
+        setExactQuery(exact ? v : null);
+        const params = new URLSearchParams(location.search);
+        if (v) params.set('q', v); else params.delete('q');
+        setSearchParams(params, { replace: true });
+        if (v) saveRecentSearch(v);
+    };
+
+    const hrefFor = (doc) => (doc.kind === 'franchise' ? `/franchise/${doc.id}`
+        : doc.kind === 'company' ? `/games/company/${doc.id}`
+        : `/game/${doc.id}`);
+
+    /* Open a suggestion: its page, and the search is remembered the way a
+       clicked result is. */
+    const openSuggestion = (doc) => {
+        if (doc.kind === 'game') saveRecentGame({ id: doc.id, name: doc.name, cover_id: doc.cover, release_year: doc.year });
+        if (typed) saveRecentSearch(typed);
+        navigate(hrefFor(doc));
+    };
+
+    /* The combobox keys (WAI-ARIA 1.2 combobox, list autocomplete):
+       ArrowDown/Up move through the suggestions, Enter opens the one marked or
+       commits the query, Tab or ArrowRight at the end accepts the ghost text,
+       and the first Escape closes the list rather than the whole search. */
+    const onInputKeyDown = (e) => {
+        if (e.key === 'ArrowDown' && showSuggest) {
+            e.preventDefault();
+            setActiveIndex(i => Math.min(instant.length - 1, i + 1));
+        } else if (e.key === 'ArrowUp' && showSuggest) {
+            e.preventDefault();
+            setActiveIndex(i => Math.max(-1, i - 1));
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (showSuggest && activeIndex >= 0 && instant[activeIndex]) openSuggestion(instant[activeIndex].doc);
+            else commitQuery(inputValue);
+        } else if ((e.key === 'Tab' && !e.shiftKey) || (e.key === 'ArrowRight' && e.currentTarget.selectionStart === inputValue.length)) {
+            if (ghost) {
+                e.preventDefault();
+                setInputValue(inputValue + ghost);
+                setActiveIndex(-1);
+            }
+        } else if (e.key === 'Escape' && showSuggest) {
+            e.preventDefault();
+            e.stopPropagation();
+            setSuggestHidden(true);
+            setActiveIndex(-1);
+        }
     };
 
     // Shared game-card menu — used by both search results and recent games
@@ -440,15 +579,33 @@ export default function SearchOverlay() {
 
                         {/* Brutalist Search Input */}
                         <div className="relative mb-12 group">
+                        {/* Ghost text: the rest of the top suggestion, drawn behind the
+                            input in the same type, so Tab or ArrowRight completes it. The
+                            typed part is transparent and only holds the position. */}
+                        {ghost && (
+                            <div aria-hidden="true" className="absolute inset-x-0 bottom-0 border-b border-transparent pb-4 pr-16 sm:pr-24 text-4xl sm:text-6xl md:text-[80px] leading-[1.15] font-black uppercase whitespace-pre overflow-hidden pointer-events-none">
+                                <span className="text-transparent">{inputValue}</span><span className="text-white/30">{ghost}</span>
+                            </div>
+                        )}
                         <input
-                aria-label="Search index"
+                            aria-label="Search index"
                             ref={inputRef}
                             type="text"
+                            role="combobox"
+                            aria-autocomplete="both"
+                            aria-expanded={showSuggest}
+                            aria-controls="search-suggestions"
+                            aria-activedescendant={showSuggest && activeIndex >= 0 ? `search-suggestion-${activeIndex}` : undefined}
+                            aria-describedby={ghost ? 'search-ghost-hint' : undefined}
+                            autoComplete="off"
+                            spellCheck={false}
                             value={inputValue}
-                            onChange={(e) => setInputValue(e.target.value)}
+                            onChange={(e) => { setInputValue(e.target.value); setSuggestHidden(false); setActiveIndex(-1); setExactQuery(null); }}
+                            onKeyDown={onInputKeyDown}
                             placeholder="SEARCH INDEX..."
-                            className="w-full bg-transparent border-b border-white/40 pb-4 pr-16 sm:pr-24 text-4xl sm:text-6xl md:text-[80px] font-black uppercase text-white placeholder:text-white/50 focus:outline-none focus:border-white transition-colors duration-300"
+                            className="relative w-full bg-transparent border-b border-white/40 pb-4 pr-16 sm:pr-24 text-4xl sm:text-6xl md:text-[80px] leading-[1.15] font-black uppercase text-white placeholder:text-white/50 focus:outline-none focus:border-white transition-colors duration-300"
                         />
+                        {ghost && <span id="search-ghost-hint" className="sr-only">Press Tab to complete: {inputValue + ghost}</span>}
                         {inputValue && (
                             <button
                                 aria-label="Clear search"
@@ -466,6 +623,42 @@ export default function SearchOverlay() {
                             </button>
                         )}
                         </div>
+
+                        {/* Suggestions, while typing: instant, from this device. */}
+                        <ul
+                            id="search-suggestions"
+                            role="listbox"
+                            aria-label="Suggestions"
+                            className={`-mt-8 mb-10 border border-white/15 m-0 p-0 list-none ${showSuggest ? '' : 'hidden'}`}
+                        >
+                            {instant.map((r, i) => {
+                                const d = r.doc;
+                                const lib = d.kind === 'game' ? libraryMap.get(String(d.id)) : null;
+                                return (
+                                    <li
+                                        key={`${d.kind}-${d.id}`}
+                                        id={`search-suggestion-${i}`}
+                                        role="option"
+                                        aria-selected={i === activeIndex}
+                                        onMouseDown={(e) => { e.preventDefault(); openSuggestion(d); }}
+                                        onMouseEnter={() => setActiveIndex(i)}
+                                        className={`flex items-center gap-4 px-4 py-2.5 cursor-pointer border-t first:border-t-0 border-white/10 ${i === activeIndex ? 'bg-white text-black' : 'text-white'}`}
+                                    >
+                                        <span className="w-8 h-10 shrink-0 bg-white/5 overflow-hidden flex items-center justify-center">
+                                            {d.cover
+                                                ? <img src={`https://images.igdb.com/igdb/image/upload/t_cover_small/${d.cover}.jpg`} alt="" className="w-full h-full object-cover" />
+                                                : d.kind === 'franchise' ? <Layers aria-hidden="true" className="w-4 h-4 opacity-60" />
+                                                : d.kind === 'company' ? <Building2 aria-hidden="true" className="w-4 h-4 opacity-60" />
+                                                : <Gamepad2 aria-hidden="true" className="w-4 h-4 opacity-60" />}
+                                        </span>
+                                        <span className="min-w-0 flex-1 text-[15px] truncate">{d.name}</span>
+                                        <span className={`lh-label shrink-0 ${i === activeIndex ? 'text-current/70' : 'text-white/60'}`}>
+                                            {lib ? `In library · ${lib.status}` : d.kind === 'game' ? (d.year || 'Game') : d.kind === 'franchise' ? 'Franchise' : 'Studio'}
+                                        </span>
+                                    </li>
+                                );
+                            })}
+                        </ul>
 
                         <div className="flex items-center justify-end gap-3 mb-6 order-first">
                             <span aria-hidden="true" className="lh-label text-white/60 hidden sm:inline">Esc</span>
@@ -541,9 +734,53 @@ export default function SearchOverlay() {
                         </div>
                     )}
 
+                    {/* Starting points, before anything is typed. */}
+                    {!query && !typed && (playingNow.length > 0 || popular.length > 0) && (
+                        <div className="mb-12 flex flex-col gap-8">
+                            {[['Playing Now', playingNow.map(g => ({ id: g.id, name: g.name }))], ['Popular', popular.map(d => ({ id: d.id, name: d.name }))]]
+                                .filter(([, list]) => list.length > 0)
+                                .map(([label, list]) => (
+                                    <div key={label}>
+                                        <h3 className="lh-label text-white/50 tracking-widest mb-4">{label}</h3>
+                                        <div className="flex flex-wrap gap-2">
+                                            {list.map(g => (
+                                                <Link
+                                                    key={g.id}
+                                                    to={`/game/${g.id}`}
+                                                    onClick={() => saveRecentGame({ id: g.id, name: g.name })}
+                                                    className="lh-label px-4 py-2 border border-white/15 text-white hover:bg-white hover:text-black focus-visible:bg-white focus-visible:text-black focus-visible:outline-none transition-colors"
+                                                >
+                                                    {g.name}
+                                                </Link>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                        </div>
+                    )}
+
                     {/* Results Section */}
                     {query && (
                         <div className="animate-in fade-in duration-300">
+                            {correction && (
+                                <p className="text-[15px] text-white/70 mb-6 m-0">
+                                    {correction.auto ? (
+                                        <>
+                                            Showing results for <strong className="text-white font-semibold">{correction.query}</strong>.{' '}
+                                            <button type="button" onClick={() => commitQuery(query, { exact: true })} className="inline-block py-1 -my-1 underline decoration-white/30 underline-offset-4 hover:text-white focus-visible:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white cursor-pointer">
+                                                Search instead for {query}
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            Did you mean{' '}
+                                            <button type="button" onClick={() => commitQuery(correction.query)} className="inline-block py-1 -my-1 text-white underline decoration-white/30 underline-offset-4 hover:decoration-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white cursor-pointer">
+                                                {correction.query}
+                                            </button>?
+                                        </>
+                                    )}
+                                </p>
+                            )}
                             {/* Tabs */}
                             <div className="flex items-center gap-8 border-b border-white/10 pb-4 mb-8 overflow-x-auto no-scrollbar">
                                 {TABS.map(tab => (
@@ -551,7 +788,7 @@ export default function SearchOverlay() {
                                         key={tab}
                                         onClick={() => setActiveTab(tab)}
                                         aria-pressed={activeTab === tab}
-                                        className={`relative lh-label whitespace-nowrap transition-colors duration-200 cursor-pointer flex items-center gap-2 ${activeTab === tab ? 'text-white' : 'text-white/60 hover:text-white/80'}`}
+                                        className={`relative lh-label whitespace-nowrap py-2 -my-2 transition-colors duration-200 cursor-pointer flex items-center gap-2 ${activeTab === tab ? 'text-white' : 'text-white/60 hover:text-white/80'}`}
                                     >
                                         {tab.toUpperCase()}
                                         {!loading && tabCount[tab] > 0 && (
@@ -559,7 +796,9 @@ export default function SearchOverlay() {
                                                 ({tabCount[tab]})
                                             </span>
                                         )}
-                                        {activeTab === tab && <div className="absolute -bottom-[17px] left-0 right-0 h-[2px] bg-white" />}
+                                        {/* py-2 -my-2 lifts each tab from an 11px line to a 27px target (WCAG
+                                            2.5.8) without moving the row; the marker moves down by the same 8px. */}
+                                        {activeTab === tab && <div className="absolute -bottom-[9px] left-0 right-0 h-[2px] bg-white" />}
                                     </button>
                                 ))}
                             </div>
@@ -567,7 +806,7 @@ export default function SearchOverlay() {
                             {/* ── Games ── */}
                             {activeTab === 'Games' && (
                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                                    {loading ? (
+                                    {loading && games.length === 0 ? (
                                         [...Array(6)].map((_, i) => <GameCardSkeleton key={i} />)
                                     ) : games.length > 0 ? (
                                         games.map(game => {
@@ -582,13 +821,7 @@ export default function SearchOverlay() {
                                                 onKeyDown={(e) => { if (e.key === 'Enter') saveRecentGame(game); }}
                                             >
                                                     <GameCard
-                                                        game={{
-                                                            id: game.id, name: game.name,
-                                                            cover_id: game.cover?.image_id || null,
-                                                            release_year: game.first_release_date ? new Date(game.first_release_date * 1000).getUTCFullYear() : null,
-                                                            game_type_label: game.game_type !== undefined ? IGDB_CATEGORIES[game.game_type] : null,
-                                                            priority: libGame?.priority,
-                                                        }}
+                                                        game={{ ...game, priority: libGame?.priority }}
                                                         menuOptions={buildGameMenu(game)}
                                                     />
                                                 </div>
@@ -597,7 +830,7 @@ export default function SearchOverlay() {
                                     ) : (
                                         <div className="col-span-full">
                                           <EmptyPlate icon={Gamepad2} title="No games found"
-                                            body={`IGDB has no game matching "${query.trim()}". Try fewer words, or check the spelling.`} />
+                                            body={`Nothing matches "${effective}". Try fewer words.`} />
                                         </div>
                                     )}
                                 </div>
@@ -606,7 +839,7 @@ export default function SearchOverlay() {
                             {/* ── Franchises ── */}
                             {activeTab === 'Franchises' && (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                                    {loading ? (
+                                    {loading && franchises.length === 0 ? (
                                         [...Array(5)].map((_, i) => <CollectionSkeleton key={i} />)
                                     ) : franchises.length > 0 ? (
                                         franchises.map(f => {
@@ -615,7 +848,7 @@ export default function SearchOverlay() {
                                             return (
                                                 <div key={f.id}>
                                                     <CollectionCard
-                                                        game={{ id: f.id, name: f.name, cover_id: coverId, release_year: gameCount > 0 ? `${gameCount} game${gameCount !== 1 ? 's' : ''}` : 'Unknown' }}
+                                                        game={{ id: f.id, name: f.name, cover_id: coverId, release_year: gameCount > 0 ? `${gameCount} game${gameCount !== 1 ? 's' : ''}` : 'Franchise' }}
                                                         linkTo={`/franchise/${f.id}`}
                                                         menuOptions={[
                                                             savedFranchiseIds.has(String(f.id))
@@ -671,7 +904,7 @@ export default function SearchOverlay() {
                             {/* ── Companies ── */}
                             {activeTab === 'Companies' && (
                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                                    {loading ? (
+                                    {loading && companies.length === 0 ? (
                                         [...Array(6)].map((_, i) => (
                                             <div key={i} className="animate-pulse bg-white/5 border border-white/10 aspect-[3/4]" />
                                         ))

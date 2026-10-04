@@ -1,0 +1,69 @@
+name: Refresh search index
+
+# Rebuilds src/services/search/searchIndex.json -- the on-device half of search
+# (most-rated games, their abbreviations, franchises, studios and a spelling
+# dictionary) -- and opens a pull request when it changed.
+#
+# Why a pull request and not a step in every build: four jobs build the app
+# (web, desktop, Android, the OTA bundle). Regenerating in each would let them
+# ship four slightly different indexes, depending on what IGDB returned at
+# that minute, and would put IGDB in the path of every CI run. The committed
+# file is the one every build uses; this keeps it fresh. Merge the PR before
+# cutting a release and every target ships the same index.
+#
+# Weekly, and on demand from the Actions tab. The script goes through the app's
+# own proxy, so it needs no IGDB secret. If IGDB cannot be reached the script
+# fails without touching the file, and no PR is opened.
+#
+# Needs: Settings > Actions > General > "Allow GitHub Actions to create and
+# approve pull requests", or the last step is refused.
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'   # Mondays, 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: refresh-search-index
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # The script imports only src/services/search/normalize.js and uses
+      # Node's own fetch: no npm install needed.
+      - name: Rebuild the index
+        run: node scripts/build_search_index.mjs
+
+      - name: Open a pull request if it changed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if git diff --quiet -- src/services/search/searchIndex.json; then
+            echo "Index unchanged. Nothing to do."
+            exit 0
+          fi
+          DAY=$(date -u +%Y-%m-%d)
+          BRANCH="chore/search-index-$DAY"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          git add src/services/search/searchIndex.json
+          git commit -m "Refresh the search index ($DAY)"
+          git push --force -u origin "$BRANCH"
+          SUMMARY=$(node -e "const ix=require('./src/services/search/searchIndex.json');console.log(ix.g.length+' games, '+ix.f.length+' franchises, '+ix.c.length+' studios, '+ix.w.split(' ').length+' dictionary words')")
+          gh pr create --base main --head "$BRANCH" \
+            --title "Refresh the search index ($DAY)" \
+            --body "Weekly rebuild of \`src/services/search/searchIndex.json\` from IGDB: $SUMMARY. Data only; merge before the next release so every build ships it." \
+            || echo "A pull request for $BRANCH already exists; the branch was updated."

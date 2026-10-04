@@ -147,6 +147,38 @@ export const searchGames = async (query) => {
     }
 };
 
+/* Games for the search overlay, ranked by the app rather than by IGDB.
+ *
+ * Two requests, merged by the caller:
+ *   search "..."         IGDB's own matching, on the corrected query
+ *   name ~ *"..."*       a contains-match on what was typed, main games only,
+ *                        most-rated first -- so a word still being typed
+ *                        ("hollow kn") finds something, which search never does
+ * Both carry what ranking needs: rating count for popularity, and
+ * version_parent / game_type so an edition ranks under its game. */
+const SEARCH_FIELDS = 'name, game_type, version_parent, total_rating_count, follows, cover.image_id, cover.width, cover.height, first_release_date';
+export const searchGamesRanked = async (query, typed = query) => {
+    const run = async (body) => {
+        try {
+            const response = await fetch('/api/games', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body });
+            const data = await response.json();
+            return Array.isArray(data) ? data.filter(g => g.id !== undefined) : [];
+        } catch (error) {
+            console.error('Search error:', error);
+            apiFailure('request', String(error?.message || error), 'request');
+            return [];
+        }
+    };
+    const t = q(typed);
+    const [found, prefixed] = await Promise.all([
+        run(`search "${q(query)}"; fields ${SEARCH_FIELDS}; limit 20;`),
+        t.length >= 3
+            ? run(`fields ${SEARCH_FIELDS}; where name ~ *"${t}"* & version_parent = null & game_type = (0,4,8,9,10); sort total_rating_count desc; limit 10;`)
+            : Promise.resolve([]),
+    ]);
+    return [...found, ...prefixed];
+};
+
 export const searchFranchises = async (query) => {
 
     try {
