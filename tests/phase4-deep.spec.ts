@@ -194,7 +194,7 @@ async function openTileMenu(page: Page, tile: ReturnType<Page['locator']>) {
   await expect(page.getByRole('menu')).toBeVisible();
 }
 
-/** Toasts live 6s (Toast.jsx:19) at top-right, z 10100, pointer-events auto —
+/** Toasts live 6s (Toast.jsx:19) at bottom-right, z 10040, pointer-events auto —
     they sit ON TOP of a PageHeader action button. Dismiss them before clicking
     anything up there. See FINDING 17b. */
 async function clearToasts(page: Page) {

@@ -53,11 +53,14 @@ export const ToastContainer = () => {
          375; three phases specified three different top offsets, one of them an
          undefined custom property. Nothing lives in the bottom-right corner on
          any route; flex-col-reverse keeps the newest toast nearest the edge. */
-      /* 10100, the top of the app's stack: above the nav rail (9999), above the
-         10000 COVER layer that full-screen overlays use, and above the menus at
-         10050. A toast that a lightbox can bury is a toast nobody reads — and
-         the wallpaper viewer reports every save through one. */
-      style={{ zIndex: 10100 }}
+      /* 10040: above the nav rail (9999) and the 10000 COVER layer that
+         full-screen overlays use -- a toast a lightbox can bury is a toast nobody
+         reads, and the wallpaper viewer reports every save through one -- but
+         UNDER the menus at 10050. It was 10100, over them, and on a phone the game
+         page's menus open upward from a bar docked where toasts rise: the toast
+         for the rating you just chose covered the menu you reopened to change it.
+         A menu is the thing in your hand; the toast can wait behind it. */
+      style={{ zIndex: 10040 }}
     >
       {toasts.map((toast) => (
         <ToastItem key={toast.id} toast={toast} onClose={() => removeToast(toast.id)} />

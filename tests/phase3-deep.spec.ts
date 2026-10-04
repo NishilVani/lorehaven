@@ -119,7 +119,37 @@ const LONG_NAME =
   'Definitive Remastered Anniversary Ultimate Game of the Year Edition Part Two';
 const GAME_LONG = { id: 5554, name: LONG_NAME, first_release_date: 1431993600 };
 
-const STUBS = [GAME_FULL, GAME_BARE, GAME_BROKEN_IMG, GAME_LONG];
+/** An expansion with relatives on every side: the phase-two fields. */
+const rel = (id: number, name: string, year: number) =>
+  ({ id, name, first_release_date: Date.UTC(year, 0, 1) / 1000, cover: { image_id: `cov${id}` } });
+const GAME_FAMILY = {
+  ...GAME_FULL,
+  id: 5557,
+  name: 'Stub Expansion',
+  game_type: 2,
+  parent_game: rel(5551, 'Stub Complete Edition', 2015),
+  storyline: 'The long version of the story, which the page keeps folded away.',
+  expansions: [rel(7002, 'Second Expansion', 2017), rel(7001, 'First Expansion', 2016)],
+  remasters: [rel(7003, 'Stub Remastered', 2022)],
+  dlcs: Array.from({ length: 14 }, (_, i) => rel(7100 + i, `Pack ${i + 1}`, 2016)),
+  similar_games: [rel(7201, 'Neighbour One', 2014), rel(7202, 'Neighbour Two', 2018)],
+  release_dates: [
+    { date: 1431993600, human: 'May 19, 2015', platform: { abbreviation: 'PC' } },
+    { date: 1431993600, human: 'May 19, 2015', platform: { abbreviation: 'PC' } },
+    { date: 1611792000, human: 'Jan 28, 2021', platform: { abbreviation: 'Switch' } },
+  ],
+  websites: [
+    { type: 1, url: 'https://stub.example/official' },
+    { type: 3, url: 'https://en.wikipedia.org/wiki/Stub' },
+    { type: 13, url: 'https://store.steampowered.com/app/1' },
+    { type: 14, url: 'javascript:alert(1)' },
+  ],
+};
+
+/** A remaster: its parent is its Original, where an expansion's is its Base Game. */
+const GAME_REMASTER = { ...GAME_FULL, id: 5558, name: 'Stub Remaster', game_type: 9, parent_game: rel(5551, 'Stub Complete Edition', 2015) };
+
+const STUBS = [GAME_FULL, GAME_BARE, GAME_BROKEN_IMG, GAME_LONG, GAME_FAMILY, GAME_REMASTER];
 
 /** GameDetail is done when the skeleton is gone and the h1 is the game name. */
 async function detailReady(page: Page, name: string | RegExp) {
@@ -1196,19 +1226,189 @@ async function stubConnections(page: Page) {
   });
 }
 
+test.describe('/game/:id — family, story, dates and links', () => {
+  test.beforeEach(async ({ page }) => { await stubIgdb(page, STUBS); });
+
+  test('an expansion says what it expands, linked to the original', async ({ page }) => {
+    await page.goto('/game/5557');
+    await detailReady(page, 'Stub Expansion');
+    await expect(page.getByText('Expansion for')).toBeVisible();
+    // The line under the title, not the Original tile in The Family, which links there too.
+    await expect(page.locator('p', { hasText: 'Expansion for' }).locator('a[href="/game/5551"]')).toHaveText('Stub Complete Edition');
+  });
+
+  test('The Family groups relatives in release order and caps a long DLC tile', async ({ page }) => {
+    await page.goto('/game/5557');
+    await detailReady(page, 'Stub Expansion');
+    const family = page.locator('section:has(h2:text-is("The Family"))');
+    await expect(family).toBeVisible();
+    for (const h of ['Base Game', 'Expansions', 'Remakes and Remasters', 'DLC']) {
+      await expect(family.getByRole('heading', { level: 3, name: h })).toBeVisible();
+    }
+    // Expansions sorted by release date, not IGDB's order.
+    const exp = family.locator('[data-group="Expansions"] li a');
+    await expect(exp).toHaveCount(2);
+    await expect(exp.nth(0)).toContainText('First Expansion');
+    await expect(exp.nth(1)).toContainText('Second Expansion');
+    // Fourteen DLC: twelve covers and a tile counting the rest.
+    const dlc = family.locator('[data-group="DLC"]');
+    await expect(dlc.locator('li a')).toHaveCount(12);
+    await expect(dlc.getByText('And 2 more on IGDB')).toBeVisible();
+  });
+
+  test('the bento puts the groups in order, and every row of tiles fills the width', async ({ page }) => {
+    await page.goto('/game/5557');
+    await detailReady(page, 'Stub Expansion');
+    const family = page.locator('section:has(h2:text-is("The Family"))');
+    const order = await family.locator('[data-group]').evaluateAll(els => els.map(e => e.getAttribute('data-group')));
+    expect(order).toEqual(['Remakes and Remasters', 'Base Game', 'Expansions', 'DLC']);
+
+    /* The first bento let tiles shrink to their contents, so rows ended in
+       empty space. Group the tiles by row and check each row spans the grid,
+       give or take the 1px rules between them. */
+    const rows = await family.locator('[data-group]').first().evaluate((first) => {
+      const grid = first.parentElement!.getBoundingClientRect();
+      const byRow = new Map<number, number[]>();
+      for (const el of Array.from(first.parentElement!.children)) {
+        const r = el.getBoundingClientRect();
+        const key = Math.round(r.top);
+        byRow.set(key, [...(byRow.get(key) || []), r.left, r.right]);
+      }
+      return [...byRow.values()].map(xs => ({ left: Math.min(...xs) - grid.left, right: grid.right - Math.max(...xs) }));
+    });
+    for (const r of rows) {
+      expect(r.left).toBeLessThanOrEqual(2);
+      expect(r.right).toBeLessThanOrEqual(2);
+    }
+
+    // A lone relative is a feature: the title in display type beside its cover.
+    await expect(family.locator('[data-group="Base Game"] .lh-display')).toHaveText('Stub Complete Edition');
+  });
+
+  test('the timeline lines the series up in release order and marks where this game sits', async ({ page }) => {
+    await seed(page, {
+      [KEYS.library]: [{ id: 7401, name: 'Saga Two', status: 'Beaten', is_custom: false }],
+    });
+    await page.route('**/api/**', async route => {
+      const path = new URL(route.request().url()).pathname;
+      const body = route.request().postData() || '';
+      const json = (v: unknown) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(v) });
+      if (path === '/api/games' && /where id = 5557;/.test(body)) return json([{ ...GAME_FAMILY, franchises: [31] }]);
+      if (path === '/api/franchises') return json([{ id: 31, name: 'Stub Saga' }]);
+      /* The timeline's own query: IGDB filters editions, ports, remasters and
+         undated entries itself. A DLC slips through here on purpose, to show
+         the page applies the same rule rather than trusting the answer. */
+      if (path === '/api/games' && /where franchises = \(31\) & version_parent = null/.test(body)) {
+        return json([
+          { ...rel(7403, 'Saga Zero', 2010), game_type: 0 },
+          { ...rel(5551, 'Stub Complete Edition', 2015), game_type: 0 },
+          { ...rel(7401, 'Saga Two', 2019), game_type: 0 },
+          { ...rel(7402, 'Saga Costume Pack', 2019), game_type: 1 },
+        ]);
+      }
+      return json([]);
+    });
+    await page.goto('/game/5557');
+    await detailReady(page, 'Stub Expansion');
+    const family = page.locator('section:has(h2:text-is("The Family"))');
+    // One way to the franchise: the timeline heading. No second "Part of" link.
+    await expect(family.getByRole('link', { name: /^Stub Saga · 3 games/ })).toHaveAttribute('href', '/franchise/31');
+    await expect(family.getByRole('link', { name: /^Part of/ })).toHaveCount(0);
+
+    const line = family.getByRole('list', { name: 'Stub Saga in release order' });
+    const entries = line.getByRole('link');
+    await expect(entries).toHaveCount(3);
+    await expect(entries.nth(0)).toHaveAccessibleName(/^Saga Zero, 2010/);
+    // An expansion is not on the series line, so its original is marked instead.
+    await expect(entries.nth(1)).toHaveAccessibleName(/^Stub Complete Edition, 2015, the base game of Stub Expansion/);
+    await expect(line.getByText('Its base game')).toBeVisible();
+    // Your status, in words, not only a coloured tick.
+    await expect(entries.nth(2)).toHaveAccessibleName(/Saga Two, 2019, in your library: Beaten/);
+    await expect(line.getByText('· Beaten')).toBeVisible();
+
+    await entries.nth(0).click();
+    await expect(page).toHaveURL(/\/game\/7403$/);
+  });
+
+  test("an expansion's parent is its Base Game, a remaster's is its Original", async ({ page }) => {
+    /* Wolfenstein: The Old Blood, a standalone expansion, showed The New Order
+       under "Original", as if Old Blood were its remake. */
+    await page.goto('/game/5557');
+    await detailReady(page, 'Stub Expansion');
+    let family = page.locator('section:has(h2:text-is("The Family"))');
+    await expect(family.locator('[data-group="Base Game"]')).toBeVisible();
+    await expect(family.locator('[data-group="Original"]')).toHaveCount(0);
+
+    await page.goto('/game/5558');
+    await detailReady(page, 'Stub Remaster');
+    family = page.locator('section:has(h2:text-is("The Family"))');
+    await expect(family.locator('[data-group="Original"]')).toContainText('Stub Complete Edition');
+    await expect(family.locator('[data-group="Base Game"]')).toHaveCount(0);
+    await expect(page.getByText('Remaster of')).toBeVisible();
+  });
+
+  test('a relative card opens that game', async ({ page }) => {
+    await page.goto('/game/5557');
+    await detailReady(page, 'Stub Expansion');
+    await page.locator('section:has(h2:text-is("The Family")) [data-group="Remakes and Remasters"] a', { hasText: 'Stub Remastered' }).click();
+    await expect(page).toHaveURL(/\/game\/7003$/);
+  });
+
+  test('Similar Games lists IGDB\'s neighbours', async ({ page }) => {
+    await page.goto('/game/5557');
+    await detailReady(page, 'Stub Expansion');
+    const similar = page.locator('section:has(h2:text-is("Similar Games"))');
+    await expect(similar.locator('[role="link"][aria-label="Neighbour One"]')).toBeVisible();
+    await expect(similar.locator('[role="link"][aria-label="Neighbour Two"]')).toBeVisible();
+  });
+
+  test('the storyline is folded until asked for', async ({ page }) => {
+    await page.goto('/game/5557');
+    await detailReady(page, 'Stub Expansion');
+    const story = page.getByText('The long version of the story');
+    await expect(story).toBeHidden();
+    await page.getByText('Read the story').click();
+    await expect(story).toBeVisible();
+    await page.getByText('Hide the story').click();
+    await expect(story).toBeHidden();
+  });
+
+  test('Details lists each platform once when the dates differ, and only web links', async ({ page }) => {
+    await page.goto('/game/5557');
+    await detailReady(page, 'Stub Expansion');
+    const details = page.locator('section:has(h2:text-is("Details"))');
+    await expect(details.getByText('By Platform')).toBeVisible();
+    await expect(details.getByText('Jan 28, 2021')).toBeVisible();
+    await expect(details.getByText('May 19, 2015', { exact: false })).toHaveCount(2); // Released + PC, once each
+    await expect(details.getByRole('link', { name: 'Official Site' })).toHaveAttribute('href', 'https://stub.example/official');
+    await expect(details.getByRole('link', { name: 'Wikipedia' })).toBeVisible();
+    // A store link belongs to the store rows; a javascript: URL is never a link.
+    await expect(details.getByRole('link', { name: 'Reddit' })).toHaveCount(0);
+  });
+
+  test('a game whose platforms all released together shows no By Platform row and no Family', async ({ page }) => {
+    await page.goto('/game/5551');
+    await detailReady(page, 'Stub Complete Edition');
+    await expect(page.getByText('By Platform')).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'The Family' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Similar Games' })).toHaveCount(0);
+  });
+});
+
 test.describe('/game/:id — Appears In', () => {
-  test('franchise, collection and event links each leave for their own route', async ({ page }) => {
+  test('collection and event links each leave for their own route; the franchise heads The Family', async ({ page }) => {
     await stubConnections(page);
     await page.goto('/game/5561');
     await detailReady(page, 'Connected Stub');
     const section = page.locator('section:has(h2:text-is("Appears In"))');
     await expect(section).toBeVisible({ timeout: 20000 });
 
-    await expect(section.getByRole('link', { name: 'Stub Franchise' })).toHaveAttribute('href', '/franchise/24');
+    // The franchise heads The Family now, where the rest of the series is.
+    await expect(section.getByRole('link', { name: 'Stub Franchise' })).toHaveCount(0);
     await expect(section.getByRole('link', { name: 'Stub Collection' })).toHaveAttribute('href', '/collection/igdb/77');
     await expect(section.getByRole('link', { name: 'Stub Showcase' })).toHaveAttribute('href', '/event/88');
 
-    await section.getByRole('link', { name: 'Stub Franchise' }).click();
+    await page.locator('section:has(h2:text-is("The Family"))').getByRole('link', { name: 'Part of Stub Franchise' }).click();
     await expect(page).toHaveURL(/\/franchise\/24$/);
   });
 
