@@ -1,5 +1,6 @@
 import Figure from '../ui/Figure';
 import { SectionHeader, Line } from './parts';
+import { agoPhrase, hoursText } from '../../services/playtime';
 
 /* The lead block: the first thing under the tracker bar, and the only part of
  * the game page that changes with your relationship to the game.
@@ -87,6 +88,25 @@ function Swatched({ color, children }) {
   );
 }
 
+/* Imported play time (services/playtime.js). These are snapshots from the last
+   Steam or Xbox import, so every figure says when it was read rather than
+   implying the app watched you play. */
+const asOfText = (play) => (play?.minutesAt
+  ? `As of your import on ${new Date(play.minutesAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}.`
+  : '');
+
+function PlayedFigure({ play, length, label = 'Played' }) {
+  const h = hoursText(play.minutes);
+  /* Against the normal length when IGDB has one: "of about 51h to finish" is
+     the comparison anyone glancing at their hours is making. */
+  const against = length?.normal ? `On Steam, against about ${length.normal}h to finish.` : 'On Steam.';
+  return <Figure size="sm" label={label} value={h.value} unit={h.unit} detail={`${against} ${asOfText(play)}`} />;
+}
+
+const lastPlayedText = (play, now) => (play?.lastPlayed
+  ? `${agoPhrase(play.lastPlayed, now)[0].toUpperCase()}${agoPhrase(play.lastPlayed, now).slice(1)}, on ${play.lastSource}`
+  : null);
+
 /* Two up on a phone with the third figure spanning the row under them, three
    across from sm. One per row stacked three full-height cards between the
    title and everything else. */
@@ -95,8 +115,10 @@ const grid = 'grid grid-cols-2 sm:grid-cols-3 gap-3 [&>*:nth-child(3)]:col-span-
 export default function LeadBlock({
   mode, score, length, verdict, libEntry, notes, completed,
   priority, priorityColor, priorityPeers, feel, feelColor, addedText,
-  release, anticipation, shownAt,
+  release, anticipation, shownAt, play, now,
 }) {
+  const hasMinutes = play?.minutes != null;
+  const lastPlayed = lastPlayedText(play, now);
   if (mode === 'decide') {
     return (
       <section className="mb-12" aria-labelledby="lead-heading">
@@ -135,9 +157,15 @@ export default function LeadBlock({
           <LengthFigure length={length} against={verdict?.against} />
           <ScoreFigure score={score} />
         </div>
-        {(verdict?.neighbours?.length > 0 || addedText) && (
+        {(verdict?.neighbours?.length > 0 || addedText || hasMinutes || lastPlayed) && (
           <div className="border border-white/15 mt-3">
             {verdict?.neighbours?.map((l, i) => <Line key={l} label={i === 0 ? 'Your Shelf' : ''}>{l}</Line>)}
+            {/* Time already put into a game still on the backlog, said plainly:
+                started-and-shelved is worth knowing when picking what is next. */}
+            {hasMinutes && play.minutes > 0 && (
+              <Line label="Played">{`${hoursText(play.minutes).value}h on Steam already. ${asOfText(play)}`}</Line>
+            )}
+            <Line label="Last Played">{lastPlayed}</Line>
             <Line label="Shelved">{addedText}</Line>
           </div>
         )}
@@ -150,12 +178,16 @@ export default function LeadBlock({
       <section className="mb-12" aria-labelledby="lead-heading">
         <SectionHeader id="lead-heading">Where You Left Off</SectionHeader>
         {notes}
-        <div className="grid grid-cols-2 gap-3 mt-6">
+        <div className={`${hasMinutes ? grid : 'grid grid-cols-2 gap-3'} mt-6`}>
+          {hasMinutes && <PlayedFigure play={play} length={length} />}
           <LengthFigure length={length} />
           <ScoreFigure score={score} />
         </div>
-        {addedText && (
-          <div className="border border-white/15 mt-3"><Line label="Shelved">{addedText}</Line></div>
+        {(addedText || lastPlayed) && (
+          <div className="border border-white/15 mt-3">
+            <Line label="Last Played">{lastPlayed}</Line>
+            <Line label="Shelved">{addedText}</Line>
+          </div>
         )}
       </section>
     );
@@ -186,8 +218,15 @@ export default function LeadBlock({
             ) : (
               <ScoreFigure score={score} />
             )}
-            <LengthFigure length={length} />
+            {/* Your own hours beat IGDB's average once you have them: "Took
+                you" on a finished game, "Played" on one you stopped. */}
+            {hasMinutes && play.minutes > 0
+              ? <PlayedFigure play={play} length={length} label={beaten ? 'Took You' : 'Played'} />
+              : <LengthFigure length={length} />}
           </div>
+          {lastPlayed && (
+            <div className="border border-white/15 mt-3"><Line label="Last Played">{lastPlayed}</Line></div>
+          )}
         </section>
         <section className="mb-12" aria-labelledby="notes-heading">
           <SectionHeader id="notes-heading">{beaten ? 'Review' : 'Notes'}</SectionHeader>

@@ -111,6 +111,24 @@ const igdb = (id, name) => ({ id, name, cover: { image_id: `cover${id}` }, game_
 }
 
 {
+  /* Play: the last time Xbox saw it played is kept as unix ms beside any Steam
+     play time the entry already has, and a title Xbox never saw played writes
+     nothing at all. */
+  const NOW = 1800000000000;
+  const steam = { minutes: 600, lastPlayed: 1700000000000, at: 1750000000000 };
+  const existing = { id: 1, name: 'Clair Obscur', user_platforms: [], status: 'Playing', play: { steam } };
+  const base = { key: 'igdb:1', titleId: '1', productIds: ['P'], platform: 'Xbox One', igdb: igdb(1, 'Clair Obscur'), status: null, selected: true };
+  const played = planXboxImport([{ ...base, existing, lastPlayed: '2026-03-03T00:00:00Z' }], NOW).entries[0];
+  assert.deepStrictEqual(played.play, { steam, xbox: { lastPlayed: Date.parse('2026-03-03T00:00:00Z'), at: NOW } });
+
+  const never = planXboxImport([{ ...base, existing, lastPlayed: null }], NOW).entries[0];
+  assert.ok(!('play' in never), 'no date from Xbox, so the Steam half is not rewritten');
+
+  const fresh = planXboxImport([{ ...base, existing: null, status: 'Backlog', lastPlayed: '2026-03-03T00:00:00Z' }], NOW).entries[0];
+  assert.deepStrictEqual(fresh.play, { xbox: { lastPlayed: Date.parse('2026-03-03T00:00:00Z'), at: NOW } });
+}
+
+{
   const { entries } = planXboxImport([{
     key: 'xbox:42', titleId: '42', productIds: [], xboxName: 'A Game IGDB Has Never Heard Of',
     platform: 'Xbox One', igdb: null, existing: null, status: 'Backlog', selected: true,

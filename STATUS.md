@@ -37,6 +37,19 @@ infinite-scroll audit, with the measurement behind every claim.
   /game/1942 and /game/13166 at 1280 and 375. Phase 3 (store Steam/Xbox
   playtime and lastPlayed) is next.
 
+- **Game page redesign, phase 3: built on `feature/game-page-phase3`, stacked
+  on phase 2.** Steam and Xbox imports keep play time on the library entry as
+  `play: { steam: { minutes, lastPlayed, at }, xbox: { lastPlayed, at } }`
+  (unix ms; `at` is when the import read it). `src/services/playtime.js` holds
+  the shape and the reads. Each import replaces only its own half. Additive and
+  sync-safe: entries are stored whole, the per-item merge never rebuilds them
+  field by field, and every edit path spreads the existing entry, so older
+  installs keep the field; no compatLevel bump. Undo is generic and clears it.
+  The lead block shows Played / Took You (Steam minutes, dated by that import)
+  and Last Played. Verified: steam/xbox/playtime unit tests, steam-import spec
+  14/14 incl. the saved `play`, game-page Playwright 120/120, npm test, lint,
+  build, themes.
+
 - **Android icon safe zone: built on `fix/android-icon-safe-zone` (worktree
   `../moctale-icon`), uncommitted.** `scripts/android_icon.mjs` renders the
   launcher set from `src-tauri/icons/android-mark.svg`: mark alone on the

@@ -1395,6 +1395,50 @@ test.describe('/game/:id — family, story, dates and links', () => {
   });
 });
 
+test.describe('/game/:id — imported play time', () => {
+  test.beforeEach(async ({ page }) => { await stubIgdb(page, STUBS); });
+  const DAY = 86400000;
+  const entry = (extra: Record<string, unknown>) => ({ id: 5551, name: 'Stub Complete Edition', is_custom: false, cover_id: 'co1wyy', ...extra });
+
+  test('a game you are playing shows your Steam hours, dated by that import, and when you last played', async ({ page }) => {
+    const at = Date.UTC(2026, 9, 3);
+    await seed(page, { [KEYS.library]: [entry({ status: 'Playing', play: { steam: { minutes: 1923, lastPlayed: Date.now() - 3 * DAY, at } } })] });
+    await page.goto('/game/5551');
+    await detailReady(page, 'Stub Complete Edition');
+    const lead = page.locator('section[aria-labelledby="lead-heading"]');
+    const played = lead.locator('div.border', { has: page.getByText('Played', { exact: true }) }).first();
+    await expect(played).toContainText('32');
+    await expect(played).toContainText('As of your import on Oct 3, 2026.');
+    await expect(lead.getByText('3 days ago, on Steam')).toBeVisible();
+  });
+
+  test('a finished game says how long it took you', async ({ page }) => {
+    await seed(page, { [KEYS.library]: [entry({ status: 'Beaten', play: { steam: { minutes: 3720, lastPlayed: null, at: Date.now() } } })] });
+    await page.goto('/game/5551');
+    await detailReady(page, 'Stub Complete Edition');
+    const took = page.locator('section[aria-labelledby="lead-heading"] div.border', { has: page.getByText('Took You', { exact: true }) });
+    await expect(took).toContainText('62');
+  });
+
+  test('Xbox alone reports no hours, so there is no hours figure, only when it was last played', async ({ page }) => {
+    await seed(page, { [KEYS.library]: [entry({ status: 'Playing', play: { xbox: { lastPlayed: Date.now() - 40 * DAY, at: Date.now() } } })] });
+    await page.goto('/game/5551');
+    await detailReady(page, 'Stub Complete Edition');
+    const lead = page.locator('section[aria-labelledby="lead-heading"]');
+    await expect(lead.getByText('Played', { exact: true })).toHaveCount(0);
+    await expect(lead.getByText('Last month, on Xbox')).toBeVisible();
+  });
+
+  test('without an import there is nothing to say, and nothing is said', async ({ page }) => {
+    await seed(page, { [KEYS.library]: [entry({ status: 'Playing' })] });
+    await page.goto('/game/5551');
+    await detailReady(page, 'Stub Complete Edition');
+    const lead = page.locator('section[aria-labelledby="lead-heading"]');
+    await expect(lead.getByText('Played', { exact: true })).toHaveCount(0);
+    await expect(lead.getByText('Last Played')).toHaveCount(0);
+  });
+});
+
 test.describe('/game/:id — Appears In', () => {
   test('collection and event links each leave for their own route; the franchise heads The Family', async ({ page }) => {
     await stubConnections(page);

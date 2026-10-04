@@ -14,6 +14,7 @@ import {
 } from '../../services/db';
 import { toDateInputValue, readNoteDraft, writeNoteDraft, clearNoteDraft } from '../../services/libraryFields';
 import { downloadUrlAsFile, safeFilename } from '../../services/saveImage';
+import { playSummary } from '../../services/playtime';
 import { getShortPlatformName } from '../../components/platforms/platformLogoUtils';
 import { toast } from '../../components/ui/toastBus';
 import { announce } from '../../components/ui/useAnnounce';
@@ -1183,6 +1184,8 @@ export default function GameDetail() {
               release={releaseFigure}
               anticipation={anticipation}
               shownAt={shownAt}
+              play={playSummary(libEntry)}
+              now={nowMs}
             />
 
             {notesSection && (
