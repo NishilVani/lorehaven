@@ -44,7 +44,7 @@ function Cover({ game, entry }) {
       <div className="aspect-[3/4] bg-neutral-900 overflow-hidden outline outline-1 outline-transparent group-hover:outline-white/60 group-focus-visible:outline-white transition-[outline-color]">
         {game.cover_id && <img src={img(game.cover_id)} alt="" loading="lazy" draggable={false} className="w-full h-full object-cover block" />}
       </div>
-      <div className="text-[13px] leading-snug text-white/70 group-hover:text-white mt-2 line-clamp-2 min-h-[2.5em]">{game.name}</div>
+      <div className="text-[13px] leading-snug text-white/70 group-hover:text-white mt-2 line-clamp-2 h-[2.75em]">{game.name}</div>
       <div className="lh-label text-white/60 tabular-nums mt-1">{game.release_year || 'TBA'}<Status entry={entry} /></div>
     </Link>
   );

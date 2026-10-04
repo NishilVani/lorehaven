@@ -70,16 +70,20 @@ export default function SeriesTimeline({ timeline, franchise, gameName }) {
                     <img src={img(g.cover_id)} alt="" loading="lazy" draggable={false} className="w-full h-full object-cover block" />
                   )}
                 </div>
-                <div className={`text-[13px] leading-snug mt-2 line-clamp-2 min-h-[2.5em] ${here ? 'text-white' : 'text-white/70 group-hover:text-white'}`}>
+                <div className={`text-[13px] leading-snug mt-2 line-clamp-2 h-[2.75em] ${here ? 'text-white' : 'text-white/70 group-hover:text-white'}`}>
                   {g.name}
                 </div>
               </Link>
-              {/* The rule: one segment per entry, so it runs unbroken. */}
+              {/* h-[2.75em] above is exactly two lines at leading-snug (1.375), the
+                  most line-clamp-2 allows. It was a min-height of 2.5em, under two
+                  lines, so a one-line title pulled the rule up beside its neighbours.
+                  The rule: one segment per entry, so it runs unbroken. The marked
+                  entry keeps its status colour too, ringed in white to stay marked. */}
               <div className="relative h-5 mt-2" aria-hidden="true">
                 <div className="absolute inset-x-0 top-1/2 h-px bg-white/25" />
                 <div
-                  className={`absolute left-1.5 top-1/2 -translate-y-1/2 ${here ? 'w-3 h-3 bg-white' : 'w-2 h-2 border border-white/60 bg-black'}`}
-                  style={entry && !here ? { backgroundColor: statusColor(entry.status), borderColor: 'transparent' } : undefined}
+                  className={`absolute left-1.5 top-1/2 -translate-y-1/2 ${here ? 'w-3 h-3 bg-white outline outline-2 outline-offset-1 outline-white' : 'w-2 h-2 border border-white/60 bg-black'}`}
+                  style={entry ? { backgroundColor: statusColor(entry.status), borderColor: 'transparent' } : undefined}
                 />
               </div>
               {/* The status in words beside the year: the tick colour alone would
