@@ -39,6 +39,14 @@ tauri-plugin-deep-link = "2"
 # (tauri-plugin-android-fs-api) must match version-for-version.
 [target.'cfg(target_os = "android")'.dependencies]
 tauri-plugin-android-fs = "=29.0.0"
+# Android-native features (docs/ANDROID-FEATURES.md). Android only, so the
+# desktop builds are unchanged. Pinned to the 2.x line: the newest releases of
+# the official plugins are 3.0 alphas for the next Tauri major.
+tauri-plugin-notification = "2"
+tauri-plugin-haptics = "2"
+# The only native share-sheet plugin with a current Android build. A release
+# candidate, pinned exactly; its npm binding must match.
+tauri-plugin-sharekit = "=0.4.0-rc.7"
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }

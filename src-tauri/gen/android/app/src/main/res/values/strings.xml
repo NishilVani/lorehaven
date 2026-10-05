@@ -1,4 +1,12 @@
 <resources>
     <string name="app_name">LoreHaven</string>
     <string name="main_activity_title">LoreHaven</string>
+    <string name="shortcut_search_short">Search</string>
+    <string name="shortcut_search_long">Search games</string>
+    <string name="shortcut_playing_short">Playing</string>
+    <string name="shortcut_playing_long">What you are playing</string>
+    <string name="shortcut_library_short">Library</string>
+    <string name="shortcut_library_long">Your library</string>
+    <string name="shortcut_pick_short">Pick For Me</string>
+    <string name="shortcut_pick_long">Pick what to play next</string>
 </resources>

@@ -1,12 +1,14 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Compass, Search, Library, User, GalleryVerticalEnd, LogOut, MoreVertical, Calendar, LogIn, Minus, Square, Copy, X, Menu, Image as ImageIcon, Trophy, Tag, SlidersHorizontal, Palette, Drama, Users2, ChevronRight } from 'lucide-react';
+import { Compass, Search, Library, User, GalleryVerticalEnd, LogOut, MoreVertical, Calendar, LogIn, Minus, Square, Copy, X, Menu, Image as ImageIcon, Trophy, Tag, SlidersHorizontal, Palette, Drama, Users2, ChevronRight, Smartphone } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { toast } from '../ui/toastBus';
 import DropdownMenu from '../ui/DropdownMenu';
 import { useFocusTrap } from '../ui/useFocusTrap';
 import PreferencesDialog from '../ui/PreferencesDialog';
 import AppearanceDialog from '../ui/AppearanceDialog';
+import PhoneSettingsDialog from '../ui/PhoneSettingsDialog';
+import { isAndroidApp } from '../../services/native/device';
 import UserBlob from '../ui/UserBlob';
 import { blobSeed } from '../ui/blobSeed';
 import { auth } from '../../services/firebase';
@@ -43,6 +45,7 @@ export default function Navbar() {
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
     const [prefsOpen, setPrefsOpen] = useState(false);
     const [appearanceOpen, setAppearanceOpen] = useState(false);
+    const [phoneOpen, setPhoneOpen] = useState(false);
     const [user, setUser] = useState(null);
     const [isMaximized, setIsMaximized] = useState(false);
     const [isVisible, setIsVisible] = useState(true);
@@ -258,6 +261,12 @@ export default function Navbar() {
             icon: Palette,
             onClick: () => setAppearanceOpen(true)
         },
+        /* Only in the Android app: reminders and haptics are this phone's. */
+        ...(isAndroidApp() ? [{
+            label: 'On This Phone',
+            icon: Smartphone,
+            onClick: () => setPhoneOpen(true)
+        }] : []),
         {
             label: 'Log out',
             icon: LogOut,
@@ -294,6 +303,12 @@ export default function Navbar() {
             icon: Palette,
             onClick: () => setAppearanceOpen(true)
         },
+        /* Only in the Android app: reminders and haptics are this phone's. */
+        ...(isAndroidApp() ? [{
+            label: 'On This Phone',
+            icon: Smartphone,
+            onClick: () => setPhoneOpen(true)
+        }] : []),
         {
             label: 'Sign In',
             icon: LogIn,
@@ -991,6 +1006,7 @@ export default function Navbar() {
             <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
             {prefsOpen && <PreferencesDialog onClose={() => setPrefsOpen(false)} />}
             {appearanceOpen && <AppearanceDialog onClose={() => setAppearanceOpen(false)} />}
+            {phoneOpen && <PhoneSettingsDialog onClose={() => setPhoneOpen(false)} />}
 
         </>
     );

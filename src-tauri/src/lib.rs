@@ -49,6 +49,15 @@ pub fn run() {
     #[cfg(target_os = "android")]
     let builder = builder.plugin(tauri_plugin_android_fs::init());
 
+    /* Release-day reminders, haptic feedback and the native share sheet.
+       Android only: the web code feature-detects each one, so an older APK
+       that lacks them keeps working on a newer bundle. */
+    #[cfg(target_os = "android")]
+    let builder = builder
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_haptics::init())
+        .plugin(tauri_plugin_sharekit::init());
+
     builder
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

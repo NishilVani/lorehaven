@@ -47,7 +47,8 @@
         "schemes": ["lorehaven"]
       },
       "mobile": [
-        { "scheme": ["lorehaven"], "appLink": false }
+        { "scheme": ["lorehaven"], "appLink": false },
+        { "scheme": ["https"], "host": "lorehaven.app", "pathPrefix": ["/game/", "/franchise/"], "appLink": true }
       ]
     }
   }

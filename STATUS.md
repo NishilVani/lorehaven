@@ -7,6 +7,30 @@ infinite-scroll audit, with the measurement behind every claim.
 
 ## Where this stands
 
+- **STOPPED 2026-10-06: weekly usage at 97% (stop condition is 60%).** Not
+  resumed on judgement, per the protocol. Next session picks up here.
+- **Android Tier 1: built on `feature/android-tier1`, pushed, NOT verified on
+  a device.** Release-day reminders (notification plugin, `services/native/
+  reminders.js`, `NativeBridge.jsx`, account menu > On This Phone), haptics
+  (`services/native/haptics.js`, wired into game page, card menus, library lift
+  and shelf swipe), native share sheet (`services/native/share.js`), launcher
+  shortcuts (`res/xml/shortcuts.xml` + `services/native/links.js`, Library
+  `?pick=1`), verified App Links (`tauri.conf.json` appLink, `public/well-known-
+  assetlinks.json` via a firebase.json rewrite). Details and the phone test
+  list: `docs/ANDROID-FEATURES.md`. Verified: `tests/native.test.mjs`, npm test,
+  lint 0 errors, web build, Firebase emulator serves assetlinks as JSON, the
+  generated manifest carries the autoVerify https filter. The local debug APK build SUCCEEDED (`npx tauri android build --apk --debug --target aarch64`, NDK 30 -> app-universal-debug.apk); the Kotlin daemon "exception" lines in its log were not fatal. CI uses NDK 27. npm bindings are pinned to the crates (notification
+  2.4.0, haptics 2.3.3, sharekit 0.4.0-rc.7, api ~2.11.0): the CLI refuses a
+  major.minor mismatch. Emulator `lorehaven_qa` was booted headless for testing.
+- **Owner asked next (not started):** Tier 2 -- home-screen widgets
+  (tauri-plugin-widgets), share into the app (tauri-plugin-mobile-sharetarget),
+  daily library-update notifications, set as wallpaper (custom Kotlin plugin),
+  predictive back + edge-to-edge; from Tier 3 only the QR scanner
+  (barcode-scanner plugin) and a Quick Settings tile (custom TileService). Then a
+  motion/animation/transition system for the whole app, tied to haptics on
+  Android, with an experimental high-motion tier for the owner to test on their
+  devices. Unsupervised permission given; no shell deletions.
+
 - **Search: built on `feature/smart-search`.** Hybrid local + IGDB search.
   `src/services/search/`: `normalize.js` (shared by build and app), `engine.js`
   (typo-tolerant, prefix, popularity/library ranking, completion, context-checked

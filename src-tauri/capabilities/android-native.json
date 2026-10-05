@@ -1,0 +1,18 @@
+{
+  "$schema": "../gen/schemas/android-schema.json",
+  "identifier": "android-native",
+  "description": "Release-day reminders (scheduled local notifications), haptic feedback on library actions, and the native share sheet. Raw vibrate is not granted: only the three system feedback patterns are used.",
+  "platforms": [
+    "android"
+  ],
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "notification:default",
+    "haptics:allow-impact-feedback",
+    "haptics:allow-notification-feedback",
+    "haptics:allow-selection-feedback",
+    "sharekit:default"
+  ]
+}

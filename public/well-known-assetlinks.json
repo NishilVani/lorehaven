@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.lorehaven.games",
+      "sha256_cert_fingerprints": [
+        "99:62:28:7D:D8:F5:B3:75:C6:50:F2:60:8E:35:6D:4A:AF:92:9C:E8:46:56:27:5D:FE:AC:97:5B:D5:AD:1E:25"
+      ]
+    }
+  }
+]

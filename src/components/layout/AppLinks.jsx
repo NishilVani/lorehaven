@@ -2,14 +2,17 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { isTauri } from '../../services/openExternal';
 import { routeFromAppLink } from '../../services/appSignIn';
+import { routeFromShortcut, routeFromWebLink } from '../../services/native/links';
 
 /**
  * Follows lorehaven:// links inside the desktop and Android apps.
  *
  * A Steam sign-in finished in the system browser comes back as one. Only the
- * sign-in and import pages can be opened this way (see routeFromAppLink), so a
- * link from anywhere else is ignored. Renders nothing, and does nothing on the
- * web.
+ * sign-in and import pages can be opened this way (see routeFromAppLink).
+ * On Android two more kinds arrive here, each with its own narrow allowlist
+ * (services/native/links.js): a launcher shortcut, which maps to one of four
+ * fixed screens, and a verified https://lorehaven.app/game/<id> link. Anything
+ * else is ignored. Renders nothing, and does nothing on the web.
  */
 export default function AppLinks() {
   const navigate = useNavigate();
@@ -21,7 +24,7 @@ export default function AppLinks() {
 
     const follow = (urls) => {
       for (const url of urls || []) {
-        const route = routeFromAppLink(url);
+        const route = routeFromAppLink(url) || routeFromShortcut(url) || routeFromWebLink(url);
         if (!route) continue;
         /* The sign-in page reads its address once, when it mounts. Already on
            that page, a navigation would change the address under it and

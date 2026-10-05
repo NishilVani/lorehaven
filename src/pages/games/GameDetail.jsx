@@ -1,4 +1,6 @@
 import PageHeader from '../../components/ui/PageHeader';
+import { haptic } from '../../services/native/haptics';
+import { shareLink } from '../../services/native/share';
 import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from 'react';
 import EmptyPlate from '../../components/ui/EmptyPlate';
 import { useParams, useNavigate, Link } from 'react-router-dom';
@@ -460,6 +462,7 @@ export default function GameDetail() {
     if (libEntry?.status === status) return;
     if (!libEntry) {
       persist({ status });
+      haptic('success');
       toast(`Added to ${status}`);
       return;
     }
@@ -479,6 +482,7 @@ export default function GameDetail() {
        priority sort or group (Library.jsx:108) and the card suppresses the
        badge, so keeping it is invisible until something asks for it. */
     persist(status === 'Beaten' ? { status } : { status, dateCompleted: null });
+    haptic('light');
     toast(`Moved to ${status}`);
   };
 
@@ -525,6 +529,7 @@ export default function GameDetail() {
     if (priority && libEntry?.priority === priority) return;
     const next = priority;
     persist({ priority: next });
+    haptic('select');
     toast(next ? `Priority: ${next}` : 'Priority cleared');
   };
 
@@ -532,6 +537,7 @@ export default function GameDetail() {
     if (feel && libEntry?.feel === feel) return;
     const next = feel;
     persist({ feel: next });
+    haptic('select');
     toast(next ? `Rated: ${next}` : 'Rating cleared');
   };
 
@@ -547,6 +553,7 @@ export default function GameDetail() {
          every later visit announced one for a game that had no notes field. */
       setNotes('');
       clearNoteDraft(id);
+      haptic('warning');
       toast('Removed from library');
     },
   );
@@ -726,18 +733,11 @@ export default function GameDetail() {
   /* The system share sheet where there is one (phones, Safari), the clipboard
      everywhere else. Always the live site's address. */
   const shareGame = async () => {
-    const url = `${SHARE_ORIGIN}/game/${game.id}`;
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: game.name, url });
-        return;
-      }
-      await navigator.clipboard.writeText(url);
-      toast('Link copied');
-    } catch (err) {
-      if (err?.name === 'AbortError') return;      // the sheet was dismissed
-      toast('Could not copy the link', 'error');
-    }
+    /* The Android app opens the system share sheet; a browser uses its own
+       share where there is one, and the clipboard otherwise (shareLink). */
+    const outcome = await shareLink({ title: game.name, url: `${SHARE_ORIGIN}/game/${game.id}` });
+    if (outcome === 'copied') toast('Link copied');
+    else if (outcome === 'failed') toast('Could not copy the link', 'error');
   };
 
   const moreOptions = [
