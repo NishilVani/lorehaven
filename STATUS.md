@@ -42,9 +42,35 @@ infinite-scroll audit, with the measurement behind every claim.
     (mobile shelf strip) fail on the baseline too; Pick For Me suggests
     Wishlist games not yet released (`PickNextDialog`); the emoji gate flags
     18 glyphs inside `.claude/skills/impeccable` (third-party).
-- **Next (owner asked):** the motion, animation and transition system for the
-  whole app, tied to haptics on Android, plus an experimental high-motion tier
-  gated to Android and desktop for the owner to test.
+- **Motion system: built on `feature/motion`, stacked on `feature/android-tier1`.**
+  `docs/MOTION.md` has the levels, the files, the rules and a device test list.
+  Appearance > Motion: Match System (default), Reduced, Standard, Expressive
+  (experimental; device-local, `localStorage['lorehaven_motion']`). Standard:
+  View Transitions page changes on pathname only (`src/motion/
+  TransitionLocation.jsx`), staggered card entrance (`.lh-card-enter`), press
+  feedback on every control (`src/motion/motion.js`). Expressive adds the
+  cover flight (FLIP, `[data-card-cover]` to `[data-vt-cover]`), scroll-driven
+  hero parallax and section reveals, card tilt with glare, a burst plus success
+  haptic on Beaten, haptic detents on snapping rows.
+  - Fixed while measuring: reduced-motion selectors never matched (space
+    before `::view-transition-*`); a view-transition cover morph froze the
+    screen (rendering pauses while the update waits; replaced with FLIP); the
+    flying image left an empty frame (the whole box flies now); a menu rule
+    duplicated DropdownMenu's own entrance (removed).
+  - Measured (`scripts/motion_perf.mjs`, 4x CPU throttle, phone size, dev
+    build): transition ready 102-130ms, finished 437-462ms, frames p50/p95
+    17ms, 2 long frames from the page mount in every level. Android emulator
+    (WebView 124, software GPU): View Transitions, scroll timelines and
+    scrollend all supported; card to game page finished in 731ms with the
+    cover flight.
+  - Verified: npm test (new `tests/motion.test.mjs`), lint 0 errors, build,
+    emoji gate clean outside `.claude/`, Playwright smoke + phase3 + phase7 +
+    search on chromium and Mobile Chrome: 256 passed, 3 failed, all three
+    (phase7 N7, S2, S5) failing on the baseline without these changes too.
+  - Not verified: how Expressive feels on the owner's phone and desktop (the
+    point of the experimental tier); tilt and detents need a real device.
+  - Pre-existing, found while checking: at 1024px a Dialog (z 3000) slides
+    under the desktop rail (z 9999), e.g. Appearance.
 
 - **Search: built on `feature/smart-search`.** Hybrid local + IGDB search.
   `src/services/search/`: `normalize.js` (shared by build and app), `engine.js`

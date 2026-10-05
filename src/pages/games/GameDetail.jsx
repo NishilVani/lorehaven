@@ -1,5 +1,6 @@
 import PageHeader from '../../components/ui/PageHeader';
 import { haptic } from '../../services/native/haptics';
+import { celebrate } from '../../motion/motion';
 import { shareLink } from '../../services/native/share';
 import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
 /* Loaded when opened: it carries the QR encoder. */
@@ -484,7 +485,9 @@ export default function GameDetail() {
        priority sort or group (Library.jsx:108) and the card suppresses the
        badge, so keeping it is invisible until something asks for it. */
     persist(status === 'Beaten' ? { status } : { status, dateCompleted: null });
-    haptic('light');
+    /* Finishing a game is the one move worth a little ceremony. */
+    if (status === 'Beaten') celebrate(document.activeElement);
+    else haptic('light');
     toast(`Moved to ${status}`);
   };
 
@@ -1098,7 +1101,8 @@ export default function GameDetail() {
            edge never reaches the media button's glyph on a short viewport. */
         <section className="relative w-full h-[28vh] min-h-[200px] md:h-[44vh] border-b border-white/15 bg-neutral-900 overflow-hidden lg:-mt-8">
           {derived.heroId || heroMedia ? (
-            <img src={img(derived.heroId || heroMedia.id, '1080p')} alt={game.name} className="w-full h-full object-cover block" />
+            /* data-motion-hero: the expressive motion tier drifts it with the scroll (motion.css). */
+            <img src={img(derived.heroId || heroMedia.id, '1080p')} alt={game.name} data-motion-hero="" className="w-full h-full object-cover block" />
           ) : (
             <div className="absolute inset-0 bg-neutral-900" aria-hidden="true" />
           )}
@@ -1128,7 +1132,10 @@ export default function GameDetail() {
             plate; the title column starts below the art, so no type sits on it. */}
         <div className="flex gap-4 md:gap-8 items-start mb-8">
           {game.cover?.image_id && (
-            <div className={`relative z-10 w-24 sm:w-32 lg:w-44 shrink-0 border border-white/20 bg-black ${hasHeroStage ? '-mt-20 md:-mt-28' : ''}`}>
+            /* data-vt-cover: where a tapped card's cover flies to in the expressive
+               motion tier (motion/motion.js). The whole framed box flies, not the
+               image alone, or an empty black frame waits at the destination. */
+            <div data-vt-cover="" className={`relative z-10 w-24 sm:w-32 lg:w-44 shrink-0 border border-white/20 bg-black ${hasHeroStage ? '-mt-20 md:-mt-28' : ''}`}>
               <img
                 src={img(game.cover.image_id, 'cover_big')}
                 alt={game.name}

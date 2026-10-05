@@ -6,6 +6,7 @@ import Navbar from './components/layout/Navbar';
 import ScrollToTop from './components/layout/ScrollToTop';
 import AppLinks from './components/layout/AppLinks';
 import NativeBridge from './components/layout/NativeBridge';
+import TransitionLocation from './motion/TransitionLocation';
 import { ToastContainer } from './components/ui/Toast';
 import ApiErrorBanner from './components/ui/ApiErrorBanner';
 import useBootConfirmed from './ota/useBootConfirmed';
@@ -118,6 +119,9 @@ function App() {
 
   return (
     <BrowserRouter>
+      {/* Page transitions: everything inside reads the page's location, held
+          while the browser captures the old page (motion/TransitionLocation). */}
+      <TransitionLocation>
       <ScrollToTop />
       <AppLinks />
       <NativeBridge />
@@ -193,6 +197,7 @@ function App() {
           </Suspense>
         </main>
       </div>
+      </TransitionLocation>
     </BrowserRouter>
   );
 }

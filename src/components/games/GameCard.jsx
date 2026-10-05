@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect, useMemo } from 'react';
 import { haptic } from '../../services/native/haptics';
+import { celebrate } from '../../motion/motion';
 import { useNavigate } from 'react-router-dom';
 import {
   ImageOff,
@@ -201,7 +202,8 @@ export default function GameCard({
           const updated = { ...entry, status };
           saveToLibrary(updated);
           afterLibChange();
-          haptic('light');
+          if (status === 'Beaten') celebrate(document.activeElement);
+          else haptic('light');
           toast(`Moved to ${status}`);
         }
       };
@@ -451,7 +453,7 @@ export default function GameCard({
            scrolled the card up by exactly that and its top border disappeared
            under the clip, permanently — Tab through the grid and every card lost
            its border in turn. `clip` establishes no scroll container at all. */
-        className={`group flex flex-col hover-game-card overflow-clip relative select-none ${
+        className={`group flex flex-col hover-game-card lh-card-enter overflow-clip relative select-none ${
           isDragging ? 'lib-card-dragging' : 'opacity-100 z-10'
         } ${draggable
           ? ' sm:cursor-grab sm:active:cursor-grabbing'
@@ -520,6 +522,8 @@ export default function GameCard({
             {game.cover_id ? (
               <img
                 className="w-full h-full object-cover"
+                /* The near end of the cover flight to the game page (motion/motion.js). */
+                data-card-cover=""
                 src={`https://images.igdb.com/igdb/image/upload/t_cover_big/${game.cover_id}.jpg`}
                 alt={game.name}
                 loading="lazy"
