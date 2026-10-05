@@ -19,3 +19,8 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+# Predictive back: LoreHavenPlugin turns off Tauri's always-on back callback by
+# reading the dispatcher's callback list. Keep the field's name through R8.
+-keepclassmembers class androidx.activity.OnBackPressedDispatcher {
+    *** onBackPressedCallbacks;
+}

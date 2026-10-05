@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home-screen widgets, the Quick Settings tile and share into the app. -->
+<resources>
+    <string name="widget_playing_title">Now Playing</string>
+    <string name="widget_playing_empty">Nothing on Playing. Start a game in LoreHaven and it shows here.</string>
+    <string name="widget_playing_description">Games you are playing, with where you left off</string>
+    <string name="widget_upnext_title">Up Next</string>
+    <string name="widget_upnext_empty">Nothing marked Next Up. Set a backlog game\'s priority to Next Up.</string>
+    <string name="widget_upnext_description">The Next Up games on your backlog</string>
+    <string name="widget_soon_title">Releasing Soon</string>
+    <string name="widget_soon_empty">No dated releases on your Wishlist.</string>
+    <string name="widget_soon_description">A countdown to your next wishlisted releases</string>
+    <string name="tile_pick_label">Pick For Me</string>
+    <string name="tile_pick_subtitle">From your backlog</string>
+    <string name="share_label">Find in LoreHaven</string>
+</resources>

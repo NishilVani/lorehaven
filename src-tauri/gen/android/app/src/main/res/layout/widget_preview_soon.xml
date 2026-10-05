@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What the Android 12+ widget picker shows before the widget is placed. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:orientation="vertical"
+    android:padding="12dp">
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="32dp"
+        android:gravity="center_vertical"
+        android:letterSpacing="0.12"
+        android:text="@string/widget_soon_title"
+        android:textAllCaps="true"
+        android:textColor="@color/widget_ink"
+        android:textSize="12sp"
+        android:textStyle="bold" />
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginBottom="4dp"
+        android:background="@color/widget_rule" />
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+        <ImageView
+            android:layout_width="30dp"
+            android:layout_height="40dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/widget_cover_blank" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:orientation="vertical">
+            <FrameLayout android:layout_width="120dp" android:layout_height="10dp" android:background="@color/widget_blank" />
+            <FrameLayout android:layout_width="80dp" android:layout_height="8dp" android:layout_marginTop="6dp" android:background="@color/widget_blank" />
+        </LinearLayout>
+    </LinearLayout>
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+        <ImageView
+            android:layout_width="30dp"
+            android:layout_height="40dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/widget_cover_blank" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:orientation="vertical">
+            <FrameLayout android:layout_width="120dp" android:layout_height="10dp" android:background="@color/widget_blank" />
+            <FrameLayout android:layout_width="80dp" android:layout_height="8dp" android:layout_marginTop="6dp" android:background="@color/widget_blank" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

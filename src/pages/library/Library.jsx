@@ -1162,6 +1162,15 @@ export default function Library() {
   /* ?pick=1 opens Pick For Me straight away: the Android launcher shortcut
      (services/native/links.js) lands here with it. */
   const [pickNextOpen, setPickNextOpen] = useState(() => searchParams.get('pick') === '1');
+  /* The Quick Settings tile can fire while the library is already open, which
+     changes the query without remounting: open the dialog when ?pick=1
+     arrives, adjusting state during render rather than in an effect. */
+  const pickParam = searchParams.get('pick') === '1';
+  const [pickSeen, setPickSeen] = useState(pickParam);
+  if (pickParam !== pickSeen) {
+    setPickSeen(pickParam);
+    if (pickParam) setPickNextOpen(true);
+  }
   const closePickNext = () => {
     setPickNextOpen(false);
     if (searchParams.has('pick')) {

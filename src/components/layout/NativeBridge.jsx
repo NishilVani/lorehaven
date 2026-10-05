@@ -1,20 +1,31 @@
-import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
+import { matchSteamApps } from '../../services/igdb';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { getLibrary } from '../../services/db';
 import { isAndroidApp, getDeviceSettings } from '../../services/native/device';
 import { syncReminders } from '../../services/native/reminders';
+import { syncWidgets } from '../../services/native/widgets';
+import { syncLibraryDigest } from '../../services/native/libraryDigest';
+import { nativeCall } from '../../services/native/bridge';
+import { parseSharedText, searchRoute } from '../../services/native/shareIn';
+import { startBackController } from '../../services/native/back';
 
 /**
  * The Android app's background duties. Renders nothing; does nothing on the
  * web, the desktop app, or an APK built before the plugins.
  *
- * - Keeps release-day reminders in step with the library: on launch, and a
- *   moment after any library change or settings change, so a game moved off
- *   the wishlist, given a new date, or removed reschedules itself.
- * - A tap on a reminder opens that game.
+ * - Keeps release-day reminders and the home-screen widgets in step with the
+ *   library: on launch, and a moment after any library or settings change.
+ * - Gathers library updates for the evening digest, on launch and whenever the
+ *   app comes back to the foreground.
+ * - Opens what another app shared into LoreHaven.
+ * - Runs predictive back (services/native/back.js).
+ * - A tap on a notification opens its game, or the updates list.
  */
 export default function NativeBridge() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const back = useRef(null);
 
   useEffect(() => {
     if (!isAndroidApp()) return undefined;
@@ -26,7 +37,9 @@ export default function NativeBridge() {
          events, and every sync reads the whole library. */
       timer = setTimeout(() => {
         if (!live) return;
-        syncReminders(getLibrary(), getDeviceSettings().reminders).catch(() => {});
+        const library = getLibrary();
+        syncReminders(library, getDeviceSettings().reminders).catch(() => {});
+        syncWidgets(library).catch(() => {});
       }, 1500);
     };
     sync();
@@ -40,6 +53,53 @@ export default function NativeBridge() {
     };
   }, []);
 
+  /* Foreground work: the digest, and anything shared while the app was in
+     the background (a share to a running app arrives as a new intent and
+     brings it forward, which is a visibility change). */
+  useEffect(() => {
+    if (!isAndroidApp()) return undefined;
+    let live = true;
+    const takeShare = async () => {
+      const res = await nativeCall('takeShared').catch(() => null);
+      const shared = live && res?.text ? parseSharedText(res.text) : null;
+      if (!shared) return;
+      if (shared.kind === 'route') { navigate(shared.route); return; }
+      if (shared.kind === 'steam') {
+        try {
+          const game = (await matchSteamApps([shared.appid])).get(String(shared.appid));
+          if (live && game?.id) { navigate(`/game/${game.id}`); return; }
+        } catch { /* no match or offline: search instead */ }
+      }
+      if (live && shared.query) navigate(searchRoute(shared.query));
+    };
+    const onForeground = () => {
+      if (document.visibilityState !== 'visible') return;
+      takeShare();
+      syncLibraryDigest(getDeviceSettings().updates);
+    };
+    /* After first paint: the digest refresh reads IGDB, and a share should
+       land on a page that has mounted. */
+    const first = setTimeout(onForeground, 2500);
+    document.addEventListener('visibilitychange', onForeground);
+    const onSettings = () => syncLibraryDigest(getDeviceSettings().updates);
+    window.addEventListener('lorehaven_device_settings', onSettings);
+    return () => {
+      live = false;
+      clearTimeout(first);
+      document.removeEventListener('visibilitychange', onForeground);
+      window.removeEventListener('lorehaven_device_settings', onSettings);
+    };
+  }, [navigate]);
+
+  useEffect(() => {
+    if (!isAndroidApp()) return undefined;
+    back.current = startBackController();
+    return () => { back.current?.stop(); back.current = null; };
+  }, []);
+
+  /* A route change can make history back possible, or not. */
+  useEffect(() => { back.current?.refresh(); }, [location.key]);
+
   useEffect(() => {
     if (!isAndroidApp()) return undefined;
     let live = true;
@@ -47,8 +107,10 @@ export default function NativeBridge() {
     (async () => {
       const { onAction } = await import('@tauri-apps/plugin-notification');
       const l = await onAction((n) => {
-        const id = Number(n?.extra?.gameId);
-        if (n?.extra?.kind === 'release' && Number.isInteger(id) && id > 0) navigate(`/game/${id}`);
+        const extra = n?.extra || {};
+        const id = Number(extra.gameId);
+        if (extra.kind === 'release' && Number.isInteger(id) && id > 0) navigate(`/game/${id}`);
+        else if (extra.kind === 'updates') navigate('/explore/updates');
       });
       if (live) listener = l; else l.unregister?.();
     })().catch(() => {});

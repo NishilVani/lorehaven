@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug variant: applicationIdSuffix ".debug" changes the package, so shortcuts must target it. Keep in step with main/res/xml/shortcuts.xml. -->
+<!-- Long-press the LoreHaven icon. Each shortcut opens lorehaven://shortcut/<name>,
+     which src/services/native/links.js maps to one fixed screen; nothing from
+     the link itself reaches the router. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="search"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_search"
+        android:shortcutShortLabel="@string/shortcut_search_short"
+        android:shortcutLongLabel="@string/shortcut_search_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.lorehaven.games.debug"
+            android:targetClass="com.lorehaven.games.MainActivity"
+            android:data="lorehaven://shortcut/search" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="playing"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_playing"
+        android:shortcutShortLabel="@string/shortcut_playing_short"
+        android:shortcutLongLabel="@string/shortcut_playing_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.lorehaven.games.debug"
+            android:targetClass="com.lorehaven.games.MainActivity"
+            android:data="lorehaven://shortcut/playing" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="library"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_library"
+        android:shortcutShortLabel="@string/shortcut_library_short"
+        android:shortcutLongLabel="@string/shortcut_library_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.lorehaven.games.debug"
+            android:targetClass="com.lorehaven.games.MainActivity"
+            android:data="lorehaven://shortcut/library" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="pick"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_pick"
+        android:shortcutShortLabel="@string/shortcut_pick_short"
+        android:shortcutLongLabel="@string/shortcut_pick_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.lorehaven.games.debug"
+            android:targetClass="com.lorehaven.games.MainActivity"
+            android:data="lorehaven://shortcut/pick" />
+    </shortcut>
+</shortcuts>

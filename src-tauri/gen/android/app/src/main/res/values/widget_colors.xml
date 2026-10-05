@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The app's own surface and ink (src/index.css, the lh- custom properties): widgets match it.
+     Muted ink on the surface measures 8.33:1 (scripts/contrast.py). -->
+<resources>
+    <color name="widget_surface">#FF000000</color>
+    <color name="widget_ink">#FFFFFFFF</color>
+    <color name="widget_ink_muted">#FFA3A3A3</color>
+    <color name="widget_rule">#33FFFFFF</color>
+    <color name="widget_blank">#FF262626</color>
+</resources>

@@ -47,6 +47,10 @@ tauri-plugin-haptics = "2"
 # The only native share-sheet plugin with a current Android build. A release
 # candidate, pinned exactly; its npm binding must match.
 tauri-plugin-sharekit = "=0.4.0-rc.7"
+# Scan a QR code (a LoreHaven link) with the camera. Official plugin; its npm
+# binding (@tauri-apps/plugin-barcode-scanner) is pinned to the same version.
+# Not 2.5: it needs tauri 2.12, and this app is on 2.11 (see ANDROID-FEATURES.md).
+tauri-plugin-barcode-scanner = "=2.4.6"
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }

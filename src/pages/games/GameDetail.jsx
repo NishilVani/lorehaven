@@ -1,11 +1,13 @@
 import PageHeader from '../../components/ui/PageHeader';
 import { haptic } from '../../services/native/haptics';
 import { shareLink } from '../../services/native/share';
-import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
+/* Loaded when opened: it carries the QR encoder. */
+const QrCodeDialog = lazy(() => import('../../components/ui/QrCodeDialog'));
 import EmptyPlate from '../../components/ui/EmptyPlate';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import useSwipe from '../../hooks/useSwipe';
-import { Play, Download, Share2, ThumbsUp, ThumbsDown, Bookmark, ArrowRightLeft, X } from 'lucide-react';
+import { Play, Download, Share2, ThumbsUp, ThumbsDown, Bookmark, ArrowRightLeft, X, QrCode } from 'lucide-react';
 import { getGameById, getGamesByIds, getGamesProfile, getFranchisesByIds, getSeriesTimeline, getCollectionsByIds, getEventsByGameId } from '../../services/igdb';
 import { buildTaste, eraBonus, isScenicArtwork } from '../../services/discover';
 import { reasonsFor } from '../../services/pickNext';
@@ -638,6 +640,7 @@ export default function GameDetail() {
   /* ── Tracker bar wiring ── */
   const [platformsOpen, setPlatformsOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
 
   /* The bar docks to the bottom of the screen below lg, which is the corner
      toasts rise from. Lift the stack clear of it for as long as this page is
@@ -742,6 +745,8 @@ export default function GameDetail() {
 
   const moreOptions = [
     { label: 'Share Link', icon: Share2, onClick: shareGame },
+    /* Opens this page on another phone: its camera, or Scan QR Code in the app. */
+    { label: 'Show QR Code', icon: QrCode, onClick: () => setQrOpen(true) },
     ...(franchise ? [{
       label: franchiseSaved ? 'Unsave Franchise' : 'Save Franchise',
       icon: Bookmark,
@@ -1368,6 +1373,11 @@ export default function GameDetail() {
         </Dialog>
       )}
 
+      {qrOpen && (
+        <Suspense fallback={null}>
+          <QrCodeDialog url={`${SHARE_ORIGIN}/game/${game.id}`} title={game.name} onClose={() => setQrOpen(false)} />
+        </Suspense>
+      )}
       {transferOpen && libEntry && (
         <TransferDataModal
           sourceGame={libEntry}

@@ -13,7 +13,7 @@ import { DEFAULT_REMINDERS, REMINDER_SHELVES } from './reminders.js';
 export const isAndroidApp = () => isTauri() && /android/i.test(navigator.userAgent);
 
 const KEY = 'lorehaven_device_settings';
-const DEFAULTS = { reminders: DEFAULT_REMINDERS, haptics: true };
+const DEFAULTS = { reminders: DEFAULT_REMINDERS, haptics: true, updates: false };
 
 export function getDeviceSettings() {
   let raw = {};
@@ -27,6 +27,9 @@ export function getDeviceSettings() {
       shelves: shelves.length ? shelves : DEFAULTS.reminders.shelves,
     },
     haptics: raw.haptics !== false,
+    /* The evening digest of library changes (libraryDigest.js). Off until
+       asked for, like reminders: it needs the notification permission. */
+    updates: raw.updates === true,
   };
 }
 
