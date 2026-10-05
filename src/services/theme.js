@@ -13,6 +13,7 @@
  */
 import { getPrefs } from './db';
 import { getTheme, themeVars, DEFAULT_THEME_ID } from '../constants/themes';
+import { setSystemBars } from './native/bridge.js';
 
 export const THEME_CACHE_KEY = 'lh_theme_css';
 const FONT_LINK_ID = 'lh-theme-font';
@@ -70,6 +71,11 @@ export function applyTheme(id) {
     document.head.appendChild(meta);
   }
   meta.content = theme.paper;
+
+  /* The Android app draws under the status and navigation bars, so their
+     icons follow the theme: light icons on a dark page, dark on a light one.
+     A no-op everywhere else. */
+  setSystemBars(theme.scheme);
 
   try {
     if (theme.id === DEFAULT_THEME_ID) localStorage.removeItem(THEME_CACHE_KEY);

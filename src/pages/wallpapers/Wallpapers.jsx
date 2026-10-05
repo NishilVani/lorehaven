@@ -52,8 +52,11 @@ import {
   ExternalLink,
   Copy,
   RefreshCw,
-  Info
+  Info,
+  Wallpaper
 } from 'lucide-react';
+import SetWallpaperSheet from './SetWallpaperSheet';
+import { isAndroidApp } from '../../services/native/device';
 import useAnnounce from '../../components/ui/useAnnounce';
 
 /* The one sanctioned off-black (DESIGN.md → "The one sanctioned off-black"): a
@@ -374,6 +377,10 @@ export default function Wallpapers() {
     onDoubleTap: (zoomIn) => setChromeShown(!zoomIn),
   });
   const [infoOpen, setInfoOpen] = useState(false);
+  /* Set as wallpaper: the Android app only (SetWallpaperSheet). Holds the
+     plate it was opened for, so paging or closing the viewer drops it. */
+  const [setAsFor, setSetAsFor] = useState(null);
+  const canSetWallpaper = useMemo(() => isAndroidApp(), []);
   const previewRef = useRef(null);
 
   // Sync the register with localStorage
@@ -667,6 +674,7 @@ export default function Wallpapers() {
   const active = activePreviewIndex >= 0 && activePreviewIndex < previewPool.length
     ? previewPool[activePreviewIndex]
     : null;
+  const setAsOpen = !!active && setAsFor === active.id;
   const activeSelected = active ? selectedIds.has(active.id) : false;
 
   /* One navigator for the arrows, the filmstrip, the swipe and the keys. */
@@ -826,7 +834,7 @@ export default function Wallpapers() {
   useFocusTrap({
     active: !!active,
     containerRef: previewRef,
-    onClose: () => setActivePreviewIndex(-1),
+    onClose: () => (setAsOpen ? setSetAsFor(null) : setActivePreviewIndex(-1)),
     lockScroll: false,
     modal: !wide,
   });
@@ -1639,10 +1647,23 @@ export default function Wallpapers() {
               </div>
               <div className="flex items-stretch justify-around px-2 pb-2">
                 <ViewerAction icon={Download} label="Save" onClick={() => downloadSingle(active)} />
+                {canSetWallpaper && (
+                  <ViewerAction icon={Wallpaper} label="Set As" pressed={setAsOpen} on={setAsOpen} onClick={() => { setInfoOpen(false); setSetAsFor(active.id); }} />
+                )}
                 <ViewerAction icon={Info} label="Info" on={infoOpen} pressed={infoOpen} onClick={() => setInfoOpen(o => !o)} />
               </div>
             </div>
           </div>
+
+          {setAsOpen && (
+            <SetWallpaperSheet
+              url={plateUrl(active)}
+              gameName={active.gameName}
+              surface={SHEET_SURFACE}
+              hairline={HAIRLINE}
+              onClose={() => setSetAsFor(null)}
+            />
+          )}
 
           {/* Info sheet over the viewer */}
           {infoOpen && (

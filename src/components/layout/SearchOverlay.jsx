@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useSearchParams, useNavigate, useLocation, Link } from 'react-router-dom';
+import { closeSearch } from './searchHistory';
 import { X, Layers, Gamepad2, Library, HeartPlus, Building2, CircleCheck, BookmarkPlus, BookmarkMinus } from 'lucide-react';
 import { searchGamesRanked, searchFranchises, searchIgdbCollections, searchCompanies } from '../../services/igdb';
 import { loadLocal, deviceDocs } from '../../services/search/localIndex';
@@ -182,7 +183,7 @@ export default function SearchOverlay() {
         params.delete('search');
         params.delete('q');
         const paramsStr = params.toString();
-        navigate(`${location.pathname}${paramsStr ? '?' + paramsStr : ''}`);
+        closeSearch(navigate, `${location.pathname}${paramsStr ? '?' + paramsStr : ''}`);
     }, [location.search, location.pathname, navigate]);
 
     /* A pure updater, so it is safe for React to call twice, and stable, so the

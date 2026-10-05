@@ -1,4 +1,5 @@
 import PageHeader from '../../components/ui/PageHeader';
+import { haptic } from '../../services/native/haptics';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { getLibrary, saveToLibrary, saveManyToLibrary, removeFromLibrary } from '../../services/db';
@@ -1077,6 +1078,7 @@ export default function Library() {
   const beginLift = useCallback((game, cardEl, x, y) => {
     if (liftingRef.current) return;
     liftingRef.current = true;
+    haptic('lift');           // the card is in your hand: say so through the finger too
     retireLiftHint();          // they know; stop saying it
 
     raiseGhost(cardEl, x, y);
@@ -1157,7 +1159,26 @@ export default function Library() {
      the critical path. Two rAFs because one still lands inside the same commit.
      Safe against scroll jumps only because ScrollToTop resets to 0 on every
      route change, so a briefly shorter document cannot move the viewport. */
-  const [pickNextOpen, setPickNextOpen] = useState(false);
+  /* ?pick=1 opens Pick For Me straight away: the Android launcher shortcut
+     (services/native/links.js) lands here with it. */
+  const [pickNextOpen, setPickNextOpen] = useState(() => searchParams.get('pick') === '1');
+  /* The Quick Settings tile can fire while the library is already open, which
+     changes the query without remounting: open the dialog when ?pick=1
+     arrives, adjusting state during render rather than in an effect. */
+  const pickParam = searchParams.get('pick') === '1';
+  const [pickSeen, setPickSeen] = useState(pickParam);
+  if (pickParam !== pickSeen) {
+    setPickSeen(pickParam);
+    if (pickParam) setPickNextOpen(true);
+  }
+  const closePickNext = () => {
+    setPickNextOpen(false);
+    if (searchParams.has('pick')) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('pick');
+      setSearchParams(next, { replace: true });
+    }
+  };
 
   /* Swipe the grid sideways to change shelf, in the order the strip shows them.
      Six shelves and a three-row strip is a lot of tapping on a phone, and the
@@ -1179,7 +1200,7 @@ export default function Library() {
     enabled: !draggedGame,
     onSwipe: (dir) => {
       const next = TABS[shelfIndex + (dir === 'left' ? 1 : -1)];
-      if (next) navigate(`/library/${next.toLowerCase()}`);
+      if (next) { haptic('select'); navigate(`/library/${next.toLowerCase()}`); }
     },
   });
   const shelfSwipe = {
@@ -1917,7 +1938,7 @@ export default function Library() {
       )}
 
       <ConfirmDialog {...confirmProps} />
-      {pickNextOpen && <PickNextDialog onClose={() => setPickNextOpen(false)} />}
+      {pickNextOpen && <PickNextDialog onClose={closePickNext} />}
       {autoPriorityOpen && (
         <AutoPriorityDialog
           shelf={activeTab}

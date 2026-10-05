@@ -5,6 +5,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import Navbar from './components/layout/Navbar';
 import ScrollToTop from './components/layout/ScrollToTop';
 import AppLinks from './components/layout/AppLinks';
+import NativeBridge from './components/layout/NativeBridge';
 import { ToastContainer } from './components/ui/Toast';
 import ApiErrorBanner from './components/ui/ApiErrorBanner';
 import useBootConfirmed from './ota/useBootConfirmed';
@@ -119,6 +120,7 @@ function App() {
     <BrowserRouter>
       <ScrollToTop />
       <AppLinks />
+      <NativeBridge />
       <ToastContainer />
       <div className="min-h-screen text-white flex flex-col">
         {/* Skip link — visually hidden until focused, then pinned top-left ABOVE the rail.

@@ -1,12 +1,16 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { matchSteamApps } from '../../services/igdb';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Compass, Search, Library, User, GalleryVerticalEnd, LogOut, MoreVertical, Calendar, LogIn, Minus, Square, Copy, X, Menu, Image as ImageIcon, Trophy, Tag, SlidersHorizontal, Palette, Drama, Users2, ChevronRight } from 'lucide-react';
+import { Compass, Search, Library, User, GalleryVerticalEnd, LogOut, MoreVertical, Calendar, LogIn, Minus, Square, Copy, X, Menu, Image as ImageIcon, Trophy, Tag, SlidersHorizontal, Palette, Drama, Users2, ChevronRight, Smartphone, ScanQrCode } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { toast } from '../ui/toastBus';
 import DropdownMenu from '../ui/DropdownMenu';
 import { useFocusTrap } from '../ui/useFocusTrap';
 import PreferencesDialog from '../ui/PreferencesDialog';
 import AppearanceDialog from '../ui/AppearanceDialog';
+import PhoneSettingsDialog from '../ui/PhoneSettingsDialog';
+import { isAndroidApp } from '../../services/native/device';
+import { scanQrCode, routeForScan } from '../../services/native/qr';
 import UserBlob from '../ui/UserBlob';
 import { blobSeed } from '../ui/blobSeed';
 import { auth } from '../../services/firebase';
@@ -14,6 +18,7 @@ import { signOut, onAuthStateChanged } from 'firebase/auth';
 import AuthModal from '../ui/AuthModal';
 import LogoMark from '../ui/LogoMark';
 import SearchOverlay from './SearchOverlay';
+import { markSearchOpened, closeSearch } from './searchHistory';
 
 /* Standalone so the compiler lint does not read this as mutating the ref the
    element was reached through — it is a DOM node, not React state. */
@@ -40,9 +45,17 @@ export default function Navbar() {
         const paramsStr = params.toString();
         return `${location.pathname}${paramsStr ? '?' + paramsStr : ''}`;
     };
+    /* The links keep their hrefs (middle-click, a11y); a plain click opens
+       with a marker and closes without adding history (searchHistory.js). */
+    const onSearchToggle = (e) => {
+        if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        if (isSearchOpen) { e.preventDefault(); closeSearch(navigate, getCloseLink()); }
+        else markSearchOpened();
+    };
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
     const [prefsOpen, setPrefsOpen] = useState(false);
     const [appearanceOpen, setAppearanceOpen] = useState(false);
+    const [phoneOpen, setPhoneOpen] = useState(false);
     const [user, setUser] = useState(null);
     const [isMaximized, setIsMaximized] = useState(false);
     const [isVisible, setIsVisible] = useState(true);
@@ -188,6 +201,24 @@ export default function Navbar() {
         setIsAuthModalOpen(true);
     };
 
+    /* Android only. A LoreHaven or store link opens its game; anything else
+       says so rather than guessing. */
+    const handleScan = async () => {
+        const res = await scanQrCode().catch(() => ({ outcome: 'cancelled' }));
+        if (res.outcome === 'denied') { toast('LoreHaven needs the camera to scan. Allow it in your phone’s settings', 'error'); return; }
+        if (res.outcome !== 'scanned') return;
+        const where = routeForScan(res.content);
+        if (where?.route) { navigate(where.route); return; }
+        if (where?.steam) {
+            try {
+                      const game = (await matchSteamApps([where.steam])).get(String(where.steam));
+                if (game?.id) { navigate(`/game/${game.id}`); return; }
+            } catch { /* fall through to search */ }
+            if (where.query) { navigate(`/?search=true&q=${encodeURIComponent(where.query)}`); return; }
+        }
+        toast('That QR code is not a LoreHaven or game store link', 'error');
+    };
+
     const handleLogout = async () => {
         try {
             await signOut(auth);
@@ -258,6 +289,17 @@ export default function Navbar() {
             icon: Palette,
             onClick: () => setAppearanceOpen(true)
         },
+        /* Only in the Android app: reminders and haptics are this phone's, and
+           only the app has the camera scanner. */
+        ...(isAndroidApp() ? [{
+            label: 'Scan QR Code',
+            icon: ScanQrCode,
+            onClick: handleScan
+        }, {
+            label: 'On This Phone',
+            icon: Smartphone,
+            onClick: () => setPhoneOpen(true)
+        }] : []),
         {
             label: 'Log out',
             icon: LogOut,
@@ -294,6 +336,17 @@ export default function Navbar() {
             icon: Palette,
             onClick: () => setAppearanceOpen(true)
         },
+        /* Only in the Android app: reminders and haptics are this phone's, and
+           only the app has the camera scanner. */
+        ...(isAndroidApp() ? [{
+            label: 'Scan QR Code',
+            icon: ScanQrCode,
+            onClick: handleScan
+        }, {
+            label: 'On This Phone',
+            icon: Smartphone,
+            onClick: () => setPhoneOpen(true)
+        }] : []),
         {
             label: 'Sign In',
             icon: LogIn,
@@ -478,6 +531,7 @@ export default function Navbar() {
                             <div className="flex items-center pr-2 gap-0.5 border-r border-white/[0.08] mr-1" data-tauri-drag-region="false">
                                 <Link
                                     to={isSearchOpen ? getCloseLink() : getSearchLink()}
+                                    onClick={onSearchToggle}
                                     className={`w-8 h-8 flex items-center justify-center transition-colors duration-150 cursor-pointer hover:bg-white/[0.08] ${isSearchOpen ? 'text-white' : 'text-white/50 hover:text-white'}`}
                                     data-tauri-drag-region="false"
                                     title={isSearchOpen ? 'Close Search' : 'Search'}
@@ -544,6 +598,9 @@ export default function Navbar() {
                 /* Below lg the rail is only translated off-screen, so its links stay in
                    the tab order until it is made inert. isDesktop mirrors the lg: query. */
                 inert={!isDesktop && !isMobileSidebarOpen}
+                /* Android's back gesture closes an open drawer first
+                   (services/native/back.js looks for this). */
+                data-overlay-open={!isDesktop && isMobileSidebarOpen ? 'true' : undefined}
             >
                 {/* Close button for mobile */}
                 <button
@@ -632,7 +689,7 @@ export default function Navbar() {
                     {/* Separate Search Action */}
                     <Link
                         to={isSearchOpen ? getCloseLink() : getSearchLink()}
-                        onClick={() => setIsMobileSidebarOpen(false)}
+                        onClick={(e) => { setIsMobileSidebarOpen(false); onSearchToggle(e); }}
                         className={`w-full flex items-center gap-4 px-6 py-3.5 min-h-[44px] border-t border-white/10 transition-colors duration-150 cursor-pointer text-left ${isSearchOpen ? 'bg-white text-black' : 'text-white/50 hover:text-white'}`}
                     >
                         {isSearchOpen ? (
@@ -958,6 +1015,7 @@ export default function Navbar() {
                             <div className="flex items-center h-full gap-1 shrink-0">
                                 <Link
                                     to={isSearchOpen ? getCloseLink() : getSearchLink()}
+                                    onClick={onSearchToggle}
                                     className={`w-10 h-10 flex items-center justify-center transition-colors duration-150 cursor-pointer ${isSearchOpen ? 'text-white' : 'text-white/50 hover:text-white'}`}
                                     title={isSearchOpen ? 'Close Search' : 'Search'}
                                 >
@@ -991,6 +1049,7 @@ export default function Navbar() {
             <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
             {prefsOpen && <PreferencesDialog onClose={() => setPrefsOpen(false)} />}
             {appearanceOpen && <AppearanceDialog onClose={() => setAppearanceOpen(false)} />}
+            {phoneOpen && <PhoneSettingsDialog onClose={() => setPhoneOpen(false)} />}
 
         </>
     );

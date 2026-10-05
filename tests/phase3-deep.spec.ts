@@ -710,6 +710,24 @@ test.describe('/game/:id — failure and edges', () => {
     await expect(page).toHaveURL(/\/collections$/);
   });
 
+  test('More > Show QR Code draws a code for the page link, and Done closes it', async ({ page }) => {
+    await stubIgdb(page, STUBS);
+    await page.goto('/game/5552');
+    await detailReady(page, 'Bare Stub Entry');
+    await page.getByRole('button', { name: 'More actions' }).first().click();
+    await page.getByRole('menu').getByRole('menuitem', { name: 'Show QR Code' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Bare Stub Entry' });
+    await expect(dialog).toBeVisible();
+    /* The encoder loads on open; the code is one path of dark modules on a
+       light square, labelled for screen readers. */
+    const code = dialog.getByRole('img', { name: 'QR code for Bare Stub Entry' });
+    await expect(code).toBeVisible();
+    expect(await code.locator('path').getAttribute('d')).toMatch(/^M\d+ \d+h1v1h-1z/);
+    await expect(dialog.getByText('https://lorehaven.app/game/5552')).toBeVisible();
+    await dialog.getByRole('button', { name: 'Done' }).click();
+    await expect(dialog).toHaveCount(0);
+  });
+
   test('a partial-metadata game renders Released TBA rather than an empty row', async ({ page }) => {
     await stubIgdb(page, STUBS);
     await page.goto('/game/5552');

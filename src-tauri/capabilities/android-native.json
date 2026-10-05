@@ -1,0 +1,19 @@
+{
+  "$schema": "../gen/schemas/android-schema.json",
+  "identifier": "android-native",
+  "description": "Release-day reminders (scheduled local notifications), haptic feedback on library actions, the native share sheet, and the QR code scanner (camera permission asked on first scan). Raw vibrate is not granted: only the three system feedback patterns are used.",
+  "platforms": [
+    "android"
+  ],
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "notification:default",
+    "haptics:allow-impact-feedback",
+    "haptics:allow-notification-feedback",
+    "haptics:allow-selection-feedback",
+    "sharekit:default",
+    "barcode-scanner:default"
+  ]
+}

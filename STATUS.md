@@ -7,6 +7,45 @@ infinite-scroll audit, with the measurement behind every claim.
 
 ## Where this stands
 
+- **Android tiers 1-3: built on `feature/android-tier1`, verified on the
+  `lorehaven_qa` emulator (API 35, WebView 124).** Everything is in
+  `docs/ANDROID-FEATURES.md`: what ships, how it is wired, what was verified on
+  the emulator, and the real-phone checklist.
+  - Tier 1 (release reminders, haptics, share sheet, launcher shortcuts, App
+    Links). Emulator testing found and fixed four bugs: lorehaven:// links read
+    as unknown on WebView < 130 (`appSignIn.js` `parseAppUrl`; the Steam
+    sign-in return link was affected too); the search shortcut reloaded the
+    page forever (`AppLinks.jsx`); Pick For Me lost `?pick=1` in the /library
+    redirect (`links.js`); shortcuts in debug builds targeted the release
+    package (`src/debug/res/xml/shortcuts.xml`).
+  - Tier 2: home-screen widgets (Now Playing, Up Next, Releasing Soon;
+    `Widgets.kt`, `services/native/widgets.js`, Add buttons in On This Phone),
+    share into the app (`shareIn.js`), the evening library-update digest
+    (`libraryDigest.js`), set as wallpaper (Wallpapers > Set As), predictive
+    back (`back.js`), and status bar icons that follow the theme (they were
+    invisible on a phone in light mode).
+  - Tier 3: QR codes (scan from the account menu, Show QR Code on the game
+    page, `tauri-plugin-barcode-scanner` 2.4.6, `uqr`) and the Pick For Me
+    Quick Settings tile (`PickTileService.kt`).
+  - The app's own Kotlin (`LoreHavenPlugin.kt`) is reached through one app
+    command with a method allowlist (`src-tauri/src/android_native.rs`).
+  - Also fixed, all platforms: closing search added a history entry, so Back
+    reopened it (`components/layout/searchHistory.js`).
+  - Verified: npm test, lint 0 errors, web build (no new warnings), new
+    Playwright test for Show QR Code (chromium + Mobile Chrome), and on the
+    emulator: shortcuts, App Link, share, tile, widget render and row tap,
+    reminders and digest scheduled, wallpaper set, back closes search then
+    leaves the app, status bar icons visible.
+  - Not verified (needs a real phone): QR scanning with a camera, the back
+    gesture's peek animation, release-signed App Link verification.
+  - Pre-existing, not from this branch: `phase7-mobile.spec.ts` S2 and S5
+    (mobile shelf strip) fail on the baseline too; Pick For Me suggests
+    Wishlist games not yet released (`PickNextDialog`); the emoji gate flags
+    18 glyphs inside `.claude/skills/impeccable` (third-party).
+- **Next (owner asked):** the motion, animation and transition system for the
+  whole app, tied to haptics on Android, plus an experimental high-motion tier
+  gated to Android and desktop for the owner to test.
+
 - **Search: built on `feature/smart-search`.** Hybrid local + IGDB search.
   `src/services/search/`: `normalize.js` (shared by build and app), `engine.js`
   (typo-tolerant, prefix, popularity/library ranking, completion, context-checked

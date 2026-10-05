@@ -65,14 +65,25 @@ export const stateFromReturnTo = (returnTo) => {
 
 /**
  * lorehaven://auth/steam?openid... -> /auth/steam?openid..., or null for a link
- * that is not one of ours. The URL parser reads "auth" as the host and
- * "/steam" as the path, so the route is put back together from both.
+ * that is not one of ours. "auth" is the host and "/steam" the path, so the
+ * route is put back together from both.
  */
 export function routeFromAppLink(link) {
-  let url;
-  try { url = new URL(String(link)); } catch { return null; }
-  if (url.protocol !== `${APP_SCHEME}:`) return null;
-  const path = `/${url.host}${url.pathname}`.replace(/\/+$/, '');
+  const url = parseAppUrl(link);
+  if (!url) return null;
+  const path = `/${url.host}${url.path}`.replace(/\/+$/, '');
   if (!APP_ROUTES.includes(path)) return null;
   return `${path}${url.search}`;
+}
+
+/**
+ * Splits lorehaven://host/path?query by hand, or null for another scheme.
+ * The URL parser gives a non-special scheme a host only from Chromium 130 on;
+ * older Android WebViews (124 on the API 35 emulator image) return an empty
+ * host and a pathname of "//host/path", and every app link read as unknown.
+ */
+export function parseAppUrl(link) {
+  const m = /^([a-z][a-z0-9+.-]*):\/\/([^/?#]*)([^?#]*)(\?[^#]*)?/i.exec(String(link ?? ''));
+  if (!m || m[1].toLowerCase() !== APP_SCHEME) return null;
+  return { host: m[2].toLowerCase(), path: m[3], search: m[4] || '' };
 }

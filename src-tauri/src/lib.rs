@@ -1,3 +1,6 @@
+#[cfg(target_os = "android")]
+mod android_native;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default();
@@ -48,6 +51,25 @@ pub fn run() {
     // plugin exists only on Android and the crate is not compiled elsewhere.
     #[cfg(target_os = "android")]
     let builder = builder.plugin(tauri_plugin_android_fs::init());
+
+    /* Release-day reminders, haptic feedback and the native share sheet.
+       Android only: the web code feature-detects each one, so an older APK
+       that lacks them keeps working on a newer bundle. */
+    #[cfg(target_os = "android")]
+    let builder = builder
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_haptics::init())
+        .plugin(tauri_plugin_sharekit::init())
+        .plugin(tauri_plugin_barcode_scanner::init());
+
+    /* Home-screen widgets, the Quick Settings tile's data, set as wallpaper,
+       share into the app and predictive back: one Kotlin class in the app
+       module (gen/android/.../LoreHavenPlugin.kt), reached through one app
+       command with a fixed list of methods (android_native.rs). */
+    #[cfg(target_os = "android")]
+    let builder = builder
+        .plugin(android_native::init())
+        .invoke_handler(tauri::generate_handler![android_native::native_call]);
 
     builder
         .run(tauri::generate_context!())

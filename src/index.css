@@ -1405,3 +1405,24 @@ body.dragging-active * {
     display: none;
   }
 }
+
+/* Predictive back (Android). While the back gesture is held, the layer it will
+   close follows the finger: the top overlay when one is open
+   (services/native/back.js marks it data-back-target), else nothing moves and
+   the page only dims, because transforming the page would re-anchor every
+   fixed bar inside it. --lh-back runs 0..1 with the gesture, so there is no
+   transition: the finger is the timing. Reduced motion keeps the fade only. */
+:root[data-back='overlay'] [data-back-target] {
+  transform: translateX(calc(var(--lh-back-dir, 1) * var(--lh-back, 0) * 2rem)) scale(calc(1 - var(--lh-back, 0) * 0.06));
+  opacity: calc(1 - var(--lh-back, 0) * 0.35);
+  transition: none;
+}
+:root[data-back='page'] #root main {
+  opacity: calc(1 - var(--lh-back, 0) * 0.25);
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-back='overlay'] [data-back-target] {
+    transform: none;
+  }
+}

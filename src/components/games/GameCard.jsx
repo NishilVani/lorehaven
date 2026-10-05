@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect, useMemo } from 'react';
+import { haptic } from '../../services/native/haptics';
 import { useNavigate } from 'react-router-dom';
 import {
   ImageOff,
@@ -182,6 +183,7 @@ export default function GameCard({
             };
             saveToLibrary(data);
             afterLibChange();
+            haptic('success');
             toast(`Added to ${status}`);
           }
         };
@@ -199,6 +201,7 @@ export default function GameCard({
           const updated = { ...entry, status };
           saveToLibrary(updated);
           afterLibChange();
+          haptic('light');
           toast(`Moved to ${status}`);
         }
       };
@@ -217,6 +220,7 @@ export default function GameCard({
           const updated = { ...entry, feel: f.label };
           saveToLibrary(updated);
           afterLibChange();
+          haptic('select');
           toast(`Rated: ${f.label}`);
         }
       }));
@@ -243,6 +247,7 @@ export default function GameCard({
           const updated = { ...entry, priority: p.label };
           saveToLibrary(updated);
           afterLibChange();
+          haptic('select');
           toast(`Priority: ${p.label}`);
         }
       }));
@@ -279,6 +284,7 @@ export default function GameCard({
         () => {
           removeFromLibrary(entry.id);
           afterLibChange();
+          haptic('warning');
           toast('Removed from Library');
         },
       )
