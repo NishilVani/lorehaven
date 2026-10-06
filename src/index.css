@@ -1294,3 +1294,56 @@ body.dragging-active * {
     transform: none;
   }
 }
+
+/* Game page masthead on phones. Beside a short poster, a long title wrapped
+   into four or five lines in a narrow column and left an empty column under
+   the poster. On phones the poster keeps its place pulled up over the hero,
+   Back and the year/studio/genre line sit beside it, and the title runs full
+   width underneath. Wider screens keep the side-by-side masthead. The header
+   and the text column become `contents` so their parts can take grid cells;
+   PageHeader itself is unchanged. Only when there is a poster: without one
+   the plain stack has no gap to fill. */
+@media (max-width: 767px) {
+  .game-masthead:has(> .game-masthead-text:not(:first-child)) {
+    display: grid;
+    grid-template-columns: 6rem minmax(0, 1fr);
+    /* Spare poster height goes under the meta line, so it sits right below
+       Back instead of drifting down the column. */
+    grid-template-rows: auto 1fr;
+    column-gap: 1rem;
+    align-items: start;
+  }
+  .game-masthead:has(> .game-masthead-text:not(:first-child)) > :first-child {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+  .game-masthead:has(> .game-masthead-text:not(:first-child)) .game-masthead-text,
+  .game-masthead:has(> .game-masthead-text:not(:first-child)) .game-masthead-text > header {
+    display: contents;
+  }
+  /* Back, beside the poster */
+  .game-masthead-text > header > :first-child:is(a, button),
+  .game-masthead-text > .skeleton-placeholder:nth-child(1) {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: start;
+    margin-bottom: 0;
+  }
+  /* Year, studio, genres: under Back, still beside the poster */
+  .game-masthead-text > header > div:not(:has(> h1)) {
+    grid-column: 2;
+    grid-row: 2;
+    margin-top: 0.5rem;
+  }
+  /* The title, full width under both */
+  .game-masthead-text > header > div:has(> h1),
+  .game-masthead-text > .skeleton-placeholder:nth-child(2) {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    margin-top: 1rem;
+  }
+  /* "An expansion for ..." and anything else after the header */
+  .game-masthead-text > :not(header):not(.skeleton-placeholder) {
+    grid-column: 1 / -1;
+  }
+}

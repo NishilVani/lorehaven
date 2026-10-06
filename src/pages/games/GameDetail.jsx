@@ -1069,7 +1069,7 @@ export default function GameDetail() {
           )}
         </section>
         <div className="content-container pt-3 pb-8 md:pt-8">
-          <div className="flex gap-4 md:gap-8 items-start mb-8">
+          <div className="game-masthead flex gap-4 md:gap-8 items-start mb-8">
             <div data-shared={pre?.cover ? `poster:${pre.id}` : undefined} className="relative z-10 w-24 sm:w-32 lg:w-44 shrink-0 border border-white/20 bg-black -mt-15 md:-mt-28">
               {pre?.cover ? (
                 <img src={img(pre.cover, 'cover_big')} alt={pre.name} className="w-full aspect-[3/4] object-cover block" />
@@ -1077,7 +1077,7 @@ export default function GameDetail() {
                 <Skeleton className="w-full aspect-[3/4]" />
               )}
             </div>
-            <div className="min-w-0 flex-1">
+            <div className="game-masthead-text min-w-0 flex-1">
               {pre ? (
                 <PageHeader
                   className="mb-0"
@@ -1177,7 +1177,7 @@ export default function GameDetail() {
         {/* ── Masthead: the poster beside the title, the way Explore's hero sets a
             game. The cover is pulled up over the hero so the two read as one
             plate; the title column starts below the art, so no type sits on it. */}
-        <div className="flex gap-4 md:gap-8 items-start mb-8">
+        <div className="game-masthead flex gap-4 md:gap-8 items-start mb-8">
           {game.cover?.image_id && (
             /* The framed poster is the shared art: a tapped card's poster lands
                here and flies home from here, frame and all, so no empty frame is
@@ -1190,7 +1190,7 @@ export default function GameDetail() {
               />
             </div>
           )}
-          <div className="min-w-0 flex-1">
+          <div className="game-masthead-text min-w-0 flex-1">
             <PageHeader
               className="mb-0"
               back={{ label: 'Back', onClick: () => navigate(-1), ariaLabel: 'Go back to previous page' }}
