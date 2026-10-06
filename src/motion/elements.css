@@ -71,7 +71,7 @@
 /* ── Tooltips ────────────────────────────────────────────────────────────────
    A short wait first, so passing over a control does not flash one. */
 .platform-tooltip {
-  animation: m-tooltip-in var(--m-micro-in) var(--m-reveal-ease) 400ms backwards !important;
+  animation: m-tooltip-in var(--m-micro-in) var(--m-reveal-ease) 400ms backwards;
 }
 @keyframes m-tooltip-in {
   from { opacity: 0; translate: 0 4px; }
@@ -135,4 +135,22 @@
 :root[data-motion='reduced'] .skeleton-placeholder::after {
   animation: none;
   display: none;
+}
+
+/* ── Sheets and panels callers bring to Dialog ──
+   m-sheet: up from the bottom edge (phone sheets, the wallpaper sheets).
+   m-side-in: in from the right edge (a side panel on wider screens).
+   m-rise: content arriving in place, a little from below. */
+.m-sheet {
+  animation: m-sheet-in var(--m-overlay-in) var(--m-carry-ease) backwards;
+}
+@keyframes m-side-in {
+  from { opacity: 0; translate: var(--m-travel-side) 0; }
+}
+.m-rise {
+  animation: m-rise-in var(--m-reveal-dur) var(--m-reveal-ease) backwards;
+}
+:root[data-motion='reduced'] .m-sheet,
+:root[data-motion='reduced'] .m-rise {
+  animation: m-fade-in 150ms linear backwards;
 }

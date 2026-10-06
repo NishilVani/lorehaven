@@ -571,7 +571,7 @@ export default function PickNextDialog({ onClose }) {
             <li
               key={r}
               style={{ animationDelay: `${settled + Math.round((REASON_HOLD_MS + i * REASON_STAGGER_MS) * ceremony)}ms` }}
-              className={`border-b border-white/10 py-2.5 text-[13px] leading-snug animate-in fade-in slide-in-from-bottom-4 motion-reduce:animate-none ${
+              className={`border-b border-white/10 py-2.5 text-[13px] leading-snug m-rise ${
                 i === 0 ? 'text-white/80' : 'text-white/60'
               }`}
             >

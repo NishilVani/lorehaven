@@ -209,7 +209,7 @@ export default function TransferDataModal({ sourceGame, onClose, onComplete }) {
               </div>
             </div>
           ) : (
-            <div className="flex flex-col gap-5 animate-in fade-in duration-300">
+            <div className="flex flex-col gap-5 m-reveal">
               <div className="flex items-center gap-4 border border-white/15 p-4">
                 <div className="flex-1 min-w-0 text-right">
                   <p className="lh-label text-white/60 mb-1">From</p>

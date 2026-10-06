@@ -358,7 +358,6 @@
 }
 
 
-
 /* Global Modern Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
@@ -574,18 +573,6 @@
   animation: marquee-scroll-v var(--marquee-dur, 5s) linear infinite;
 }
 
-/* Toast Animations */
-@keyframes slide-in-right {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
 
 @keyframes toast-circle-progress {
   from {
@@ -597,9 +584,6 @@
   }
 }
 
-.animate-slide-in-right {
-  animation: slide-in-right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
 
 .animate-toast-circle-progress {
   animation: toast-circle-progress 2s linear forwards;
@@ -686,38 +670,6 @@ body.dragging-active * {
   box-shadow: inset 0 0 0 999px color-mix(in oklab, var(--destructive) 22%, transparent);
 }
 
-/* Slide-up drag toast */
-@keyframes drag-toast-in {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(18px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-}
-
-@keyframes drag-toast-out {
-  from {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-
-  to {
-    opacity: 0;
-    transform: translateX(-50%) translateY(10px);
-  }
-}
-
-.drag-toast-enter {
-  animation: drag-toast-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.drag-toast-exit {
-  animation: drag-toast-out 0.2s ease forwards;
-}
 
 /* Library status strip — collapsed to the active shelf while scrolled.
    Only below xl: at xl the six tabs already sit on one flex row, so there is
@@ -755,48 +707,6 @@ body.dragging-active * {
   }
 }
 
-/* ── Entry Animations ─────────────────────────────────────────── */
-
-@keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes fade-in-up {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* 0.6s broke the project's own motion budget: "100-300ms for UI transitions.
-   Never > 500ms" (CLAUDE.md). With animation-fill-mode: both, content sits at
-   opacity 0 and 20px low from the moment it mounts, so a library shelf was
-   committed and then withheld for six tenths of a second. 300ms is the top of
-   the sanctioned range and still reads as an entrance rather than a wait. */
-.animate-in {
-  animation-fill-mode: both;
-  animation-duration: 0.3s;
-  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.fade-in {
-  animation-name: fade-in;
-}
-
-.slide-in-from-bottom-4 {
-  animation-name: fade-in-up;
-}
 
 /* Pick Next lands. The shelf stops with one game under the reading frame and
    that frame is struck to full white for a beat before settling back to the
@@ -858,25 +768,6 @@ body.dragging-active * {
 
 .pick-flare { animation: pick-flare 420ms cubic-bezier(0.4, 0, 1, 1) both; }
 
-/* Modal entrance. A pure cross-fade has no physicality — nothing in the real
-   world arrives by changing opacity alone — so the panel comes in a hair small
-   and settles. 0.96 rather than something smaller: a modal is already centred
-   and expected, so this is a settle, not a zoom.
-
-   `backwards`, never `both`. The Dialog's swipe-to-dismiss writes
-   `el.style.transform` inline (Dialog.jsx:283), and animation-origin
-   declarations outrank normal-author ones — so a `both` fill would hold
-   `scale(1)` forever and silently kill drag-to-dismiss on every modal in the
-   app. `.animate-in` uses `both`, which is exactly why this does not reuse it.
-   The wallpaper stage learned the same lesson; see .wp-enter-* below. */
-@keyframes dialog-in {
-  from { opacity: 0; transform: scale(0.96); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-.dialog-in {
-  animation: dialog-in 200ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
-}
 
 /* Directional enter for the wallpaper stage. The media gallery mounts its
    neighbours and moves a real track, which it can afford because it shows one
@@ -986,17 +877,7 @@ body.dragging-active * {
 }
 
 
-/* Skeleton Loading — flat block with opacity pulse (no gradients) */
-@keyframes skeleton-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.45;
-  }
-}
+/* Skeleton Loading — a flat block; motion/elements.css draws its sheen */
 
 .skeleton-placeholder {
   background: var(--skeleton-shine);
@@ -1021,20 +902,8 @@ body.dragging-active * {
      wrapper instead of a transform offset, so there is no dead zone to cross. */
   pointer-events: auto;
   transform: translate(-50%, -100%) translateY(-8px);
-  animation: tooltip-fade-in 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-@keyframes tooltip-fade-in {
-  from {
-    opacity: 0;
-    transform: translate(-50%, -100%) translateY(-4px) scale(0.95);
-  }
-
-  to {
-    opacity: 1;
-    transform: translate(-50%, -100%) translateY(-8px) scale(1);
-  }
-}
 
 /* Hide alt text while image is loading, especially in Firefox */
 @layer base {
@@ -1354,7 +1223,7 @@ body.dragging-active * {
   border-radius: var(--lh-radius-control) !important;
 }
 
-:root[data-theme] :is([role="menu"], [role="listbox"], .dialog-in, .platform-tooltip) {
+:root[data-theme] :is([role="menu"], [role="listbox"], [role="dialog"], .platform-tooltip) {
   border-radius: var(--lh-radius-panel) !important;
 }
 

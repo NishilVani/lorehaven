@@ -178,20 +178,15 @@ export default function Dialog({
            scrim. Its fill is `backwards`, never `both`: drag-to-dismiss writes
            `transform` inline and a held animation would override it.
 
-           Skipped when the caller brings its own entrance — the wallpaper sheets
-           pass `animate-in slide-in-from-bottom-4` (Wallpapers.jsx:1569, 1850)
-           and two animation-name declarations on one element would fight, with
-           stylesheet order deciding rather than intent.
-
-           Note the `duration-200` this replaces was inert: Tailwind's duration-*
-           sets transition-duration, which does nothing for an animation, so the
-           old entrance actually ran at `.animate-in`'s 300ms. */
+           Skipped when the caller brings its own sheet entrance (`m-sheet`):
+           two animation-name declarations on one element would fight, with
+           stylesheet order deciding rather than intent. */
         /* A black panel on a black page had no surface of its own: the 75% black
            scrim cannot darken #000, so the 1px border was the whole depth cue.
            A near-black ground plus a deep shadow separates the panel; the scrim
            needs no change. */
         className={`relative bg-neutral-950 border border-white/25 shadow-(--lh-panel-shadow) outline-none ${
-          panelClassName.includes('animate-in') ? '' : 'm-dialog-panel'
+          /\bm-sheet\b/.test(panelClassName) ? '' : 'm-dialog-panel'
         } ${panelClassName}`}
         style={{ ...panelStyle, ...dragDown.style }}
       >

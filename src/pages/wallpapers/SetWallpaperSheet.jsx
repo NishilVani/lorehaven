@@ -47,7 +47,7 @@ export default function SetWallpaperSheet({ url, gameName, onClose, surface, hai
       <div
         role="group"
         aria-labelledby="set-wallpaper-title"
-        className="relative w-full flex flex-col animate-in slide-in-from-bottom-4 motion-reduce:animate-none"
+        className="relative w-full flex flex-col m-sheet"
         style={{ background: surface, borderTop: `1px solid ${hairline}` }}
       >
         <div className="flex justify-center pt-3 pb-1" aria-hidden="true">

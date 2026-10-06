@@ -446,11 +446,11 @@ export default function Duplicates() {
             labelledBy="dup-preview-title"
             initialFocus={previewHeading}
             /* A right-hand panel from sm, a bottom sheet below it that drags
-               down to close. Both enter on the drawer curve `.animate-in`
-               carries; the global reduced-motion rule flattens it. */
+               down to close. Both enter on the overlay curve
+               (motion/elements.css: m-sheet, m-side-in). */
             alignClassName="items-end sm:items-stretch justify-center sm:justify-end"
             className="p-0"
-            panelClassName="w-full sm:max-w-md max-h-[90vh] sm:max-h-none flex flex-col overflow-hidden animate-in [animation-name:fade-in-up] sm:[animation-name:slide-in-right]"
+            panelClassName="w-full sm:max-w-md max-h-[90vh] sm:max-h-none flex flex-col overflow-hidden m-sheet sm:[animation-name:m-side-in]"
           >
             {/* The sheet drags down to close, and a sheet that can be dragged
                 should look like it. Flat and square, like everything else. */}

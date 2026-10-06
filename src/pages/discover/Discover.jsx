@@ -305,7 +305,7 @@ export default function Discover() {
              460 (art) + 213 (cover, title, meta, actions) = 675, and a 96px
              placeholder made the hero grow 117px the moment data arrived. */
           <div aria-hidden="true" className="border border-white/15 mb-12">
-            <div className="h-[36vh] md:h-[46vh] bg-neutral-900 animate-pulse" />
+            <div className="h-[36vh] md:h-[46vh] bg-neutral-900" />
             <div className="h-[213px] border-t border-white/15" />
           </div>
         ) : !hero ? (

@@ -916,7 +916,7 @@ export default function SearchOverlay() {
                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                                     {loading && companies.length === 0 ? (
                                         [...Array(6)].map((_, i) => (
-                                            <div key={i} className="animate-pulse bg-white/5 border border-white/10 aspect-[3/4]" />
+                                            <div key={i} className="bg-white/5 border border-white/10 aspect-[3/4]" />
                                         ))
                                     ) : companies.length > 0 ? (
                                         companies.map(co => {

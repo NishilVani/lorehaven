@@ -420,13 +420,13 @@ export default function AwardCeremony() {
             <div className="lh-label text-white/50 pb-3">Wikidata is throttling. Attempt {attempt} of 3.</div>
           )}
           <div className="border-y border-white/15 py-4 flex gap-7">
-            {Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-6 w-14 bg-white/10 animate-pulse" />)}
+            {Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-6 w-14 bg-white/10" />)}
           </div>
           <div className="flex gap-11 py-12">
-            <div className="w-[190px] aspect-[3/4] bg-white/[0.06] animate-pulse" />
+            <div className="w-[190px] aspect-[3/4] bg-white/[0.06]" />
             <div className="flex-1 space-y-4 pt-4">
-              <div className="h-3 w-40 bg-white/10 animate-pulse" />
-              <div className="h-14 w-2/3 bg-white/[0.06] animate-pulse" />
+              <div className="h-3 w-40 bg-white/10" />
+              <div className="h-14 w-2/3 bg-white/[0.06]" />
             </div>
           </div>
         </div>

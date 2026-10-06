@@ -883,7 +883,7 @@ export default function Navbar() {
                        max-h/overflow because the tile list is data, not a fixed
                        six: a seventh row must scroll inside the sheet rather
                        than run off the bottom of the screen. */
-                    className="fixed top-0 left-0 right-0 max-h-[85dvh] lg:top-0 lg:left-[220px] lg:right-auto lg:w-[360px] lg:max-h-[calc(100dvh-32px)] z-[10000] bg-black border-b border-white/15 lg:border-t lg:border-r flex flex-col animate-in slide-in-from-bottom-4 motion-reduce:animate-none"
+                    className="fixed top-0 left-0 right-0 max-h-[85dvh] lg:top-0 lg:left-[220px] lg:right-auto lg:w-[360px] lg:max-h-[calc(100dvh-32px)] z-[10000] bg-black border-b border-white/15 lg:border-t lg:border-r flex flex-col m-rise"
                     style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
                 >
                     {/* Only the takeover gets a header, and it gets one because

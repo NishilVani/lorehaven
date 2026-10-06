@@ -137,7 +137,7 @@ export const ReviewCardSkeleton = () => (
 );
 
 export const CategoryPageSkeleton = () => (
-    <div aria-hidden="true" className="min-h-screen bg-black text-white pb-16 animate-in fade-in duration-500">
+    <div aria-hidden="true" className="min-h-screen bg-black text-white pb-16">
         {/* Banner skeleton */}
         <div className="w-full h-[250px] md:h-[350px] overflow-hidden border-b border-white/15 bg-neutral-950 relative">
             <div className="absolute inset-0 bg-neutral-900" />

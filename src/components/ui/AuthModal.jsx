@@ -144,7 +144,7 @@ export default function AuthModal({ isOpen, onClose }) {
       onClose={onClose}
       labelledBy="auth-modal-title"
       z={200}
-      backdropClassName="bg-black/80 animate-in fade-in duration-200"
+      backdropClassName="bg-black/80 m-dialog-backdrop"
       panelClassName="w-full max-w-md p-6 sm:p-8"
     >
         <button

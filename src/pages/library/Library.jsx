@@ -1741,7 +1741,7 @@ export default function Library() {
                    centre sits half of that — 110px — right of the viewport
                    centre. The old 144px was not derived from anything and put
                    the hint 34px off-centre on every desktop screen. */
-                <div className="fixed bottom-24 lg:bottom-10 left-1/2 -translate-x-1/2 lg:ml-[110px] z-[110] pointer-events-none animate-in slide-in-from-bottom-8 fade-in duration-300 ease-out">
+                <div className="fixed bottom-24 lg:bottom-10 left-1/2 -translate-x-1/2 lg:ml-[110px] z-[110] pointer-events-none m-toast-in">
                   <div className="px-5 py-3 border border-white/30 bg-black">
                     <span className="lh-label text-white/60 whitespace-nowrap">
                       Drop on a <span className="text-white">status tab</span> to move

@@ -1323,7 +1323,7 @@ export default function Wallpapers() {
         z={REGISTER_Z}
         alignClassName="items-stretch justify-end"
         className="p-0 lg:pl-[220px]"
-        panelClassName="w-[380px] max-w-full h-full flex flex-col animate-in fade-in duration-200"
+        panelClassName="w-[380px] max-w-full h-full flex flex-col m-reveal"
         panelStyle={{ background: SHEET_SURFACE, border: 'none', borderLeft: `1px solid ${HAIRLINE}` }}
       >
         <div className="px-6 pt-5 pb-4 border-b border-white/15 flex items-center justify-between gap-4 shrink-0">
@@ -1385,7 +1385,7 @@ export default function Wallpapers() {
         z={REGISTER_Z}
         alignClassName="items-end"
         className="p-0"
-        panelClassName="w-full max-w-none flex flex-col animate-in slide-in-from-bottom-4 motion-reduce:animate-none"
+        panelClassName="w-full max-w-none flex flex-col m-sheet"
         panelStyle={{
           background: SHEET_SURFACE,
           border: 'none',
@@ -1680,7 +1680,7 @@ export default function Wallpapers() {
             <div className="absolute inset-0 z-20 flex items-end">
               <div className="absolute inset-0 bg-black/60" onClick={() => setInfoOpen(false)} aria-hidden="true" />
               <div
-                className="relative w-full max-h-[70%] flex flex-col animate-in slide-in-from-bottom-4 motion-reduce:animate-none"
+                className="relative w-full max-h-[70%] flex flex-col m-sheet"
                 style={{ background: SHEET_SURFACE, borderTop: `1px solid ${HAIRLINE}` }}
               >
                 <div className="flex justify-center pt-3 pb-1 shrink-0" aria-hidden="true">

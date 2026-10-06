@@ -339,3 +339,28 @@ Appearance > Motion: Match System (default) and Reduced. Stored values
 
 One commit per step; lint, `npm test`, build and the relevant Playwright
 specs pass before the next step.
+
+## Implementation notes (2026-10-06)
+
+Where the build differs from the text above, and why:
+
+- Shared kinds are `poster`, `hero`, `franchise-title`, `title`, `wallpaper`,
+  `media`. One generic `title` kind (keyed from the destination path by
+  `titleKeyFor`) replaces `mosaic`, `event-art` and `ceremony-title`: the
+  collection and event pages have no header mosaic or hero to land on, so
+  their names travel instead. Words use their own transition name
+  (`shared-title`) so they scale rather than crop.
+- Going back, the director waits up to 250ms for the art's home to render
+  (pages like Explore fill their rows a few ticks after mounting); past that,
+  the transition plays without the art flying home.
+- Kept rather than redesigned: Pick For Me's draw (with the landing haptic
+  added), the profile chart draw-ins (already grow from the baseline), the
+  wallpaper viewer's paging and the predictive back peek.
+- Dial groups cross-fade colour instead of sliding the fill: a clip-path wipe
+  hid the label mid-way.
+- Dialog exit animations play for the dialog's own close paths (Escape,
+  backdrop, drag); a caller that unmounts a dialog closes it at once.
+- Measured on a production build (`scripts/motion_probe.mjs`, 412x915, 4x
+  CPU): transitions ready in 57 to 222ms and finished in 539 to 778ms; frame
+  p95 17ms for every step except card to game, 17 to 33ms across runs, from
+  the loaded game page replacing the prelude after landing.
