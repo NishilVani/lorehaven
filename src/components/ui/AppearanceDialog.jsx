@@ -95,10 +95,8 @@ function Preview({ theme }) {
 }
 
 const MOTION_OPTIONS = [
-  { value: 'system', label: 'Match System', hint: 'Standard, or Reduced when your device asks for less motion' },
-  { value: 'reduced', label: 'Reduced', hint: 'Fades only' },
-  { value: 'standard', label: 'Standard', hint: 'Page transitions, cards that rise in, controls that press' },
-  { value: 'expressive', label: 'Expressive', hint: 'Experimental: covers that fly to their page, parallax, tilting cards' },
+  { value: 'system', label: 'Match System', hint: 'Full motion, or cross-fades only when your device asks for less motion' },
+  { value: 'reduced', label: 'Reduced', hint: 'Cross-fades only: nothing slides, travels or counts' },
 ];
 
 export default function AppearanceDialog({ onClose }) {
