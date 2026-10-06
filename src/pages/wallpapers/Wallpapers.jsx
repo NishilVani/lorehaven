@@ -1075,7 +1075,7 @@ export default function Wallpapers() {
 
   return (
     <div
-      className="min-h-screen bg-black text-white animate-in fade-in duration-500"
+      className="min-h-screen bg-black text-white"
       /* Clears the selection bar, which floats over the last row: 52px of bar
          plus its 1rem inset plus a gap. */
       style={{ paddingBottom: 'calc(6.5rem + env(safe-area-inset-bottom, 0px))' }}

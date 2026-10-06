@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useSearchParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { closeSearch } from './searchHistory';
+import { withPrelude } from '../../motion/prelude';
 import { X, Layers, Gamepad2, Library, HeartPlus, Building2, CircleCheck, BookmarkPlus, BookmarkMinus } from 'lucide-react';
 import { searchGamesRanked, searchFranchises, searchIgdbCollections, searchCompanies } from '../../services/igdb';
 import { loadLocal, deviceDocs } from '../../services/search/localIndex';
@@ -432,7 +433,10 @@ export default function SearchOverlay() {
     const openSuggestion = (doc) => {
         if (doc.kind === 'game') saveRecentGame({ id: doc.id, name: doc.name, cover_id: doc.cover, release_year: doc.year });
         if (typed) saveRecentSearch(typed);
-        navigate(hrefFor(doc));
+        /* A game opens on its prelude, and its thumbnail flies to the poster. */
+        navigate(hrefFor(doc), doc.kind === 'game'
+            ? withPrelude({ id: doc.id, name: doc.name, cover_id: doc.cover, release_year: doc.year })
+            : undefined);
     };
 
     /* The combobox keys (WAI-ARIA 1.2 combobox, list autocomplete):
@@ -647,7 +651,7 @@ export default function SearchOverlay() {
                                     >
                                         <span className="w-8 h-10 shrink-0 bg-white/5 overflow-hidden flex items-center justify-center">
                                             {d.cover
-                                                ? <img src={`https://images.igdb.com/igdb/image/upload/t_cover_small/${d.cover}.jpg`} alt="" className="w-full h-full object-cover" />
+                                                ? <img src={`https://images.igdb.com/igdb/image/upload/t_cover_small/${d.cover}.jpg`} alt="" data-shared={d.kind === 'game' ? `poster:${d.id}` : undefined} className="w-full h-full object-cover" />
                                                 : d.kind === 'franchise' ? <Layers aria-hidden="true" className="w-4 h-4 opacity-60" />
                                                 : d.kind === 'company' ? <Building2 aria-hidden="true" className="w-4 h-4 opacity-60" />
                                                 : <Gamepad2 aria-hidden="true" className="w-4 h-4 opacity-60" />}

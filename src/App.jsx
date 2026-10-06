@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 
 // App shell — always on screen, so it stays in the main chunk.
@@ -7,51 +7,44 @@ import ScrollToTop from './components/layout/ScrollToTop';
 import AppLinks from './components/layout/AppLinks';
 import NativeBridge from './components/layout/NativeBridge';
 import TransitionLocation from './motion/TransitionLocation';
+import { lazyRoute } from './motion/routes';
+import RouteSkeleton from './components/ui/RouteSkeleton';
 import { ToastContainer } from './components/ui/Toast';
 import ApiErrorBanner from './components/ui/ApiErrorBanner';
 import useBootConfirmed from './ota/useBootConfirmed';
 
-// Routes are code-split: each becomes its own chunk fetched on first navigation,
-// so visiting the home page no longer downloads the Import Wizard, the Award
-// ceremony, Wallpapers and every other screen up front.
-const Discover = lazy(() => import('./pages/discover/Discover'));
-const NotFound = lazy(() => import('./pages/NotFound'));
-const ExploreList = lazy(() => import('./pages/discover/ExploreList'));
-const Feedback = lazy(() => import('./pages/discover/Feedback'));
-const Profile = lazy(() => import('./pages/profile/Profile'));
-const YearInReview = lazy(() => import('./pages/profile/YearInReview'));
-const GameDetail = lazy(() => import('./pages/games/GameDetail'));
-const Library = lazy(() => import('./pages/library/Library'));
-const Duplicates = lazy(() => import('./pages/library/Duplicates'));
-const ImportWizardV2 = lazy(() => import('./pages/ImportWizard/ImportWizard'));
-const SteamImport = lazy(() => import('./pages/ImportWizard/SteamImport'));
-const XboxImport = lazy(() => import('./pages/ImportWizard/XboxImport'));
-const SteamAuth = lazy(() => import('./pages/auth/SteamAuth'));
-const XboxAuth = lazy(() => import('./pages/auth/XboxAuth'));
-const FranchisePage = lazy(() => import('./pages/franchises/FranchisePage'));
-const Collections = lazy(() => import('./pages/collections/Collections'));
-const CollectionDetail = lazy(() => import('./pages/collections/CollectionDetail'));
-const GameCollections = lazy(() => import('./pages/collections/GameCollections'));
-const ManagePlatforms = lazy(() => import('./pages/platforms/ManagePlatforms'));
-const TaxonomyIndex = lazy(() => import('./pages/browse/TaxonomyIndex'));
-const AllEvents = lazy(() => import('./pages/events/AllEvents'));
-const Schedule = lazy(() => import('./pages/schedule/Schedule'));
-const EventDetail = lazy(() => import('./pages/events/EventDetail'));
-const Wallpapers = lazy(() => import('./pages/wallpapers/Wallpapers'));
-const CategoryPage = lazy(() => import('./pages/category/CategoryPage'));
-const AwardsIndex = lazy(() => import('./pages/awards/AwardsIndex'));
-const AwardCeremony = lazy(() => import('./pages/awards/AwardCeremony'));
+// Routes are code-split: each becomes its own chunk. lazyRoute (motion/routes.js)
+// prefetches them in idle time after the first paint and on link intent, and
+// tells the transition director which are loaded, so a page change never shows
+// a fallback. Each pattern says which pathnames need the chunk.
+const Discover = lazyRoute(/^\/$/, () => import('./pages/discover/Discover'));
+const NotFound = lazyRoute(/^$/, () => import('./pages/NotFound'));
+const ExploreList = lazyRoute(/^\/explore\//, () => import('./pages/discover/ExploreList'));
+const Feedback = lazyRoute(/^\/feedback/, () => import('./pages/discover/Feedback'));
+const Profile = lazyRoute(/^\/profile\/?$/, () => import('./pages/profile/Profile'));
+const YearInReview = lazyRoute(/^\/profile\/year\//, () => import('./pages/profile/YearInReview'));
+const GameDetail = lazyRoute(/^\/game\/[^/]+\/?$/, () => import('./pages/games/GameDetail'));
+const Library = lazyRoute(/^\/library\/(?!duplicates)/, () => import('./pages/library/Library'));
+const Duplicates = lazyRoute(/^\/library\/duplicates/, () => import('./pages/library/Duplicates'));
+const ImportWizardV2 = lazyRoute(/^\/import\/?$/, () => import('./pages/ImportWizard/ImportWizard'));
+const SteamImport = lazyRoute(/^\/import\/steam/, () => import('./pages/ImportWizard/SteamImport'));
+const XboxImport = lazyRoute(/^\/import\/xbox/, () => import('./pages/ImportWizard/XboxImport'));
+const SteamAuth = lazyRoute(/^\/auth\/steam/, () => import('./pages/auth/SteamAuth'));
+const XboxAuth = lazyRoute(/^\/auth\/xbox/, () => import('./pages/auth/XboxAuth'));
+const FranchisePage = lazyRoute(/^\/franchise\//, () => import('./pages/franchises/FranchisePage'));
+const Collections = lazyRoute(/^\/collections/, () => import('./pages/collections/Collections'));
+const CollectionDetail = lazyRoute(/^\/collection\//, () => import('./pages/collections/CollectionDetail'));
+const GameCollections = lazyRoute(/^\/game\/[^/]+\/collections/, () => import('./pages/collections/GameCollections'));
+const ManagePlatforms = lazyRoute(/^\/platforms/, () => import('./pages/platforms/ManagePlatforms'));
+const TaxonomyIndex = lazyRoute(/^\/browse\//, () => import('./pages/browse/TaxonomyIndex'));
+const AllEvents = lazyRoute(/^\/events/, () => import('./pages/events/AllEvents'));
+const Schedule = lazyRoute(/^\/schedule/, () => import('./pages/schedule/Schedule'));
+const EventDetail = lazyRoute(/^\/event\//, () => import('./pages/events/EventDetail'));
+const Wallpapers = lazyRoute(/^\/wallpapers/, () => import('./pages/wallpapers/Wallpapers'));
+const CategoryPage = lazyRoute(/^\/games\//, () => import('./pages/category/CategoryPage'));
+const AwardsIndex = lazyRoute(/^\/awards\/?$/, () => import('./pages/awards/AwardsIndex'));
+const AwardCeremony = lazyRoute(/^\/awards\/[^/]+/, () => import('./pages/awards/AwardCeremony'));
 
-/* Route-transition fallback. Deliberately minimal: chunks are small enough that a
-   full skeleton would flash in and out. aria-busy + a live region so the swap is
-   not silent to assistive tech. */
-function RouteFallback() {
-  return (
-    <div className="px-6 lg:px-10 py-10" aria-busy="true" aria-live="polite">
-      <span className="lh-label text-white/60">Loading…</span>
-    </div>
-  );
-}
 
 /* Route params are identity, not merely data. When the id in the URL changes,
    the page is showing a different thing and every piece of state describing the
@@ -154,7 +147,7 @@ function App() {
               `moctale_api_error` rather than each page plumbing its own error state. */}
           <ApiErrorBanner />
 
-          <Suspense fallback={<RouteFallback />}>
+          <Suspense fallback={<RouteSkeleton />}>
           <Routes key={syncKey}>
             <Route path="/" element={<Discover />} />
             <Route path="/explore/:section" element={<KeyedRoute component={ExploreList} />} />

@@ -53,7 +53,7 @@ export default function Feedback() {
   const notInterested = items.filter(x => x.verdict === 'not_interested');
 
   return (
-    <div className="min-h-screen bg-black text-white pb-16 animate-in fade-in duration-500">
+    <div className="min-h-screen bg-black text-white pb-16">
       <div className="content-container py-4">
         <PageHeader
           className="mb-3"

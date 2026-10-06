@@ -318,7 +318,7 @@ export default function Collections() {
     : feedLoading ? 'Loading collections' : null);
 
   return (
-    <div className="min-h-screen bg-black text-white pb-16 animate-in fade-in duration-500">
+    <div className="min-h-screen bg-black text-white pb-16">
       <div className="content-container py-4">
 
         {/* ── Header — editorial index ── */}

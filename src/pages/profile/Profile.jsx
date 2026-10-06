@@ -174,7 +174,7 @@ export default function Profile() {
         : 'idle';
 
   return (
-    <div className="min-h-screen bg-black text-white pb-16 animate-in fade-in duration-500">
+    <div className="min-h-screen bg-black text-white pb-16">
       <div className="content-container py-4">
 
         <header className="flex flex-wrap items-start justify-between gap-6 pb-8 border-b border-white/15">

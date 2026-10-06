@@ -385,7 +385,7 @@ export default function AwardCeremony() {
   }, [yearsList]);
 
   return (
-    <div className="min-h-screen bg-black text-white pb-20 animate-in fade-in duration-500">
+    <div className="min-h-screen bg-black text-white pb-20">
       <ConfirmDialog {...confirmProps} />
 
       <div className="content-container pt-2">
@@ -464,7 +464,7 @@ export default function AwardCeremony() {
 
           {/* ── Game of the Year hero ── */}
           {heroWinner && (
-            <div key={`hero-${activeYear}`} className="relative border-b border-white/15 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div key={`hero-${activeYear}`} className="relative border-b border-white/15 overflow-hidden m-reveal">
               {heroWinner.art_id ? (
                 <img src={img(heroWinner.art_id, '1080p')} alt="" className="absolute inset-0 w-full h-full object-cover" />
               ) : (
@@ -550,7 +550,7 @@ export default function AwardCeremony() {
               </div>
 
               {detail && (
-                <div key={`${activeYear}-${detail.qid}`} className="pl-8 py-7 scroll-mt-20 animate-in fade-in duration-300 min-w-0">
+                <div key={`${activeYear}-${detail.qid}`} className="pl-8 py-7 scroll-mt-20 m-reveal min-w-0">
                   <div className="flex items-baseline justify-between gap-4">
                     {/* must be a <span>: .award-shine is defined as
                         `.award-shine:not(div), .award-shine span`, so a div never shines.

@@ -593,6 +593,7 @@ export default function Navbar() {
 
             {/* ── Desktop Left Rail & Mobile Drawer ── */}
             <aside
+                data-chrome="rail"
                 className={`fixed left-0 top-0 bottom-0 z-[9999] w-[220px] flex flex-col bg-black border-r border-white/15 select-none transition-transform duration-300 ease-in-out lg:translate-x-0 ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
                 style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
                 /* Below lg the rail is only translated off-screen, so its links stay in
@@ -753,6 +754,9 @@ export default function Navbar() {
                                 key={item.path}
                                 to={item.path}
                                 aria-current={isActive ? 'page' : undefined}
+                                /* The active row is the rail's marker: it slides to the
+                                   new item during a page transition (motion.css). */
+                                data-rail-marker={isActive ? '' : undefined}
                                 onClick={() => { setIsMobileSidebarOpen(false); setBrowseOpen(false); }}
                                 className={rowClass(isActive)}
                             >
@@ -962,6 +966,7 @@ export default function Navbar() {
                         }}
                     />
                     <nav
+                        data-chrome="topbar"
                         className="lg:hidden w-full fixed left-0 right-0 z-[130] bg-black border-b h-14 select-none transition-transform duration-300 ease-in-out border-white/15"
                         onPointerDown={(e) => {
                             if (isTauri) {

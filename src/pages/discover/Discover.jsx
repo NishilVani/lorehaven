@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+import { withPrelude } from '../../motion/prelude';
 import PageHeader from '../../components/ui/PageHeader';
 import { Link } from 'react-router-dom';
 import GameCard from '../../components/games/GameCard';
@@ -293,7 +294,7 @@ export default function Discover() {
   );
 
   return (
-    <div className="min-h-screen bg-black text-white pb-16 animate-in fade-in duration-500">
+    <div className="min-h-screen bg-black text-white pb-16">
       <div className="content-container py-4" ref={gridHostRef}>
 
         <PageHeader className="mb-6" title="Explore" />
@@ -310,10 +311,13 @@ export default function Discover() {
         ) : !hero ? (
           <div className="mb-12">{emptyRecs}</div>
         ) : (
-          <div className="border border-white/20 mb-12">
+          /* data-shared-scope: pressing anything here sends its art to the game
+             page, the artwork to the hero, or the cover to the poster when the
+             cover itself was pressed (motion/shared.js). */
+          <div className="border border-white/20 mb-12" data-shared-scope="">
             {hero.artwork_id && (
-              <Link to={`/game/${hero.id}`} className="block group">
-                <img src={img(hero.artwork_id, '1080p')} alt={hero.name} className="w-full h-[36vh] md:h-[46vh] object-cover block border-b border-white/20 group-hover:opacity-90 transition-opacity" />
+              <Link to={`/game/${hero.id}`} state={withPrelude(hero).state} className="block group">
+                <img src={img(hero.artwork_id, '1080p')} alt={hero.name} data-shared={`hero:${hero.id}`} className="w-full h-[36vh] md:h-[46vh] object-cover block border-b border-white/20 group-hover:opacity-90 transition-opacity" />
               </Link>
             )}
             <div className="flex gap-4 md:gap-6 p-4 md:p-6">
@@ -323,18 +327,19 @@ export default function Discover() {
                    unnamed duplicate stop (WCAG 2.4.4 / 4.1.2). */
                 <Link
                   to={`/game/${hero.id}`}
+                  state={withPrelude(hero).state}
                   aria-hidden="true"
                   tabIndex={-1}
                   className="hidden sm:block w-20 md:w-28 shrink-0 self-start border border-white/15 overflow-hidden"
                 >
-                  <img src={img(hero.cover_id, 'cover_big')} alt="" className="w-full aspect-[3/4] object-cover block" />
+                  <img src={img(hero.cover_id, 'cover_big')} alt="" data-shared={`poster:${hero.id}`} className="w-full aspect-[3/4] object-cover block" />
                 </Link>
               )}
               <div className="min-w-0 flex-1">
                 <div className="lh-label text-white/60 mb-1.5">
                   {recs.basedOn === 'library' ? 'Top Pick — Tuned To You' : 'Featured'}
                 </div>
-                <Link to={`/game/${hero.id}`} className="lh-display text-2xl md:text-4xl text-white leading-none hover:underline underline-offset-4 break-words">
+                <Link to={`/game/${hero.id}`} state={withPrelude(hero).state} className="lh-display text-2xl md:text-4xl text-white leading-none hover:underline underline-offset-4 break-words">
                   {hero.name}
                 </Link>
                 {heroMeta && <div className="lh-label text-white/60 mt-2">{heroMeta}</div>}
@@ -348,7 +353,7 @@ export default function Discover() {
                   </div>
                 ) : (
                   <div className="flex flex-wrap items-center gap-2 mt-4">
-                    <Link to={`/game/${hero.id}`} className="inline-block lh-label px-4 py-2 bg-white text-black hover:bg-neutral-200 transition-colors">
+                    <Link to={`/game/${hero.id}`} state={withPrelude(hero).state} className="inline-block lh-label px-4 py-2 bg-white text-black hover:bg-neutral-200 transition-colors">
                       View Game →
                     </Link>
                     {/* One button in both states rather than swapping a <button> for a

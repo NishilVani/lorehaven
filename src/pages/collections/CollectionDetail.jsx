@@ -220,7 +220,7 @@ export default function CollectionDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white pb-16 animate-in fade-in duration-500">
+    <div className="min-h-screen bg-black text-white pb-16">
       <div className="content-container py-4">
 
         {/* ── Header — editorial index ── */}
@@ -430,7 +430,7 @@ export default function CollectionDetail() {
                 {groups.map(group => (
                   <div key={group.label || 'all'}>
                     {group.label && <GroupHeader label={group.label} count={group.games.length} />}
-                    <div className="game-grid animate-in slide-in-from-bottom-4 fade-in">
+                    <div className="game-grid m-reveal">
                       {group.games.map(game => (
                         <GameCard
                           key={game.id}

@@ -1,208 +1,173 @@
-/* LoreHaven motion.
+/* LoreHaven motion: tokens and page choreography.
+ * Spec: docs/superpowers/specs/2026-10-06-motion-design.md.
  *
- * Three levels, chosen per device under Appearance > Motion and written to
- * <html data-motion> by src/motion/motion.js:
+ * Art leads, words follow. A page change runs in three beats, and two pages of
+ * content are never on screen at once:
+ *   clear   the old page fades and moves away              (160ms)
+ *   carry   shared art travels to its new place            (420ms, from 0)
+ *   reveal  the new page fades in, after clear has ended   (320ms, from 200ms)
+ * The director (TransitionLocation.jsx) writes <html data-vt> with the type
+ * and data-vt-dir for sideways; this file turns them into the beats.
  *
- *   reduced     Fades and instant swaps only. The default when the system asks
- *               for reduced motion.
- *   standard    Everyone else. Page transitions, card entrances, press
- *               feedback; menus keep their own entrance (DropdownMenu.jsx).
- *               Compositor-only properties (opacity, translate, scale) and
- *               nothing that runs while the user is not doing something.
- *   expressive  Experimental. Adds the cover flight from card to game page,
- *               scroll-driven parallax and section reveals, card tilt with a
- *               moving glare, and a burst when a game is completed. Heavier:
- *               more layers, more snapshots, more work per frame.
- *
- * Durations and curves come from tokens/motion.json (fast 100, base 200,
- * moderate 300, slow 500; ease-out for entrances, ease-in for exits, spring
- * for emphasis). Nothing here exceeds 500ms.
- *
- * Every keyframe moves `translate` and `scale`, the individual transform
- * properties, never `transform` itself: Dialog's drag-to-dismiss and the
- * library's lift write `transform` inline, and an animation holding
- * `transform` would override them (see .dialog-in in index.css). Entrances
- * fill `backwards`, so nothing is held once they finish. */
+ * Every keyframe moves opacity, translate or scale, never `transform`: the
+ * Dialog, sheets and the library lift write `transform` inline. */
 
-:root {
-  --lh-dur-fast: 100ms;
-  --lh-dur-base: 200ms;
-  --lh-dur-moderate: 300ms;
-  --lh-dur-slow: 500ms;
-  --lh-ease-out: cubic-bezier(0, 0, 0.2, 1);
-  --lh-ease-in: cubic-bezier(0.4, 0, 1, 1);
-  --lh-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
-  --lh-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-  /* Emphasised decelerate: arrives fast, settles long. Page transitions. */
-  --lh-ease-emph: cubic-bezier(0.2, 0, 0, 1);
-  /* How far things travel on entrance. Small: the eye should register
-     direction, not distance. */
-  --lh-rise: 10px;
-  --lh-stagger: 28ms;
+/* ── Personality: Cinematic (the only one, for now) ─────────────────────────
+   A later personality (springy, game-like) is another block like this one. */
+:root,
+:root[data-personality='cinematic'] {
+  --m-clear-dur: 160ms;
+  --m-clear-ease: cubic-bezier(0.4, 0, 1, 1);
+  --m-carry-dur: 420ms;
+  --m-carry-ease: cubic-bezier(0.2, 0, 0, 1);
+  --m-reveal-dur: 320ms;
+  --m-reveal-ease: cubic-bezier(0, 0, 0.2, 1);
+  --m-reveal-delay: 200ms;
+  --m-reveal-delay-side: 120ms;
+  --m-stagger: 40ms;
+  --m-micro-in: 120ms;
+  --m-micro-out: 220ms;
+  --m-overlay-in: 280ms;
+  --m-overlay-out: 180ms;
+  --m-travel-out: 8px;
+  --m-travel-in: 12px;
+  --m-travel-side: 24px;
+  --m-overshoot: 0;
 }
 
-/* ── Page transitions (View Transitions API; TransitionLocation.jsx) ─────────────
-   Only the page moves: <main> is its own transition group, so the rail, the
-   top bar and the docked tracker stay put while the content swaps. The root
-   group is not animated at all. Forward navigation rises in from below and
-   fades the old page out quickly; going back reverses the direction. */
-/* Named only while a transition runs (data-vt-dir is set just before it
-   starts and removed when it ends): a view-transition-name makes <main> a
-   stacking context, and a page's own fixed layers inside it must keep
-   stacking against the rail the way they always have. */
-:root[data-vt-dir] main#main {
-  view-transition-name: lh-page;
+/* ── Who takes part ──────────────────────────────────────────────────────────
+   Names exist only while a transition runs: a standing view-transition-name
+   makes an element a stacking context. The page content is one group; the
+   rail and top bar are their own groups that do not animate, so they hold
+   perfectly still; their active markers travel. */
+:root[data-vt] main#main { view-transition-name: lh-page; }
+:root[data-vt] [data-chrome='rail'] { view-transition-name: lh-rail; }
+:root[data-vt] [data-chrome='topbar'] { view-transition-name: lh-topbar; }
+:root[data-vt] [data-chrome='rail'] [data-rail-marker] { view-transition-name: lh-rail-marker; }
+
+/* The root (everything not named) swaps instantly: there is nothing in it
+   that should move. */
+::view-transition-group(root) { animation: none; }
+::view-transition-old(root) { animation: none; display: none; }
+::view-transition-new(root) { animation: none; }
+
+/* Chrome holds still: show the new state at once, no cross-fade. */
+::view-transition-group(lh-rail),
+::view-transition-group(lh-topbar),
+::view-transition-group(lh-library-head) { animation: none; }
+::view-transition-old(lh-rail),
+::view-transition-old(lh-topbar),
+::view-transition-old(lh-library-head) { animation: none; display: none; }
+::view-transition-new(lh-rail),
+::view-transition-new(lh-topbar),
+::view-transition-new(lh-library-head) { animation: none; }
+
+/* Markers (rail item, library tab) travel on the carry curve, 280ms. */
+::view-transition-group(lh-rail-marker),
+::view-transition-group(lh-tab-marker) {
+  animation-duration: 280ms;
+  animation-timing-function: var(--m-carry-ease);
 }
-::view-transition-group(root) {
-  animation: none;
+
+/* The page group never resizes visibly: old and new keep their own height
+   and are pinned to the top. */
+::view-transition-group(lh-page) { animation: none; }
+::view-transition-old(lh-page),
+::view-transition-new(lh-page) {
+  height: auto;
+  inset-block-start: 0;
 }
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation: none;
-}
+
+/* ── Deeper (and carry): old moves up as it clears, new rises from below ── */
 ::view-transition-old(lh-page) {
-  animation: lh-page-out var(--lh-dur-base) var(--lh-ease-in) both;
+  animation: m-clear-up var(--m-clear-dur) var(--m-clear-ease) both;
 }
 ::view-transition-new(lh-page) {
-  animation: lh-page-in var(--lh-dur-moderate) var(--lh-ease-emph) both;
+  animation: m-reveal-up var(--m-reveal-dur) var(--m-reveal-ease) var(--m-reveal-delay) both;
 }
-:root[data-vt-dir='back']::view-transition-new(lh-page) {
-  animation-name: lh-page-in-back;
+@keyframes m-clear-up {
+  to { opacity: 0; translate: 0 calc(var(--m-travel-out) * -1); }
 }
-:root[data-vt-dir='back']::view-transition-old(lh-page) {
-  animation-name: lh-page-out-back;
-}
-@keyframes lh-page-out {
-  to { opacity: 0; translate: 0 calc(var(--lh-rise) * -0.6); }
-}
-@keyframes lh-page-in {
-  from { opacity: 0; translate: 0 calc(var(--lh-rise) * 1.6); }
-}
-@keyframes lh-page-out-back {
-  to { opacity: 0; translate: 0 calc(var(--lh-rise) * 1.2); }
-}
-@keyframes lh-page-in-back {
-  from { opacity: 0; translate: 0 calc(var(--lh-rise) * -1); }
+@keyframes m-reveal-up {
+  from { opacity: 0; translate: 0 var(--m-travel-in); }
 }
 
-/* ── Card entrance ────────────────────────────────────────────────────────────
-   A card rises into place when it mounts. The first twelve in a container
-   stagger by --lh-stagger; later ones (an infinite list appending a page)
-   arrive together, so a long list never waits on its own choreography. */
-:root[data-motion='standard'] .lh-card-enter,
-:root[data-motion='expressive'] .lh-card-enter {
-  animation: lh-rise var(--lh-dur-moderate) var(--lh-ease-out) backwards;
+/* ── Back (and carry-back): the reverse ── */
+:root[data-vt='back']::view-transition-old(lh-page),
+:root[data-vt='carry-back']::view-transition-old(lh-page) {
+  animation-name: m-clear-down;
 }
-.lh-card-enter:nth-child(2) { animation-delay: calc(var(--lh-stagger) * 1); }
-.lh-card-enter:nth-child(3) { animation-delay: calc(var(--lh-stagger) * 2); }
-.lh-card-enter:nth-child(4) { animation-delay: calc(var(--lh-stagger) * 3); }
-.lh-card-enter:nth-child(5) { animation-delay: calc(var(--lh-stagger) * 4); }
-.lh-card-enter:nth-child(6) { animation-delay: calc(var(--lh-stagger) * 5); }
-.lh-card-enter:nth-child(7) { animation-delay: calc(var(--lh-stagger) * 6); }
-.lh-card-enter:nth-child(8) { animation-delay: calc(var(--lh-stagger) * 7); }
-.lh-card-enter:nth-child(9) { animation-delay: calc(var(--lh-stagger) * 8); }
-.lh-card-enter:nth-child(10) { animation-delay: calc(var(--lh-stagger) * 9); }
-.lh-card-enter:nth-child(11) { animation-delay: calc(var(--lh-stagger) * 10); }
-.lh-card-enter:nth-child(12) { animation-delay: calc(var(--lh-stagger) * 11); }
-@keyframes lh-rise {
-  from { opacity: 0; translate: 0 var(--lh-rise); }
+:root[data-vt='back']::view-transition-new(lh-page),
+:root[data-vt='carry-back']::view-transition-new(lh-page) {
+  animation-name: m-reveal-down;
+}
+@keyframes m-clear-down {
+  to { opacity: 0; translate: 0 var(--m-travel-out); }
+}
+@keyframes m-reveal-down {
+  from { opacity: 0; translate: 0 calc(var(--m-travel-in) * -1); }
 }
 
-/* Anything else that wants the same entrance. */
-:root[data-motion='standard'] .lh-rise,
-:root[data-motion='expressive'] .lh-rise {
-  animation: lh-rise var(--lh-dur-moderate) var(--lh-ease-out) backwards;
+/* ── Sideways: content slides toward the chosen sibling ──
+   Choosing a sibling to the right moves the old content left and brings the
+   new one in from the right, and the reverse. */
+:root[data-vt='sideways']::view-transition-old(lh-page) {
+  animation: m-clear-to-left var(--m-clear-dur) var(--m-clear-ease) both;
 }
+:root[data-vt='sideways']::view-transition-new(lh-page) {
+  animation: m-reveal-from-right var(--m-reveal-dur) var(--m-reveal-ease) var(--m-reveal-delay-side) both;
+}
+:root[data-vt='sideways'][data-vt-dir='left']::view-transition-old(lh-page) { animation-name: m-clear-to-right; }
+:root[data-vt='sideways'][data-vt-dir='left']::view-transition-new(lh-page) { animation-name: m-reveal-from-left; }
+@keyframes m-clear-to-left { to { opacity: 0; translate: calc(var(--m-travel-side) * -1) 0; } }
+@keyframes m-clear-to-right { to { opacity: 0; translate: var(--m-travel-side) 0; } }
+@keyframes m-reveal-from-right { from { opacity: 0; translate: var(--m-travel-side) 0; } }
+@keyframes m-reveal-from-left { from { opacity: 0; translate: calc(var(--m-travel-side) * -1) 0; } }
 
-/* ── Reduced ──────────────────────────────────────────────────────────────────
-   Opacity only, and quicker. Page transitions become a plain cross-fade. */
-:root[data-motion='reduced']::view-transition-old(lh-page),
+/* ── Carry: the shared art travels ──
+   The group moves and resizes on the carry curve; the two snapshots are the
+   same art, so they hold full opacity and keep their aspect rather than
+   cross-fading. It starts with clear and lands as reveal settles. */
+::view-transition-group(shared) {
+  animation-duration: var(--m-carry-dur);
+  animation-timing-function: var(--m-carry-ease);
+}
+::view-transition-old(shared),
+::view-transition-new(shared) {
+  height: 100%;
+  object-fit: cover;
+  animation-duration: var(--m-carry-dur);
+  animation-timing-function: var(--m-carry-ease);
+}
+/* The old art hands over to the new halfway, not by a long cross-fade. */
+::view-transition-old(shared) { animation-name: m-art-out; }
+::view-transition-new(shared) { animation-name: m-art-in; }
+@keyframes m-art-out { 0%, 45% { opacity: 1; } 55%, 100% { opacity: 0; } }
+@keyframes m-art-in { 0%, 45% { opacity: 0; } 55%, 100% { opacity: 1; } }
+
+/* ── Reduced: one 120ms cross-fade, nothing travels ── */
+:root[data-motion='reduced']::view-transition-old(lh-page) {
+  animation: m-fade-out 120ms linear both;
+}
 :root[data-motion='reduced']::view-transition-new(lh-page) {
-  animation-duration: var(--lh-dur-fast);
-  animation-name: lh-fade;
+  animation: m-fade-in 120ms linear both;
 }
-@keyframes lh-fade {
-  from { opacity: 0; }
+:root[data-motion='reduced']::view-transition-group(lh-rail-marker),
+:root[data-motion='reduced']::view-transition-group(lh-tab-marker) {
+  animation: none;
 }
+@keyframes m-fade-out { to { opacity: 0; } }
+@keyframes m-fade-in { from { opacity: 0; } }
 
-/* ════════════════════════════════════════════════════════════════════════════
-   EXPRESSIVE (experimental)
-   ════════════════════════════════════════════════════════════════════════════ */
-
-/* Cover flight: the card's cover flies to the game page's cover. A FLIP
-   animation in motion.js, not a view transition: the page's cover arrives with
-   its data, after the transition has long finished, and a view transition
-   that waited for it would freeze the screen meanwhile. */
-
-/* Hero parallax: the game page's banner drifts slower than the page and
-   zooms out slightly as it leaves. Scroll-driven, so the compositor runs it;
-   browsers without scroll timelines simply do not move it. */
-@supports (animation-timeline: scroll()) {
-  :root[data-motion='expressive'] [data-motion-hero] {
-    animation: lh-hero-drift linear both;
-    animation-timeline: scroll(root block);
-    animation-range: 0 60vh;
-  }
-  @keyframes lh-hero-drift {
-    from { scale: 1.08; translate: 0 0; }
-    to { scale: 1; translate: 0 18vh; }
-  }
-
-  /* Sections arrive as they scroll into view. */
-  :root[data-motion='expressive'] main section {
-    animation: lh-reveal linear both;
-    animation-timeline: view();
-    animation-range: entry 0% entry 35%;
-  }
-  @keyframes lh-reveal {
-    from { opacity: 0; translate: 0 24px; }
-  }
+/* ── Content arriving inside a page ──────────────────────────────────────────
+   Data that lands after the page is up (a grid replacing its skeleton, a
+   ceremony year switched in place) reveals with the same beat as a page.
+   Mounted while a page transition runs, it does nothing of its own: the
+   page's reveal already carries it. */
+.m-reveal {
+  animation: m-reveal-up var(--m-reveal-dur) var(--m-reveal-ease) backwards;
 }
-
-/* Card tilt and glare: motion.js writes --lh-tilt-x/y (degrees) and
-   --lh-glare-x/y (percent) on the one card under the pointer, once per frame
-   at most. */
-:root[data-motion='expressive'] .hover-game-card {
-  /* Eases back to flat when the pointer leaves; while tilting it follows the
-     pointer closely (80ms below). */
-  transition: transform var(--lh-dur-moderate) var(--lh-ease-out);
+:root[data-motion='reduced'] .m-reveal {
+  animation: m-fade-in 120ms linear backwards;
 }
-:root[data-motion='expressive'] .lh-tilting {
-  transform: perspective(700px) rotateX(var(--lh-tilt-x, 0deg)) rotateY(var(--lh-tilt-y, 0deg));
-  transition: transform 80ms linear;
-  will-change: transform;
-}
-:root[data-motion='expressive'] .lh-tilting [data-card-cover] {
-  filter: brightness(1.06);
-}
-:root[data-motion='expressive'] .lh-tilting::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  pointer-events: none;
-  background: radial-gradient(circle at var(--lh-glare-x, 50%) var(--lh-glare-y, 0%),
-    color-mix(in oklab, var(--lh-ink) 22%, transparent), transparent 55%);
-  mix-blend-mode: soft-light;
-}
-
-/* Completion burst: motion.js draws it on one short-lived canvas. */
-.lh-burst {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 10050;
-}
-
-/* ── System reduced-motion, whatever the in-app choice ───────────────────────
-   motion.js already resolves "follow the system" to reduced; this is the
-   floor for the parallax, reveals and tilt if someone forces expressive. */
-@media (prefers-reduced-motion: reduce) {
-  :root[data-motion] [data-motion-hero],
-  :root[data-motion] main section {
-    animation: none;
-  }
-  :root[data-motion] .lh-tilting {
-    transform: none;
-  }
-}
+:root[data-vt] .m-reveal { animation: none; }

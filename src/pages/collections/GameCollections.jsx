@@ -7,7 +7,7 @@ export default function GameCollections() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-black text-white pb-16 animate-in fade-in duration-500">
+    <div className="min-h-screen bg-black text-white pb-16">
       <div className="content-container py-4">
         <PageHeader
           back={{ label: 'Back to Game', onClick: () => navigate(`/game/${id}`) }}

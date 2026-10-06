@@ -507,7 +507,7 @@ export default function CategoryPage() {
   }`;
 
   return (
-    <div className="min-h-screen bg-black text-white pb-16 animate-in fade-in duration-500">
+    <div className="min-h-screen bg-black text-white pb-16">
       <div className="content-container py-4">
 
         {/* ── Masthead. Only what has been counted. ── */}

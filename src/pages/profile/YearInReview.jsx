@@ -241,7 +241,7 @@ export default function YearInReview() {
   const older = idx >= 0 && idx < years.length - 1 ? years[idx + 1] : null;
 
   const shell = (children) => (
-    <div className="min-h-screen bg-black text-white pb-16 animate-in fade-in duration-500">
+    <div className="min-h-screen bg-black text-white pb-16">
       <div className="content-container py-4">
         <nav className="flex flex-wrap items-center justify-between gap-4 mb-10">
           <Link

@@ -1807,7 +1807,7 @@ export default function Library() {
                         )}
 
                         {!isCollapsed && (
-                          <div className="game-grid animate-in slide-in-from-bottom-4 fade-in">
+                          <div className="game-grid m-reveal">
                             {group.games.map((game) => (
                               <GameCard
                                 key={game.id}

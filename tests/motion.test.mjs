@@ -49,6 +49,22 @@ assert.strictEqual(c('/', '/schedule', 'REPLACE'), 'deeper');
 assert.strictEqual(c('/library/playing', '/library/backlog', 'PUSH', pair), 'sideways', 'siblings stay sideways even with a pair');
 assert.strictEqual(c('/library/backlog', '/library/playing', 'POP'), 'sideways');
 
+/* ── Preludes ── */
+const { preludeFromCard, readPrelude, withPrelude } = await import('../src/motion/prelude.js');
+assert.deepStrictEqual(
+  preludeFromCard({ id: 1942, name: 'The Witcher 3', cover_id: 'co1wyy', first_release_date: 1431993600, artwork_id: 'ar5l8' }),
+  { id: 1942, name: 'The Witcher 3', cover: 'co1wyy', year: 2015, hero: 'ar5l8' });
+assert.strictEqual(preludeFromCard({ id: 'custom-1', name: 'Mine' }), null, 'custom games have no page');
+assert.strictEqual(preludeFromCard({ id: 5 }), null, 'a prelude needs a name');
+assert.strictEqual(preludeFromCard({ id: 5, name: 'X', cover_id: '../evil' }).cover, null, 'only IGDB image ids');
+assert.strictEqual(preludeFromCard({ id: 5, name: 'X', release_year: 1998 }).year, 1998);
+const pre = preludeFromCard({ id: 5, name: 'X' });
+assert.deepStrictEqual(readPrelude({ state: { prelude: pre } }, '5'), pre);
+assert.strictEqual(readPrelude({ state: { prelude: pre } }, '6'), null, 'a prelude for another game is ignored');
+assert.strictEqual(readPrelude({}, '5'), null);
+assert.deepStrictEqual(withPrelude({ id: 5, name: 'X' }, { replace: true }), { replace: true, state: { prelude: pre } });
+assert.deepStrictEqual(withPrelude({ id: 'x' }), {});
+
 /* ── Migration of the first pass's choices ── */
 assert.strictEqual(migrateMotionChoice('expressive'), 'system');
 assert.strictEqual(migrateMotionChoice('standard'), 'system');

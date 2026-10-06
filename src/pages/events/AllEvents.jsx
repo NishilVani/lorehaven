@@ -140,7 +140,7 @@ export default function AllEvents() {
     : `${events.length} ${events.length === 1 ? 'event' : 'events'}${hasMore ? ', more available' : ''}`);
 
   return (
-    <div className="min-h-screen bg-black text-white pb-16 animate-in fade-in duration-500">
+    <div className="min-h-screen bg-black text-white pb-16">
       <div className="content-container py-4 lg:py-12">
 
         {/* ── Header ── */}

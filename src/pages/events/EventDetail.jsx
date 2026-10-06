@@ -246,7 +246,7 @@ export default function EventDetail() {
       : [fmtDay(event.start_time), ago(event.start_time, now)].filter(Boolean).join(' · ');
 
   return (
-    <div className="min-h-screen bg-black text-white pb-16 animate-in fade-in duration-500">
+    <div className="min-h-screen bg-black text-white pb-16">
       <div className="content-container py-4 lg:py-12">
 
         <PageHeader
