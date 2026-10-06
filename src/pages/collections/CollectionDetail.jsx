@@ -1,4 +1,6 @@
 import PageHeader from '../../components/ui/PageHeader';
+import { TitleSkeleton } from '../../components/ui/Skeleton';
+import { readTitle, titleKeyFor } from '../../motion/prelude';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import EmptyPlate from '../../components/ui/EmptyPlate';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
@@ -274,7 +276,8 @@ export default function CollectionDetail() {
             <PageHeader
               className={description ? 'mb-3' : 'mb-8'}
               back={{ label: 'Collections', onClick: () => navigate('/collections') }}
-              title={name || 'Loading'}
+              title={name || readTitle(location) || <TitleSkeleton />}
+              shared={titleKeyFor(location.pathname)}
               count={`${games.length} ${games.length === 1 ? 'Title' : 'Titles'}`}
               meta={meta ? `Collection — ${meta}` : 'Collection'}
               actions={

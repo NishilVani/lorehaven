@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { titleKeyFor, titleState } from '../../motion/prelude';
 import { MoreVertical, ImageOff } from 'lucide-react';
 import DropdownMenu from '../ui/DropdownMenu';
 
@@ -36,9 +37,10 @@ export default function CollectionTile({ to, name, count = 0, games = [], covers
     /* The options button used to sit inside the <Link>. Interactive content nested
        in an anchor is invalid, and screen readers folded the button into the link's
        name. The link is now a sibling overlay and the button sits above it. */
-    <div className="group relative block border border-white/15 bg-black hover:border-white/70 transition-colors">
+    <div className="group relative block border border-white/15 bg-black hover:border-white/70 transition-colors" data-shared-scope="">
       <Link
         to={to}
+        state={titleState(name)}
         aria-label={name}
         className="absolute inset-0 z-0 outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-inset"
       />
@@ -83,7 +85,7 @@ export default function CollectionTile({ to, name, count = 0, games = [], covers
       {/* Caption — stark type resting directly under the plate */}
       <div className="border-t border-white/15 group-hover:border-white/70 transition-colors px-3 pt-2.5 pb-3">
         <div className="flex items-start justify-between gap-1.5">
-          <div className="lh-display text-sm leading-tight h-9 line-clamp-2 break-words text-white/90 group-hover:text-white transition-colors min-w-0" title={name}>
+          <div className="lh-display text-sm leading-tight h-9 line-clamp-2 break-words text-white/90 group-hover:text-white transition-colors min-w-0" title={name} data-shared={titleKeyFor(to) || undefined}>
             {name}
           </div>
           {menuOptions.length > 0 && (

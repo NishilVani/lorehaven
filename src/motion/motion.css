@@ -183,3 +183,14 @@
 ::view-transition-old(lh-library-controls) { animation: none; display: none; }
 ::view-transition-new(lh-library-tabs),
 ::view-transition-new(lh-library-controls) { animation: none; }
+
+/* ── Carry for words: a name travels into its page's heading ──
+   Scaled in proportion from the link's size to the heading's (the default
+   image sizing), with the old words handing over to the new halfway, so it
+   reads as one name growing, not two overlapping. */
+::view-transition-group(shared-title) {
+  animation-duration: var(--m-carry-dur);
+  animation-timing-function: var(--m-carry-ease);
+}
+::view-transition-old(shared-title) { animation: m-art-out var(--m-carry-dur) var(--m-carry-ease) both; }
+::view-transition-new(shared-title) { animation: m-art-in var(--m-carry-dur) var(--m-carry-ease) both; }

@@ -7,7 +7,7 @@ import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef, laz
 const QrCodeDialog = lazy(() => import('../../components/ui/QrCodeDialog'));
 import EmptyPlate from '../../components/ui/EmptyPlate';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
-import { readPrelude } from '../../motion/prelude';
+import { readPrelude, titleState } from '../../motion/prelude';
 import { transitionSettled } from '../../motion/shared';
 import useSwipe from '../../hooks/useSwipe';
 import { Play, Download, Share2, ThumbsUp, ThumbsDown, Bookmark, ArrowRightLeft, X, QrCode } from 'lucide-react';
@@ -1297,9 +1297,10 @@ export default function GameDetail() {
                   aside={franchise && !timeline && (
                     <Link
                       to={`/franchise/${franchise.id}`}
+                      state={titleState(franchise.name)}
                       className="lh-label text-white/60 hover:text-white focus-visible:text-white underline decoration-white/30 underline-offset-4 py-2 -my-2 shrink-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white transition-colors"
                     >
-                      Part of {franchise.name}
+                      Part of <span data-shared={`franchise-title:${franchise.id}`}>{franchise.name}</span>
                     </Link>
                   )}
                 >

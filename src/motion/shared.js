@@ -69,7 +69,10 @@ export function installSharedCapture() {
 let named = [];
 export function nameShared(el) {
   if (!el) return;
-  el.style.viewTransitionName = 'shared';
+  /* Words and art move differently (motion.css): a title scales and
+     cross-fades into its heading, art keeps its crop and hands over. */
+  const kind = el.getAttribute('data-shared')?.split(':')[0];
+  el.style.viewTransitionName = kind === 'title' || kind === 'franchise-title' ? 'shared-title' : 'shared';
   named.push(el);
 }
 export function clearShared() {

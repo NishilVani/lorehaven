@@ -1,7 +1,9 @@
 import PageHeader from '../../components/ui/PageHeader';
+import { TitleSkeleton } from '../../components/ui/Skeleton';
+import { readTitle, titleKeyFor } from '../../motion/prelude';
 import { useState, useEffect, useMemo } from 'react';
 import EmptyPlate from '../../components/ui/EmptyPlate';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { Bookmark, BookmarkCheck } from 'lucide-react';
 import GameCard from '../../components/games/GameCard';
 import { useGameGridControls } from '../../components/games/GameGridControls';
@@ -27,6 +29,7 @@ const mapGame = (g) => ({
 export default function FranchisePage() {
   const { franchiseId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [name, setName] = useState('');
   const [games, setGames] = useState([]);
@@ -113,7 +116,8 @@ export default function FranchisePage() {
           back={{ label: 'Back', onClick: () => navigate(-1), ariaLabel: 'Go back to previous page' }}
           /* Never ship a placeholder as a finished heading. The three states are
              different facts: still asking, asked and got nothing, asked and failed. */
-          title={loading ? 'Loading' : (name || (loadError ? 'Franchise Unavailable' : 'Franchise Not Found'))}
+          title={loading ? (readTitle(location) || <TitleSkeleton />) : (name || (loadError ? 'Franchise Unavailable' : 'Franchise Not Found'))}
+          shared={titleKeyFor(location.pathname)}
           count={`${games.length} ${games.length === 1 ? 'Title' : 'Titles'}`}
           meta={[
             ownedCount > 0 && `${ownedCount} in Library`,

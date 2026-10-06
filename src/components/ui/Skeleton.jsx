@@ -181,3 +181,9 @@ export const CategoryPageSkeleton = () => (
         </div>
     </div>
 );
+
+/* A heading still on its way: a bar the height of the line it stands in for.
+   The page's live region says what is loading; this only holds the shape. */
+export const TitleSkeleton = ({ width = '9ch' }) => (
+    <span aria-hidden="true" className="skeleton-placeholder inline-block align-middle h-[0.75em]" style={{ width }} />
+);

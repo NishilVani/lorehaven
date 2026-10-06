@@ -35,3 +35,29 @@ export const withPrelude = (g, options = {}) => {
   const prelude = preludeFromCard(g);
   return prelude ? { ...options, state: { ...(options.state || {}), prelude } } : options;
 };
+
+/* ── Titles ──────────────────────────────────────────────────────────────────
+   Franchise, collection, event and award pages open on their name: the link
+   that led there carries it in its state, and the name in the link travels to
+   the page's title. The shared key comes from the destination's own path, so
+   the link and the page agree without passing ids around. */
+
+const TITLED = /^\/(franchise|collection|event|awards)\/(.+?)\/?$/;
+
+/** The shared key for a titled page's heading, or null. */
+export function titleKeyFor(pathname) {
+  const m = TITLED.exec(String(pathname || '').split(/[?#]/)[0]);
+  if (!m) return null;
+  const id = m[2].replace(/[^A-Za-z0-9_-]/g, '-');
+  const key = m[1] === 'franchise' ? `franchise-title:${id}` : `title:${m[1]}-${id}`;
+  return key.length <= 60 ? key : null;
+}
+
+/** Link state carrying a page's title. */
+export const titleState = (name) => (typeof name === 'string' && name.trim() ? { title: name.trim().slice(0, 200) } : undefined);
+
+/** The title the link handed over, while the page loads its own. */
+export const readTitle = (location) => {
+  const t = location?.state?.title;
+  return typeof t === 'string' && t ? t : null;
+};

@@ -48,6 +48,7 @@ export default function PageHeader({
   actions,
   titleClassName = 'text-4xl lg:text-6xl',
   titleRef,
+  shared,
   titleId,
   className = 'mb-8',
 }) {
@@ -78,6 +79,8 @@ export default function PageHeader({
         <h1
           ref={titleRef}
           id={titleId}
+          /* The name a link travels to (motion/shared.js, prelude.js titleKeyFor). */
+          data-shared={shared || undefined}
           tabIndex={titleRef ? -1 : undefined}
           className={`lh-display ${titleClassName} text-white m-0 break-words min-w-0 outline-none`}
         >

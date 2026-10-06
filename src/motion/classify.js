@@ -8,11 +8,11 @@
  *   back        any other back navigation
  */
 
-export const SHARED_KINDS = ['poster', 'hero', 'franchise-title', 'mosaic', 'event-art', 'ceremony-title', 'wallpaper', 'media'];
+export const SHARED_KINDS = ['poster', 'hero', 'franchise-title', 'title', 'wallpaper', 'media'];
 
 /** 'poster:1942' -> { kind: 'poster', id: '1942' }, or null. */
 export function parseShared(value) {
-  const m = /^([a-z-]+):([A-Za-z0-9_-]{1,40})$/.exec(String(value ?? ''));
+  const m = /^([a-z-]+):([A-Za-z0-9_-]{1,48})$/.exec(String(value ?? ''));
   if (!m || !SHARED_KINDS.includes(m[1])) return null;
   return { kind: m[1], id: m[2] };
 }

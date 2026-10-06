@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { titleKeyFor, titleState } from '../../motion/prelude';
 
 /* Small editorial primitives the game page's sections share. */
 
@@ -46,9 +47,14 @@ export function IndexLinks({ label, items }) {
 }
 
 export function TagLink({ to, children }) {
+  /* A link to a franchise, collection or event page hands over its name, so
+     the page opens titled, and the name travels to the heading. */
+  const shared = typeof children === 'string' ? titleKeyFor(to) : null;
   return (
     <Link
       to={to}
+      state={shared ? titleState(children) : undefined}
+      data-shared={shared || undefined}
       className="text-white underline decoration-white/30 underline-offset-4 p-1 -m-1 hover:bg-white hover:text-black hover:decoration-transparent focus-visible:bg-white focus-visible:text-black focus-visible:decoration-transparent focus-visible:outline-none transition-colors"
     >
       {children}

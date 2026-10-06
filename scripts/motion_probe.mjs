@@ -63,6 +63,12 @@ await page.waitForTimeout(2500);
 const results = [];
 results.push(await step('card -> game', () => page.locator('.hover-game-card:has([data-shared^="poster:"]) [role="link"]').first().click()));
 results.push(await step('back', () => page.goBack()));
+/* A collection tile's name grows into the collection page's heading. */
+await page.goto(base + '/collections');
+await page.waitForSelector('[data-shared-scope] [data-shared^="title:"]', { timeout: 60000 });
+await page.waitForTimeout(2000);
+results.push(await step('collection tile -> page', () => page.locator('[data-shared-scope]:has([data-shared^="title:"]) a').first().click()));
+
 /* Shelves at desktop size: the six-tab row is hidden on phones. */
 await page.setViewportSize({ width: 1280, height: 900 });
 await page.goto(base + '/library/backlog');

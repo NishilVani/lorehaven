@@ -65,6 +65,21 @@ assert.strictEqual(readPrelude({}, '5'), null);
 assert.deepStrictEqual(withPrelude({ id: 5, name: 'X' }, { replace: true }), { replace: true, state: { prelude: pre } });
 assert.deepStrictEqual(withPrelude({ id: 'x' }), {});
 
+/* ── Titles ── */
+const { titleKeyFor, titleState, readTitle } = await import('../src/motion/prelude.js');
+assert.strictEqual(titleKeyFor('/franchise/7'), 'franchise-title:7');
+assert.strictEqual(titleKeyFor('/collection/igdb/5'), 'title:collection-igdb-5');
+assert.strictEqual(titleKeyFor('/collection/12/'), 'title:collection-12');
+assert.strictEqual(titleKeyFor('/event/3?x=1'), 'title:event-3');
+assert.strictEqual(titleKeyFor('/awards/Q187125'), 'title:awards-Q187125');
+assert.strictEqual(titleKeyFor('/awards'), null, 'the index is not titled');
+assert.strictEqual(titleKeyFor('/game/1'), null);
+assert.ok(parseShared(titleKeyFor('/collection/igdb/5')), 'a title key parses as shared');
+assert.deepStrictEqual(titleState('  Halo  '), { title: 'Halo' });
+assert.strictEqual(titleState(''), undefined);
+assert.strictEqual(readTitle({ state: { title: 'Halo' } }), 'Halo');
+assert.strictEqual(readTitle({ state: { title: 5 } }), null);
+
 /* ── Migration of the first pass's choices ── */
 assert.strictEqual(migrateMotionChoice('expressive'), 'system');
 assert.strictEqual(migrateMotionChoice('standard'), 'system');
