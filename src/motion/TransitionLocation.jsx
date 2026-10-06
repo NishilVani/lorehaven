@@ -5,6 +5,7 @@ import { classifyTransition, siblingDirection } from './classify';
 import { reducedMotion } from './motion';
 import { findShared, takePending, rememberHomeward, homewardFor, nameShared, clearShared, setRunningTransition } from './shared';
 import { routeLoaded, preloadRoute } from './routes';
+import { rememberScroll } from './pageMemory';
 import { haptic } from '../services/native/haptics';
 
 /* The transition director (docs/superpowers/specs/2026-10-06-motion-design.md,
@@ -80,6 +81,9 @@ export default function TransitionLocation({ children }) {
     const from = shown;
     const to = location;
     const back = navigationType === 'POP';
+    /* Where the page being left was scrolled to, for when Back returns to it
+       (PageStack.jsx). Read now: once it is hidden the scroll is clamped. */
+    rememberScroll(from.pathname, window.scrollY);
 
     /* The pair: a fresh click on shared art going forward, or the art this
        page was left through, coming back. Reduced motion never travels. */

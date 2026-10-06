@@ -1,5 +1,5 @@
 import { useState, useEffect, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Route, Navigate, useLocation } from 'react-router-dom';
 
 // App shell — always on screen, so it stays in the main chunk.
 import Navbar from './components/layout/Navbar';
@@ -7,6 +7,7 @@ import ScrollToTop from './components/layout/ScrollToTop';
 import AppLinks from './components/layout/AppLinks';
 import NativeBridge from './components/layout/NativeBridge';
 import TransitionLocation from './motion/TransitionLocation';
+import PageStack from './motion/PageStack';
 import { lazyRoute } from './motion/routes';
 import RouteSkeleton from './components/ui/RouteSkeleton';
 import { ToastContainer } from './components/ui/Toast';
@@ -150,7 +151,9 @@ function App() {
           <ApiErrorBanner />
 
           <Suspense fallback={<RouteSkeleton />}>
-          <Routes key={syncKey}>
+          {/* Recent pages stay mounted, so Back shows the same page, not a
+              rebuilt one (motion/PageStack.jsx). */}
+          <PageStack key={syncKey}>
             <Route path="/" element={<Discover />} />
             <Route path="/explore/:section" element={<KeyedRoute component={ExploreList} />} />
             <Route path="/feedback" element={<Feedback />} />
@@ -188,7 +191,7 @@ function App() {
             <Route path="/awards/:awardQid" element={<KeyedRoute component={AwardCeremony} />} />
             {/* Last, and it must stay last: a catch-all above any of these would swallow them. */}
             <Route path="*" element={<NotFound />} />
-          </Routes>
+          </PageStack>
           </Suspense>
         </main>
       </div>
