@@ -28,8 +28,8 @@ export default function RouteSkeleton() {
       {shape === 'detail' && (
         <>
           <Skeleton className="w-full h-[28vh] min-h-[200px] md:h-[44vh] lg:-mt-8 border-b border-white/15" />
-          <div className="content-container py-8 flex gap-4 md:gap-8 items-start">
-            <Skeleton className="w-24 sm:w-32 lg:w-44 aspect-[3/4] shrink-0 -mt-20 md:-mt-28" />
+          <div className="content-container pt-3 pb-8 md:pt-8 flex gap-4 md:gap-8 items-start">
+            <Skeleton className="w-24 sm:w-32 lg:w-44 aspect-[3/4] shrink-0 -mt-15 md:-mt-28" />
             <div className="flex-1 min-w-0 pt-6">
               <Skeleton className="h-3 w-24 mb-4" />
               <Skeleton className="h-10 w-2/3 mb-4" />
