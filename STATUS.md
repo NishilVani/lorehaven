@@ -42,30 +42,31 @@ infinite-scroll audit, with the measurement behind every claim.
     (mobile shelf strip) fail on the baseline too; Pick For Me suggests
     Wishlist games not yet released (`PickNextDialog`); the emoji gate flags
     18 glyphs inside `.claude/skills/impeccable` (third-party).
-- **Motion redesign (owner's second brief): in progress on `feature/motion`.**
-  The first pass (Standard/Expressive) was rejected as generic. Spec
-  `docs/superpowers/specs/2026-10-06-motion-design.md`, plan
-  `docs/superpowers/plans/2026-10-06-motion-design.md`. One Cinematic
-  language plus Reduced; shared-element page transitions (View Transitions).
-  - Done and committed: Task 1 (`src/motion/classify.js`, setting cut to
-    Match System / Reduced), Task 2 (director `TransitionLocation.jsx`,
-    `shared.js`, `routes.js` prefetch, `RouteSkeleton.jsx`, choreography in
-    `motion.css`; "Loading..." fallback gone), Task 3 (card poster to game
-    poster and home on Back, Explore hero art to game hero, game page
-    prelude), Task 4 (library shelves sideways with travelling tab marker,
-    swipe follows the finger, FLIP re-orders), Task 5 (names travel into
-    franchise/collection/event/award headings, no "Loading" titles), Task 6
-    (dialogs, menus, toasts, tooltips, drawer, search, press, image fade,
-    skeleton sheen).
-  - Verified: `node scripts/motion_probe.mjs` (types and animating groups for
-    card to game, back, collection to page, shelf changes), mid-transition
-    frames (`scripts/motion_frames.mjs`) reviewed, npm test, lint 0 errors,
-    build, Playwright smoke + search 22/22.
-  - Next: Task 7 (Pick For Me landing haptic, count-ups, media/wallpaper
-    carry), Task 8 (remove old keyframes and `animate-in` uses, docs/MOTION.md,
-    production-build perf numbers, wider e2e, Android emulator pass).
-  - Simplified from spec, on purpose: dial-group fill does not slide (a
-    clip-path wipe hid the label mid-way); colours cross-fade instead.
+- **Motion redesign (owner's second brief): built on `feature/motion`, PR #32
+  (stacked on #31).** The first pass (Standard/Expressive) was rejected as
+  generic. Spec `docs/superpowers/specs/2026-10-06-motion-design.md` (with
+  implementation notes at the end), plan `docs/superpowers/plans/
+  2026-10-06-motion-design.md`, map and device checklist `docs/MOTION.md`.
+  - Built: transition director with shared art (card poster to game poster
+    and home, Explore art to game hero, names into franchise/collection/
+    event/award headings, wallpaper tile to viewer), game page prelude,
+    library shelves sideways with travelling marker and finger-following
+    swipe, FLIP re-orders, element motion (dialogs, menus, toasts, tooltips,
+    drawer, search, press, image fade, skeleton sheen, count-ups), route
+    prefetch and page-shaped skeletons (no "Loading..." anywhere), old layer
+    removed.
+  - Verified: npm test, lint 0 errors, build, Playwright smoke + phase3 +
+    phase7 + search on chromium and Mobile Chrome 256 passed / 3 failed (N7,
+    S2, S5, failing on the baseline too), `scripts/motion_probe.mjs` on a
+    production build (ready 57-222ms, finished 539-778ms, frame p95 17ms,
+    card to game 17-33ms across runs), mid-transition frames reviewed.
+    Android emulator: transitions run in the app; the emulator was too
+    overloaded (ANR, no network) to judge the poster flight there.
+  - Also fixed: NativeBridge re-registered Android listeners on every
+    navigation (`notification.remove_listener not allowed` each time).
+  - Next: owner tries it on devices (docs/MOTION.md checklist). Pre-existing
+    and still open: a Dialog at 1024px slides under the rail (z 3000 vs
+    9999); Pick For Me can suggest unreleased Wishlist games.
 
 - **Search: built on `feature/smart-search`.** Hybrid local + IGDB search.
   `src/services/search/`: `normalize.js` (shared by build and app), `engine.js`
