@@ -53,14 +53,11 @@
 
 /* Chrome holds still: show the new state at once, no cross-fade. */
 ::view-transition-group(lh-rail),
-::view-transition-group(lh-topbar),
-::view-transition-group(lh-library-head) { animation: none; }
+::view-transition-group(lh-topbar) { animation: none; }
 ::view-transition-old(lh-rail),
-::view-transition-old(lh-topbar),
-::view-transition-old(lh-library-head) { animation: none; display: none; }
+::view-transition-old(lh-topbar) { animation: none; display: none; }
 ::view-transition-new(lh-rail),
-::view-transition-new(lh-topbar),
-::view-transition-new(lh-library-head) { animation: none; }
+::view-transition-new(lh-topbar) { animation: none; }
 
 /* Markers (rail item, library tab) travel on the carry curve, 280ms. */
 ::view-transition-group(lh-rail-marker),
@@ -171,3 +168,18 @@
   animation: m-fade-in 120ms linear backwards;
 }
 :root[data-vt] .m-reveal { animation: none; }
+
+/* ── Library shelves (sideways) ──────────────────────────────────────────────
+   The tab strip and the controls row hold still while the shelf changes; the
+   active tab (or the phone strip's shelf bar) is the marker and slides to the
+   new shelf. Named only for sideways transitions: going deeper, they are part
+   of the page like everything else. */
+:root[data-vt='sideways'] [data-vt-keep='tabs'] { view-transition-name: lh-library-tabs; }
+:root[data-vt='sideways'] [data-vt-keep='controls'] { view-transition-name: lh-library-controls; }
+:root[data-vt='sideways'] [data-tab-marker] { view-transition-name: lh-tab-marker; }
+::view-transition-group(lh-library-tabs),
+::view-transition-group(lh-library-controls) { animation: none; }
+::view-transition-old(lh-library-tabs),
+::view-transition-old(lh-library-controls) { animation: none; display: none; }
+::view-transition-new(lh-library-tabs),
+::view-transition-new(lh-library-controls) { animation: none; }

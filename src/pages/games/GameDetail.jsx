@@ -1070,9 +1070,9 @@ export default function GameDetail() {
         </section>
         <div className="content-container py-8">
           <div className="flex gap-4 md:gap-8 items-start mb-8">
-            <div className="relative z-10 w-24 sm:w-32 lg:w-44 shrink-0 border border-white/20 bg-black -mt-20 md:-mt-28">
+            <div data-shared={pre?.cover ? `poster:${pre.id}` : undefined} className="relative z-10 w-24 sm:w-32 lg:w-44 shrink-0 border border-white/20 bg-black -mt-20 md:-mt-28">
               {pre?.cover ? (
-                <img src={img(pre.cover, 'cover_big')} alt={pre.name} data-shared={`poster:${pre.id}`} className="w-full aspect-[3/4] object-cover block" />
+                <img src={img(pre.cover, 'cover_big')} alt={pre.name} className="w-full aspect-[3/4] object-cover block" />
               ) : (
                 <Skeleton className="w-full aspect-[3/4]" />
               )}
@@ -1179,12 +1179,13 @@ export default function GameDetail() {
             plate; the title column starts below the art, so no type sits on it. */}
         <div className="flex gap-4 md:gap-8 items-start mb-8">
           {game.cover?.image_id && (
-            <div className={`relative z-10 w-24 sm:w-32 lg:w-44 shrink-0 border border-white/20 bg-black ${hasHeroStage ? '-mt-20 md:-mt-28' : ''}`}>
+            /* The framed poster is the shared art: a tapped card's poster lands
+               here and flies home from here, frame and all, so no empty frame is
+               left behind while it travels (motion/shared.js). */
+            <div data-shared={`poster:${game.id}`} className={`relative z-10 w-24 sm:w-32 lg:w-44 shrink-0 border border-white/20 bg-black ${hasHeroStage ? '-mt-20 md:-mt-28' : ''}`}>
               <img
                 src={img(game.cover.image_id, 'cover_big')}
                 alt={game.name}
-                /* Where a tapped card's poster lands, and where it flies home from. */
-                data-shared={`poster:${game.id}`}
                 className="w-full aspect-[3/4] object-cover block"
               />
             </div>

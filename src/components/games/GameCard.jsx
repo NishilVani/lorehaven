@@ -455,6 +455,7 @@ export default function GameCard({
            under the clip, permanently — Tab through the grid and every card lost
            its border in turn. `clip` establishes no scroll container at all. */
         data-shared-scope=""
+        data-flip-id={game.id}
         className={`group flex flex-col hover-game-card overflow-clip relative select-none ${
           isDragging ? 'lib-card-dragging' : 'opacity-100 z-10'
         } ${draggable
