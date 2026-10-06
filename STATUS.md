@@ -42,35 +42,30 @@ infinite-scroll audit, with the measurement behind every claim.
     (mobile shelf strip) fail on the baseline too; Pick For Me suggests
     Wishlist games not yet released (`PickNextDialog`); the emoji gate flags
     18 glyphs inside `.claude/skills/impeccable` (third-party).
-- **Motion system: built on `feature/motion`, stacked on `feature/android-tier1`.**
-  `docs/MOTION.md` has the levels, the files, the rules and a device test list.
-  Appearance > Motion: Match System (default), Reduced, Standard, Expressive
-  (experimental; device-local, `localStorage['lorehaven_motion']`). Standard:
-  View Transitions page changes on pathname only (`src/motion/
-  TransitionLocation.jsx`), staggered card entrance (`.lh-card-enter`), press
-  feedback on every control (`src/motion/motion.js`). Expressive adds the
-  cover flight (FLIP, `[data-card-cover]` to `[data-vt-cover]`), scroll-driven
-  hero parallax and section reveals, card tilt with glare, a burst plus success
-  haptic on Beaten, haptic detents on snapping rows.
-  - Fixed while measuring: reduced-motion selectors never matched (space
-    before `::view-transition-*`); a view-transition cover morph froze the
-    screen (rendering pauses while the update waits; replaced with FLIP); the
-    flying image left an empty frame (the whole box flies now); a menu rule
-    duplicated DropdownMenu's own entrance (removed).
-  - Measured (`scripts/motion_perf.mjs`, 4x CPU throttle, phone size, dev
-    build): transition ready 102-130ms, finished 437-462ms, frames p50/p95
-    17ms, 2 long frames from the page mount in every level. Android emulator
-    (WebView 124, software GPU): View Transitions, scroll timelines and
-    scrollend all supported; card to game page finished in 731ms with the
-    cover flight.
-  - Verified: npm test (new `tests/motion.test.mjs`), lint 0 errors, build,
-    emoji gate clean outside `.claude/`, Playwright smoke + phase3 + phase7 +
-    search on chromium and Mobile Chrome: 256 passed, 3 failed, all three
-    (phase7 N7, S2, S5) failing on the baseline without these changes too.
-  - Not verified: how Expressive feels on the owner's phone and desktop (the
-    point of the experimental tier); tilt and detents need a real device.
-  - Pre-existing, found while checking: at 1024px a Dialog (z 3000) slides
-    under the desktop rail (z 9999), e.g. Appearance.
+- **Motion redesign (owner's second brief): in progress on `feature/motion`.**
+  The first pass (Standard/Expressive) was rejected as generic. Spec
+  `docs/superpowers/specs/2026-10-06-motion-design.md`, plan
+  `docs/superpowers/plans/2026-10-06-motion-design.md`. One Cinematic
+  language plus Reduced; shared-element page transitions (View Transitions).
+  - Done and committed: Task 1 (`src/motion/classify.js`, setting cut to
+    Match System / Reduced), Task 2 (director `TransitionLocation.jsx`,
+    `shared.js`, `routes.js` prefetch, `RouteSkeleton.jsx`, choreography in
+    `motion.css`; "Loading..." fallback gone), Task 3 (card poster to game
+    poster and home on Back, Explore hero art to game hero, game page
+    prelude), Task 4 (library shelves sideways with travelling tab marker,
+    swipe follows the finger, FLIP re-orders), Task 5 (names travel into
+    franchise/collection/event/award headings, no "Loading" titles), Task 6
+    (dialogs, menus, toasts, tooltips, drawer, search, press, image fade,
+    skeleton sheen).
+  - Verified: `node scripts/motion_probe.mjs` (types and animating groups for
+    card to game, back, collection to page, shelf changes), mid-transition
+    frames (`scripts/motion_frames.mjs`) reviewed, npm test, lint 0 errors,
+    build, Playwright smoke + search 22/22.
+  - Next: Task 7 (Pick For Me landing haptic, count-ups, media/wallpaper
+    carry), Task 8 (remove old keyframes and `animate-in` uses, docs/MOTION.md,
+    production-build perf numbers, wider e2e, Android emulator pass).
+  - Simplified from spec, on purpose: dial-group fill does not slide (a
+    clip-path wipe hid the label mid-way); colours cross-fade instead.
 
 - **Search: built on `feature/smart-search`.** Hybrid local + IGDB search.
   `src/services/search/`: `normalize.js` (shared by build and app), `engine.js`
