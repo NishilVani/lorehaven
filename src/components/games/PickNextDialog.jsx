@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RefreshCw } from 'lucide-react';
 import Dialog from '../ui/Dialog';
+import { haptic } from '../../services/native/haptics';
 import { pickNextGame, suggestablePicks } from '../../services/pickNext';
 import { statusColor } from '../../constants/stateColors';
 
@@ -348,6 +349,8 @@ export default function PickNextDialog({ onClose }) {
        covered the hole. */
     setCut(prev => ({ out: new Set([...prev.out, winIndex]), delay: new Map(prev.delay) }));
     setFlare(true);
+    /* The pick lands: a light tap on Android (spec 2.5). */
+    haptic('light');
     setState({ phase: 'rest', ...result, cuts: true });
     if (result.game) setSeen(prev => [...prev, String(result.game.id)]);
 

@@ -21,6 +21,7 @@
    finish review, the verdict, and DESIGN.md.
    ────────────────────────────────────────────────────────────────────────── */
 
+import { sharedSwap } from '../../motion/shared';
 import EmptyPlate from '../../components/ui/EmptyPlate';
 import PageHeader from '../../components/ui/PageHeader';
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback, memo } from 'react';
@@ -85,6 +86,8 @@ function shuffleArray(array) {
    and the *_med / *_big presets crop to 16:9 — a 1080x1920 portrait plate would
    come back letterboxed landscape and the justified row would be built from a
    lie. t_720p is the smallest IGDB preset that preserves aspect. */
+/* The shared key that carries a tile into the viewer and back (motion/shared.js). */
+const wpKey = (wp) => `wallpaper:${String(wp.imageId).replace(/[^A-Za-z0-9_-]/g, '-')}`;
 const tileUrl = (wp) => `https://images.igdb.com/igdb/image/upload/t_720p/${wp.imageId}.jpg`;
 const plateUrl = (wp) => `https://images.igdb.com/igdb/image/upload/t_1080p/${wp.imageId}.jpg`;
 const plateFile = (wp) => `${safeFilename(wp.gameName)} — ${wp.type} — ${wp.imageId}.jpg`;
@@ -200,6 +203,7 @@ const Tile = memo(function Tile({
     >
       <img
         src={tileUrl(wp)}
+        data-shared={wpKey(wp)}
         alt={`${wp.gameName} ${wp.type}`}
         className="w-full h-full object-cover block"
         style={{ opacity: sel ? 0.55 : 1 }}
@@ -675,6 +679,8 @@ export default function Wallpapers() {
     ? previewPool[activePreviewIndex]
     : null;
   const setAsOpen = !!active && setAsFor === active.id;
+  /* Closing flies the plate back into its tile when the tile is on screen. */
+  const closeViewer = () => sharedSwap(active ? wpKey(active) : null, () => setActivePreviewIndex(-1));
   const activeSelected = active ? selectedIds.has(active.id) : false;
 
   /* One navigator for the arrows, the filmstrip, the swipe and the keys. */
@@ -834,7 +840,7 @@ export default function Wallpapers() {
   useFocusTrap({
     active: !!active,
     containerRef: previewRef,
-    onClose: () => (setAsOpen ? setSetAsFor(null) : setActivePreviewIndex(-1)),
+    onClose: () => (setAsOpen ? setSetAsFor(null) : closeViewer()),
     lockScroll: false,
     modal: !wide,
   });
@@ -935,11 +941,14 @@ export default function Wallpapers() {
   const openFromGrid = useCallback((wp) => {
     const idx = filteredWallpapers.findIndex(f => f.id === wp.id);
     if (idx < 0) return;
-    setPreviewSource('gallery');
-    setInfoOpen(false);
-    resetZoom();
-    setPreviewDevice('none');
-    setActivePreviewIndex(idx);
+    /* The tile's image flies into the viewer (motion/shared.js). */
+    sharedSwap(wpKey(wp), () => {
+      setPreviewSource('gallery');
+      setInfoOpen(false);
+      resetZoom();
+      setPreviewDevice('none');
+      setActivePreviewIndex(idx);
+    });
   }, [filteredWallpapers, resetZoom]);
 
   /* Opening from the register closes it rather than stacking a viewer over it:
@@ -1552,6 +1561,7 @@ export default function Wallpapers() {
                     {wp && (
                       <img
                         ref={isCurrent ? plateImgRef : undefined}
+                        data-shared={isCurrent ? wpKey(wp) : undefined}
                         src={plateUrl(wp)}
                         alt={isCurrent ? `${wp.gameName} — ${wp.type}` : ''}
                         aria-hidden={!isCurrent}
@@ -1603,7 +1613,7 @@ export default function Wallpapers() {
                 {activePreviewIndex + 1} / {previewPool.length}
               </div>
               <button
-                onClick={() => setActivePreviewIndex(-1)}
+                onClick={closeViewer}
                 aria-label="Close preview"
                 className="w-11 h-11 shrink-0 flex items-center justify-center text-white cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-white"
               >
@@ -1803,7 +1813,7 @@ export default function Wallpapers() {
               </button>
               <PlateMenu wp={active} onSearch={setSearchQuery} onSelectGame={queueAllFromGame} onDownload={downloadSingle} />
               <button
-                onClick={() => setActivePreviewIndex(-1)}
+                onClick={closeViewer}
                 aria-label="Close preview"
                 className="w-10 h-10 ml-1 flex items-center justify-center text-white/60 hover:bg-white hover:text-black transition-colors cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-white"
               >
@@ -1832,6 +1842,7 @@ export default function Wallpapers() {
                   src={plateUrl(active)}
                   alt=""
                   ref={plateImgRef}
+                  data-shared={wpKey(active)}
                   className={`max-w-full max-h-full object-contain select-none motion-reduce:transition-none ${previewDir > 0 ? 'wp-enter-right' : 'wp-enter-left'}`}
                   style={{ ...zoomStyle, cursor: zoomed ? (zoomGesturing ? 'grabbing' : 'grab') : 'default' }}
                 />

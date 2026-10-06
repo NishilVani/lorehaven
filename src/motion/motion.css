@@ -40,10 +40,10 @@
    makes an element a stacking context. The page content is one group; the
    rail and top bar are their own groups that do not animate, so they hold
    perfectly still; their active markers travel. */
-:root[data-vt] main#main { view-transition-name: lh-page; }
-:root[data-vt] [data-chrome='rail'] { view-transition-name: lh-rail; }
-:root[data-vt] [data-chrome='topbar'] { view-transition-name: lh-topbar; }
-:root[data-vt] [data-chrome='rail'] [data-rail-marker] { view-transition-name: lh-rail-marker; }
+:root[data-vt]:not([data-vt='swap']) main#main { view-transition-name: lh-page; }
+:root[data-vt]:not([data-vt='swap']) [data-chrome='rail'] { view-transition-name: lh-rail; }
+:root[data-vt]:not([data-vt='swap']) [data-chrome='topbar'] { view-transition-name: lh-topbar; }
+:root[data-vt]:not([data-vt='swap']) [data-chrome='rail'] [data-rail-marker] { view-transition-name: lh-rail-marker; }
 
 /* The root (everything not named) swaps instantly: there is nothing in it
    that should move. */
@@ -194,3 +194,24 @@
 }
 ::view-transition-old(shared-title) { animation: m-art-out var(--m-carry-dur) var(--m-carry-ease) both; }
 ::view-transition-new(shared-title) { animation: m-art-in var(--m-carry-dur) var(--m-carry-ease) both; }
+
+/* ── Swap: art carried within a page (a tile into its viewer and back) ──
+   The page is not named; the overlay fades in or out around the travelling
+   art. The larger image may still be loading when the new state is captured,
+   so the outgoing art holds until the very end instead of handing over at
+   the halfway mark. */
+:root[data-vt='swap']::view-transition-old(root) {
+  display: block;
+  animation: m-fade-out var(--m-overlay-out) linear both;
+}
+:root[data-vt='swap']::view-transition-new(root) {
+  animation: m-fade-in var(--m-overlay-in) linear both;
+}
+:root[data-vt='swap']::view-transition-old(shared) { animation-name: m-art-out-late; }
+:root[data-vt='swap']::view-transition-new(shared) { animation-name: m-art-in-late; }
+@keyframes m-art-out-late { 0%, 85% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes m-art-in-late { 0%, 85% { opacity: 0; } 100% { opacity: 1; } }
+/* Wallpaper paging keeps its own sideways entrance; opening the viewer does
+   not play it on top of the carry. */
+:root[data-vt] .wp-enter-right,
+:root[data-vt] .wp-enter-left { animation: none; }

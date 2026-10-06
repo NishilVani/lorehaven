@@ -11,7 +11,9 @@
  * Back: when a page is left through a pair, the pair is remembered against
  * that page's history entry, and returning to it flies the art home, if the
  * matching element is on screen there. */
+import { flushSync } from 'react-dom';
 import { parseShared, sharedKey } from './classify.js';
+import { reducedMotion } from './motion.js';
 
 const PENDING_MS = 1000;
 let pending = null;
@@ -90,3 +92,31 @@ export function setRunningTransition(finished) {
 }
 /** Resolves when no page transition is running. */
 export const transitionSettled = () => running || Promise.resolve();
+
+/**
+ * An in-page change that should carry art, not a route change: a wallpaper
+ * tile opening into the viewer and closing back into it, a media thumbnail
+ * into the lightbox. `update` makes the change (React state; it runs inside
+ * flushSync). The page itself is not part of it (<html data-vt="swap">): the
+ * art travels and the overlay fades in or out around it.
+ */
+export function sharedSwap(key, update) {
+  const source = key && !reducedMotion() && typeof document.startViewTransition === 'function' ? findShared(key) : null;
+  if (!source) { update(); return; }
+  const root = document.documentElement;
+  root.dataset.vt = 'swap';
+  clearShared();
+  nameShared(source);
+  const transition = document.startViewTransition(() => {
+    clearShared();
+    flushSync(update);
+    const target = findShared(key);
+    if (target) nameShared(target);
+  });
+  setRunningTransition(transition.finished);
+  transition.ready.catch(() => {});
+  transition.finished.catch(() => {}).finally(() => {
+    clearShared();
+    if (root.dataset.vt === 'swap') delete root.dataset.vt;
+  });
+}
