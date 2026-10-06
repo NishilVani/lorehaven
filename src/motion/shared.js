@@ -15,7 +15,9 @@ import { flushSync } from 'react-dom';
 import { parseShared, sharedKey } from './classify.js';
 import { reducedMotion } from './motion.js';
 
-const PENDING_MS = 1000;
+/* Generous: on a busy phone the navigation can take over a second to render,
+   and a press is consumed by the very next navigation anyway. */
+const PENDING_MS = 2500;
 let pending = null;
 const homeward = new Map();
 

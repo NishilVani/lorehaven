@@ -26,6 +26,12 @@ export default function NativeBridge() {
   const navigate = useNavigate();
   const location = useLocation();
   const back = useRef(null);
+  /* navigate changes identity on every navigation; effects that only need to
+     call it read it from here, so their listeners register once instead of
+     being torn down and re-registered on every page change (unregistering a
+     notification listener is not permitted, and failed on each one). */
+  const navigateRef = useRef(navigate);
+  useEffect(() => { navigateRef.current = navigate; }, [navigate]);
 
   useEffect(() => {
     if (!isAndroidApp()) return undefined;
@@ -63,14 +69,14 @@ export default function NativeBridge() {
       const res = await nativeCall('takeShared').catch(() => null);
       const shared = live && res?.text ? parseSharedText(res.text) : null;
       if (!shared) return;
-      if (shared.kind === 'route') { navigate(shared.route); return; }
+      if (shared.kind === 'route') { navigateRef.current(shared.route); return; }
       if (shared.kind === 'steam') {
         try {
           const game = (await matchSteamApps([shared.appid])).get(String(shared.appid));
-          if (live && game?.id) { navigate(`/game/${game.id}`); return; }
+          if (live && game?.id) { navigateRef.current(`/game/${game.id}`); return; }
         } catch { /* no match or offline: search instead */ }
       }
-      if (live && shared.query) navigate(searchRoute(shared.query));
+      if (live && shared.query) navigateRef.current(searchRoute(shared.query));
     };
     const onForeground = () => {
       if (document.visibilityState !== 'visible') return;
@@ -89,7 +95,7 @@ export default function NativeBridge() {
       document.removeEventListener('visibilitychange', onForeground);
       window.removeEventListener('lorehaven_device_settings', onSettings);
     };
-  }, [navigate]);
+  }, []);
 
   useEffect(() => {
     if (!isAndroidApp()) return undefined;
@@ -109,13 +115,13 @@ export default function NativeBridge() {
       const l = await onAction((n) => {
         const extra = n?.extra || {};
         const id = Number(extra.gameId);
-        if (extra.kind === 'release' && Number.isInteger(id) && id > 0) navigate(`/game/${id}`);
-        else if (extra.kind === 'updates') navigate('/explore/updates');
+        if (extra.kind === 'release' && Number.isInteger(id) && id > 0) navigateRef.current(`/game/${id}`);
+        else if (extra.kind === 'updates') navigateRef.current('/explore/updates');
       });
-      if (live) listener = l; else l.unregister?.();
+      if (live) listener = l; else l.unregister?.().catch?.(() => {});
     })().catch(() => {});
-    return () => { live = false; listener?.unregister?.(); };
-  }, [navigate]);
+    return () => { live = false; Promise.resolve(listener?.unregister?.()).catch(() => {}); };
+  }, []);
 
   return null;
 }
