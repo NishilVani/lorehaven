@@ -37,25 +37,24 @@
 
 /* ── Who takes part ──────────────────────────────────────────────────────────
    Names exist only while a transition runs: a standing view-transition-name
-   makes an element a stacking context. The page content is one group; the
-   rail and top bar are their own groups that do not animate, so they hold
-   perfectly still; their active markers travel. */
-:root[data-vt]:not([data-vt='swap']) main#main { view-transition-name: lh-page; }
+   makes an element a stacking context. The page content is the document's
+   root snapshot, which is always exactly the viewport at its current scroll:
+   naming <main> instead captured the whole page, and Firefox could not draw a
+   snapshot that tall (a 60-game shelf, 3,777px: black and squashed frames).
+   The rail and top bar are their own groups that do not animate, so they
+   hold perfectly still; their active markers travel. */
 :root[data-vt]:not([data-vt='swap']) [data-chrome='rail'] { view-transition-name: lh-rail; }
 :root[data-vt]:not([data-vt='swap']) [data-chrome='topbar'] { view-transition-name: lh-topbar; }
 :root[data-vt]:not([data-vt='swap']) [data-chrome='rail'] [data-rail-marker] { view-transition-name: lh-rail-marker; }
 
-/* The root (everything not named) swaps instantly: there is nothing in it
-   that should move. */
+/* The root group never moves or resizes: only its two images animate. */
 ::view-transition-group(root) { animation: none; }
-::view-transition-old(root) { animation: none; display: none; }
-::view-transition-new(root) { animation: none; }
 
 /* Chrome holds still: show the new state at once, no cross-fade. */
 ::view-transition-group(lh-rail),
 ::view-transition-group(lh-topbar) { animation: none; }
 ::view-transition-old(lh-rail),
-::view-transition-old(lh-topbar) { animation: none; display: none; }
+::view-transition-old(lh-topbar) { animation: none; opacity: 0; }
 ::view-transition-new(lh-rail),
 ::view-transition-new(lh-topbar) { animation: none; }
 
@@ -66,25 +65,11 @@
   animation-timing-function: var(--m-carry-ease);
 }
 
-/* The page group never resizes visibly: old and new keep their own height
-   and are pinned to the top. */
-::view-transition-group(lh-page) { animation: none; }
-::view-transition-old(lh-page),
-::view-transition-new(lh-page) {
-  height: auto;
-  inset-block-start: 0;
-}
-/* The old page keeps the scroll position it was left at: the director sets
-   --vt-old-top to how far its <main> sat from the new one's. */
-::view-transition-old(lh-page) {
-  inset-block-start: var(--vt-old-top, 0px);
-}
-
 /* ── Deeper (and carry): old moves up as it clears, new rises from below ── */
-::view-transition-old(lh-page) {
+::view-transition-old(root) {
   animation: m-clear-up var(--m-clear-dur) var(--m-clear-ease) both;
 }
-::view-transition-new(lh-page) {
+::view-transition-new(root) {
   animation: m-reveal-up var(--m-reveal-dur) var(--m-reveal-ease) var(--m-reveal-delay) both;
 }
 @keyframes m-clear-up {
@@ -95,12 +80,12 @@
 }
 
 /* ── Back (and carry-back): the reverse ── */
-:root[data-vt='back']::view-transition-old(lh-page),
-:root[data-vt='carry-back']::view-transition-old(lh-page) {
+:root[data-vt='back']::view-transition-old(root),
+:root[data-vt='carry-back']::view-transition-old(root) {
   animation-name: m-clear-down;
 }
-:root[data-vt='back']::view-transition-new(lh-page),
-:root[data-vt='carry-back']::view-transition-new(lh-page) {
+:root[data-vt='back']::view-transition-new(root),
+:root[data-vt='carry-back']::view-transition-new(root) {
   animation-name: m-reveal-down;
 }
 @keyframes m-clear-down {
@@ -113,14 +98,14 @@
 /* ── Sideways: content slides toward the chosen sibling ──
    Choosing a sibling to the right moves the old content left and brings the
    new one in from the right, and the reverse. */
-:root[data-vt='sideways']::view-transition-old(lh-page) {
+:root[data-vt='sideways']::view-transition-old(root) {
   animation: m-clear-to-left var(--m-clear-dur) var(--m-clear-ease) both;
 }
-:root[data-vt='sideways']::view-transition-new(lh-page) {
+:root[data-vt='sideways']::view-transition-new(root) {
   animation: m-reveal-from-right var(--m-reveal-dur) var(--m-reveal-ease) var(--m-reveal-delay-side) both;
 }
-:root[data-vt='sideways'][data-vt-dir='left']::view-transition-old(lh-page) { animation-name: m-clear-to-right; }
-:root[data-vt='sideways'][data-vt-dir='left']::view-transition-new(lh-page) { animation-name: m-reveal-from-left; }
+:root[data-vt='sideways'][data-vt-dir='left']::view-transition-old(root) { animation-name: m-clear-to-right; }
+:root[data-vt='sideways'][data-vt-dir='left']::view-transition-new(root) { animation-name: m-reveal-from-left; }
 @keyframes m-clear-to-left { to { opacity: 0; translate: calc(var(--m-travel-side) * -1) 0; } }
 @keyframes m-clear-to-right { to { opacity: 0; translate: var(--m-travel-side) 0; } }
 @keyframes m-reveal-from-right { from { opacity: 0; translate: var(--m-travel-side) 0; } }
@@ -148,10 +133,10 @@
 @keyframes m-art-in { 0%, 45% { opacity: 0; } 55%, 100% { opacity: 1; } }
 
 /* ── Reduced: one 120ms cross-fade, nothing travels ── */
-:root[data-motion='reduced']::view-transition-old(lh-page) {
+:root[data-motion='reduced']::view-transition-old(root) {
   animation: m-fade-out 120ms linear both;
 }
-:root[data-motion='reduced']::view-transition-new(lh-page) {
+:root[data-motion='reduced']::view-transition-new(root) {
   animation: m-fade-in 120ms linear both;
 }
 :root[data-motion='reduced']::view-transition-group(lh-rail-marker),
@@ -185,7 +170,7 @@
 :root[data-vt='sideways'] [data-vt-keep='tabs'] { view-transition-name: lh-library-tabs; }
 :root[data-vt='sideways'] [data-tab-marker] { view-transition-name: lh-tab-marker; }
 ::view-transition-group(lh-library-tabs) { animation: none; }
-::view-transition-old(lh-library-tabs) { animation: none; display: none; }
+::view-transition-old(lh-library-tabs) { animation: none; opacity: 0; }
 ::view-transition-new(lh-library-tabs) { animation: none; }
 
 /* ── Carry for words: a name travels into its page's heading ──
@@ -205,7 +190,7 @@
    so the outgoing art holds until the very end instead of handing over at
    the halfway mark. */
 :root[data-vt='swap']::view-transition-old(root) {
-  display: block;
+  opacity: 1;
   animation: m-fade-out var(--m-overlay-out) linear both;
 }
 :root[data-vt='swap']::view-transition-new(root) {

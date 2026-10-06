@@ -110,13 +110,6 @@ export default function TransitionLocation({ children }) {
 
       let landed = false;
       const id = ++latest;
-      /* Where the old page sat when it was captured. Its snapshot is the
-         whole of <main>; pinned to the new page's top it showed the old
-         page's own top, so a page left while scrolled (a long shelf) lost
-         what was on screen the instant the transition began. The snapshot is
-         offset by the difference once the new page is laid out (ready). */
-      const mainEl = document.getElementById('main');
-      const oldTop = mainEl ? mainEl.getBoundingClientRect().top : 0;
       transition = document.startViewTransition(async () => {
         updated = true;
         clearShared();
@@ -152,12 +145,8 @@ export default function TransitionLocation({ children }) {
         clearShared();
         delete root.dataset.vt;
         delete root.dataset.vtDir;
-        root.style.removeProperty('--vt-old-top');
       });
-      transition.ready.then(() => {
-        const newTop = mainEl ? mainEl.getBoundingClientRect().top : 0;
-        root.style.setProperty('--vt-old-top', `${Math.round(oldTop - newTop)}px`);
-      }, () => {});
+      transition.ready.catch(() => {});
       transition.updateCallbackDone.catch(() => {});
     };
 

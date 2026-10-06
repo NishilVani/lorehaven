@@ -63,6 +63,13 @@ hovered-title marquee, and the Android predictive back peek.
   (`transitionSettled`).
 - Names exist only while a transition runs, and only one shared pair at a
   time, so a duplicate can never abort one.
+- The page content animates as the document's root snapshot, which is always
+  exactly the viewport at its current scroll. Naming <main> captured the
+  whole page; Firefox drew a 3,777px shelf squashed into one screen for the
+  length of the transition, then snapped.
+- Check Firefox in a visible window (`HEADED=1 node scripts/motion_video.mjs
+  ... firefox`): headless Firefox records black frames even for transitions
+  that render correctly.
 - Nothing loops except progress and live indicators and the sheen on
   skeletons.
 
