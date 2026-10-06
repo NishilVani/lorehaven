@@ -1222,7 +1222,9 @@ export default function GameDetail() {
           moreOptions={moreOptions}
         />
 
-        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-12 lg:items-start">
+        {/* The body fades up where the prelude's skeleton stood when the data
+            arrives after the poster has landed (motion/elements.css m-reveal). */}
+        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-12 lg:items-start m-reveal">
 
           {/* ── Main column: the answer for you, then the game itself ── */}
           <div className="min-w-0">

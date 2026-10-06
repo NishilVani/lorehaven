@@ -34,10 +34,15 @@ function onPointerUp() {
 }
 
 /* ── Images ──────────────────────────────────────────────────────────────────
-   An image still downloading when it is added fades in once it has decoded,
-   so art never pops in half-drawn. One already in the cache shows at once. */
+   An image still downloading when it is added on screen fades in once it has
+   decoded, so art never pops in half-drawn; one already in the cache shows at
+   once. Lazy and off-screen images are left alone: hiding them until fully
+   loaded turned rows below the fold into empty grey boxes while scrolling,
+   which read as the page falling back to skeletons. */
 function watchImage(img) {
-  if (img.complete || img.dataset.noFade !== undefined || reducedMotion()) return;
+  if (img.complete || img.dataset.noFade !== undefined || img.loading === 'lazy' || reducedMotion()) return;
+  const r = img.getBoundingClientRect();
+  if (r.bottom < 0 || r.top > window.innerHeight) return;
   img.style.opacity = '0';
   const reveal = () => {
     img.style.opacity = '';
@@ -47,6 +52,8 @@ function watchImage(img) {
   img.addEventListener('error', () => { img.style.opacity = ''; }, { once: true });
 }
 
+const ENTRANCES = '.m-reveal, .m-rise, .wp-enter-right, .wp-enter-left';
+
 let installed = false;
 export function installElementMotion() {
   if (installed || typeof document === 'undefined') return;
@@ -55,9 +62,19 @@ export function installElementMotion() {
   document.addEventListener('pointerup', onPointerUp, { passive: true });
   document.addEventListener('pointercancel', onPointerUp, { passive: true });
   const observer = new MutationObserver((records) => {
+    const inTransition = document.documentElement.dataset.vt !== undefined;
     for (const r of records) {
       for (const node of r.addedNodes) {
         if (node.nodeType !== 1) continue;
+        /* Content mounted inside a page transition is revealed by the
+           transition. Its own entrance is switched off for good, here, rather
+           than by a rule keyed on <html data-vt>: when that attribute went
+           away the entrance started then, and finished content faded out and
+           in again after every transition. */
+        if (inTransition) {
+          if (node.matches(ENTRANCES)) node.setAttribute('data-vt-born', '');
+          node.querySelectorAll?.(ENTRANCES).forEach((el) => el.setAttribute('data-vt-born', ''));
+        }
         if (node.tagName === 'IMG') watchImage(node);
         else if (node.firstElementChild) node.querySelectorAll('img').forEach(watchImage);
       }

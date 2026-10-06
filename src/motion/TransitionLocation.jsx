@@ -24,12 +24,14 @@ import { haptic } from '../services/native/haptics';
  * the destination after the swap; if the destination has no match on screen
  * the type falls back to deeper or back.
  *
- * The update never waits on data. It waits at most 300ms for the new route's
- * code chunk, and only when that chunk is not already in (routes.js
- * prefetches them). Query-only changes apply at once, without a transition. */
+ * The update never waits on anything. A new route's code chunk, when not
+ * already in (routes.js prefetches them), is awaited before the transition
+ * starts, with the old page still live, for at most CHUNK_WAIT_MS. Query-only
+ * changes apply at once, without a transition. */
 
 const supported = typeof document !== 'undefined' && typeof document.startViewTransition === 'function';
-const CHUNK_WAIT_MS = 300;
+/* How long the old page may stay up while the new page's code downloads. */
+const CHUNK_WAIT_MS = 1500;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const HOME_WAIT_MS = 250;
 /* setTimeout polling, not requestAnimationFrame: rendering is paused while a
@@ -43,7 +45,17 @@ const waitForShared = (key, ms) => new Promise((resolve) => {
   };
   check();
 });
+/* Routes that only redirect (App.jsx <Navigate>). */
+const REDIRECTS = /^\/(library|browse)\/?$/;
 let latest = 0;
+/* True while a transition's update is rendering the new page. A redirect
+   route (/library, /browse) renders a <Navigate> that replaces the address
+   as it commits, inside that same render: the change is applied to the held
+   location at once instead of starting a second transition from an empty
+   page (which flashed blank between two moves). */
+let updating = false;
+/* Resolves the update's wait once the redirect has been applied. */
+let redirectApplied = null;
 
 export default function TransitionLocation({ children }) {
   const location = useLocation();
@@ -58,6 +70,12 @@ export default function TransitionLocation({ children }) {
 
   useLayoutEffect(() => {
     if (!animate) return undefined;
+    if (updating) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- a redirect inside a transition's update; see `updating`
+      setShown(location);
+      redirectApplied?.();
+      return undefined;
+    }
     const root = document.documentElement;
     const from = shown;
     const to = location;
@@ -72,47 +90,74 @@ export default function TransitionLocation({ children }) {
     if (!source) pair = null;
     if (pair && !back) rememberHomeward(from.key, pair);
 
-    const type = classifyTransition({ from: from.pathname, to: to.pathname, navigationType, pair });
-    root.dataset.vt = type;
-    const dir = siblingDirection(from.pathname, to.pathname);
-    if (dir) root.dataset.vtDir = dir; else delete root.dataset.vtDir;
-    clearShared();
-    nameShared(source);
-
+    /* The new page's code must be in before the browser captures anything:
+       starting with it missing used to capture the Suspense skeleton as the
+       new page, so the transition played and then the skeleton gave way to
+       the page, two changes for one tap. Until the chunk arrives the old page
+       simply stays, live and usable (no transition has frozen it yet); the
+       wait is capped so a failed chunk cannot strand the navigation. */
+    let cancelled = false;
+    let transition = null;
     let updated = false;
-    let landed = false;
-    const id = ++latest;
-    const transition = document.startViewTransition(async () => {
-      updated = true;
+    const begin = () => {
+      if (cancelled) return;
+      const type = classifyTransition({ from: from.pathname, to: to.pathname, navigationType, pair });
+      root.dataset.vt = type;
+      const dir = siblingDirection(from.pathname, to.pathname);
+      if (dir) root.dataset.vtDir = dir; else delete root.dataset.vtDir;
       clearShared();
-      if (!routeLoaded(to.pathname)) await Promise.race([preloadRoute(to.pathname), wait(CHUNK_WAIT_MS)]);
-      flushSync(() => setShown(to));
-      if (pair) {
-        /* Going back, the page under the art often renders its rows a few
-           ticks after mounting (from cache). Look for the art's home for a
-           moment before giving up on flying it there; the old page stays
-           frozen meanwhile, so the wait is short. Forward navigations land
-           on a prelude, which is there at once. */
-        let target = findShared(pair);
-        if (!target && back) target = await waitForShared(pair, HOME_WAIT_MS);
-        if (target) { nameShared(target); landed = true; }
-        else root.dataset.vt = back ? 'back' : 'deeper';
-      }
-    });
-    setRunningTransition(transition.finished);
-    transition.finished.then(() => { if (landed) haptic('light'); }, () => {}).finally(() => {
-      /* Only the newest transition tidies up: an older one finishing late
-         must not strip the attributes a newer one is animating with. */
-      if (id !== latest) return;
-      clearShared();
-      delete root.dataset.vt;
-      delete root.dataset.vtDir;
-    });
-    transition.ready.catch(() => {});
-    transition.updateCallbackDone.catch(() => {});
+      nameShared(source);
+
+      let landed = false;
+      const id = ++latest;
+      transition = document.startViewTransition(async () => {
+        updated = true;
+        clearShared();
+        updating = true;
+        try {
+          flushSync(() => setShown(to));
+          /* A redirect route's <Navigate> replaces the address from an effect
+             after this render, and the router applies it a task or more later
+             depending on the engine. Wait (redirect routes only, capped) until
+             the effect above has taken it into the held location. */
+          if (REDIRECTS.test(to.pathname)) {
+            await Promise.race([new Promise((resolve) => { redirectApplied = resolve; }), wait(150)]);
+            redirectApplied = null;
+          }
+        } finally { updating = false; }
+        if (pair) {
+          /* Going back, the page under the art often renders its rows a few
+             ticks after mounting (from cache). Look for the art's home for a
+             moment before giving up on flying it there; the old page stays
+             frozen meanwhile, so the wait is short. Forward navigations land
+             on a prelude, which is there at once. */
+          let target = findShared(pair);
+          if (!target && back) target = await waitForShared(pair, HOME_WAIT_MS);
+          if (target) { nameShared(target); landed = true; }
+          else root.dataset.vt = back ? 'back' : 'deeper';
+        }
+      });
+      setRunningTransition(transition.finished);
+      transition.finished.then(() => { if (landed) haptic('light'); }, () => {}).finally(() => {
+        /* Only the newest transition tidies up: an older one finishing late
+           must not strip the attributes a newer one is animating with. */
+        if (id !== latest) return;
+        clearShared();
+        delete root.dataset.vt;
+        delete root.dataset.vtDir;
+      });
+      transition.ready.catch(() => {});
+      transition.updateCallbackDone.catch(() => {});
+    };
+
+    if (routeLoaded(to.pathname)) begin();
+    else Promise.race([preloadRoute(to.pathname), wait(CHUNK_WAIT_MS)]).then(begin);
+
     return () => {
-      /* A newer navigation arrived first: finish this one now. */
-      if (!updated) transition.skipTransition();
+      /* A newer navigation arrived first: drop this one if it has not
+         started, finish it now if it has. */
+      cancelled = true;
+      if (transition && !updated) transition.skipTransition();
     };
   }, [animate, location, navigationType]); // eslint-disable-line react-hooks/exhaustive-deps
 

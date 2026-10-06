@@ -160,14 +160,16 @@
    Data that lands after the page is up (a grid replacing its skeleton, a
    ceremony year switched in place) reveals with the same beat as a page.
    Mounted while a page transition runs, it does nothing of its own: the
-   page's reveal already carries it. */
+   page's reveal already carries it ([data-vt-born] below). */
 .m-reveal {
   animation: m-reveal-up var(--m-reveal-dur) var(--m-reveal-ease) backwards;
 }
 :root[data-motion='reduced'] .m-reveal {
   animation: m-fade-in 120ms linear backwards;
 }
-:root[data-vt] .m-reveal { animation: none; }
+/* Mounted during a page transition (marked by motion/elements.js): the
+   transition already revealed it. */
+[data-vt-born] { animation: none !important; }
 
 /* ── Library shelves (sideways) ──────────────────────────────────────────────
    The tab strip and the controls row hold still while the shelf changes; the
@@ -211,7 +213,4 @@
 :root[data-vt='swap']::view-transition-new(shared) { animation-name: m-art-in-late; }
 @keyframes m-art-out-late { 0%, 85% { opacity: 1; } 100% { opacity: 0; } }
 @keyframes m-art-in-late { 0%, 85% { opacity: 0; } 100% { opacity: 1; } }
-/* Wallpaper paging keeps its own sideways entrance; opening the viewer does
-   not play it on top of the carry. */
-:root[data-vt] .wp-enter-right,
-:root[data-vt] .wp-enter-left { animation: none; }
+
