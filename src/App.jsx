@@ -86,7 +86,9 @@ function App() {
        page mid-sign-in and send the store a code or an assertion it has already
        spent -- and the person would watch a sign-in that worked turn into a
        failure. */
-    const SELF_REFRESHING = ['/import', '/auth', '/'];
+    /* /game/ refreshes its library entry itself (GameDetail.jsx): remounting
+       it refetched the game and replayed its entrance on every sync. */
+    const SELF_REFRESHING = ['/import', '/auth', '/', '/game/'];
 
     const handleSync = () => {
       const path = window.location.pathname;

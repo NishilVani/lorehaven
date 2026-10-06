@@ -197,6 +197,24 @@ export default function GameDetail() {
     return () => { cancelled = true; };
   }, [id]);
 
+  /* A sync from another device used to remount this page (App.jsx), which
+     refetched the game and replayed its entrance; with two devices open that
+     flickered. The page is exempt from that remount now and takes the synced
+     library entry in place. A note being edited here is left alone: the
+     synced text only replaces it if it has not been changed on this page. */
+  const libEntryRef = useRef(libEntry);
+  useEffect(() => { libEntryRef.current = libEntry; }, [libEntry]);
+  useEffect(() => {
+    const onSync = () => {
+      const entry = getLibrary().find(g => String(g.id) === String(id)) || null;
+      const before = libEntryRef.current?.notes || '';
+      setLibEntry(entry);
+      setNotes(current => (current === before ? (entry?.notes || '') : current));
+    };
+    window.addEventListener('moctale_sync_update', onSync);
+    return () => window.removeEventListener('moctale_sync_update', onSync);
+  }, [id]);
+
   /* Date.now() is impure and cannot be called during render. The released/unreleased
      boundary only has to hold for the life of this page, so the clock is read once
      on mount and every comparison is made against that fixed instant. */

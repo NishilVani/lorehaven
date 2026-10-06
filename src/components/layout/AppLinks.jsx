@@ -23,10 +23,11 @@ export default function AppLinks() {
     let live = true;
     let unlisten = null;
 
+    const routeFor = (url) => routeFromAppLink(url) || routeFromShortcut(url) || routeFromAppGame(url) || routeFromWebLink(url);
     const follow = (urls) => {
       for (const url of urls || []) {
         const signIn = routeFromAppLink(url);
-        const route = signIn || routeFromShortcut(url) || routeFromAppGame(url) || routeFromWebLink(url);
+        const route = signIn || routeFor(url);
         if (!route) continue;
         /* The sign-in page reads its address once, when it mounts. Already on
            that page, a navigation would change the address under it and
@@ -49,7 +50,13 @@ export default function AppLinks() {
       const key = 'lorehaven_followed_launch_link';
       const seen = (() => { try { return sessionStorage.getItem(key); } catch { return null; } })();
       const firstKey = first ? JSON.stringify(first) : null;
-      if (live && first && firstKey !== seen) {
+      /* Skip it only when this page is already where it leads: that is the
+         page re-reading a link it followed (the sign-in reload). Android's
+         WebView keeps sessionStorage across app restarts, so on a fresh launch
+         the same link (a widget row tapped twice) must be followed again. */
+      const here = window.location.pathname + window.location.search;
+      const already = (first || []).some((u) => routeFor(u) === here);
+      if (live && first && !(firstKey === seen && already)) {
         try { sessionStorage.setItem(key, firstKey); } catch { /* private mode: follow anyway */ }
         follow(first);
       }

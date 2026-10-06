@@ -10,7 +10,7 @@ import { Bookmark, Check, X } from 'lucide-react';
 import { getLibrary, saveToLibrary, saveIgdbCollection, saveFranchise } from '../../services/db';
 import { toast } from '../../components/ui/toastBus';
 import {
-  getRecommendations, refreshLibraryUpdates, updatesToCards,
+  getRecommendations, refreshLibraryUpdates, updatesToCards, getStoredUpdates,
   getAnnounced, getTrending, setRecFeedback, enrichHero, pickHero,
   getShelfRecommendations, UPDATE_TAG,
 } from '../../services/discover';
@@ -150,7 +150,11 @@ export default function Discover() {
        hand that just clicked. recVisible is left alone either way, so the pages
        already revealed stay revealed. */
     const refreshDerived = () => {
-      refreshUpdates();
+      /* The feed that just synced in is read as it is, not refetched: a
+         forced refetch on every sync wrote a fresh snapshot back, which the
+         other device read as news and answered the same way, a loop across
+         every device showing Explore. */
+      if (!cancelled) setUpdateCards(updatesToCards(getStoredUpdates()));
       getRecommendations().then(r => { if (!cancelled) { setRecs(r); setRecsLoading(false); } })
         .catch(error => console.error('[discover] recommendation refresh failed', error));
       getShelfRecommendations({ limit: 6 }).then(sh => { if (!cancelled) setShelves(sh); })
