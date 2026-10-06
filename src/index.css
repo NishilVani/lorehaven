@@ -1000,7 +1000,6 @@ body.dragging-active * {
 
 .skeleton-placeholder {
   background: var(--skeleton-shine);
-  animation: skeleton-pulse var(--skeleton-speed) ease-in-out infinite;
 }
 
 /* Platform Icon Hover Tooltip */

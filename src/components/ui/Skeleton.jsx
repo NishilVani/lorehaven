@@ -140,7 +140,7 @@ export const CategoryPageSkeleton = () => (
     <div aria-hidden="true" className="min-h-screen bg-black text-white pb-16 animate-in fade-in duration-500">
         {/* Banner skeleton */}
         <div className="w-full h-[250px] md:h-[350px] overflow-hidden border-b border-white/15 bg-neutral-950 relative">
-            <div className="absolute inset-0 bg-neutral-900 animate-pulse" />
+            <div className="absolute inset-0 bg-neutral-900" />
         </div>
 
         <div className="content-container py-6">
@@ -160,15 +160,15 @@ export const CategoryPageSkeleton = () => (
             <div className="flex flex-col gap-4 mb-8">
                 <div className="flex flex-wrap items-center gap-2">
                     <div className="flex border border-white/15">
-                        <Skeleton className="h-10 w-16 border-r border-white/15 rounded-none bg-white/10 animate-pulse" />
-                        <Skeleton className="h-10 w-16 border-r border-white/15 rounded-none bg-white/10 animate-pulse" />
-                        <Skeleton className="h-10 w-16 rounded-none bg-white/10 animate-pulse" />
+                        <Skeleton className="h-10 w-16 border-r border-white/15 rounded-none bg-white/10" />
+                        <Skeleton className="h-10 w-16 border-r border-white/15 rounded-none bg-white/10" />
+                        <Skeleton className="h-10 w-16 rounded-none bg-white/10" />
                     </div>
-                    <Skeleton className="h-10 w-36 rounded-none bg-white/10 animate-pulse" />
-                    <Skeleton className="h-10 w-32 rounded-none bg-white/10 animate-pulse" />
-                    <Skeleton className="h-10 w-28 rounded-none bg-white/10 animate-pulse" />
-                    <Skeleton className="h-10 w-32 rounded-none bg-white/10 animate-pulse" />
-                    <Skeleton className="h-10 w-36 ml-auto rounded-none bg-white/10 animate-pulse" />
+                    <Skeleton className="h-10 w-36 rounded-none bg-white/10" />
+                    <Skeleton className="h-10 w-32 rounded-none bg-white/10" />
+                    <Skeleton className="h-10 w-28 rounded-none bg-white/10" />
+                    <Skeleton className="h-10 w-32 rounded-none bg-white/10" />
+                    <Skeleton className="h-10 w-36 ml-auto rounded-none bg-white/10" />
                 </div>
             </div>
 

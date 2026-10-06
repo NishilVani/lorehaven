@@ -2,6 +2,8 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import './motion/motion.css'
+import './motion/elements.css'
+import { installElementMotion } from './motion/elements'
 import { initMotion } from './motion/motion'
 import { installSharedCapture } from './motion/shared'
 import { installRouteIntent, prefetchRoutesWhenIdle } from './motion/routes'
@@ -17,6 +19,7 @@ initTheme()
 initMotion()
 installSharedCapture()
 installRouteIntent()
+installElementMotion()
 requestAnimationFrame(() => prefetchRoutesWhenIdle())
 
 createRoot(document.getElementById('root')).render(

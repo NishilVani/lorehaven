@@ -108,7 +108,7 @@ export default function ApiErrorBanner() {
        the nav bar (WCAG 2.4.11), same as the Library status strip. */
     <div
       role={outdated ? 'status' : 'alert'}
-      className="sticky z-[120] border-b border-white/25 bg-black px-4 lg:px-6 py-3 flex flex-wrap items-center gap-x-4 gap-y-2 transition-[top] duration-300 ease-in-out motion-reduce:transition-none"
+      className="m-banner-in sticky z-[120] border-b border-white/25 bg-black px-4 lg:px-6 py-3 flex flex-wrap items-center gap-x-4 gap-y-2 transition-[top] duration-300 ease-in-out motion-reduce:transition-none"
       /* --mobile-nav-offset, not --mobile-nav-h: the header translates away on
          scroll-down while the reserved height stays put, so pinning to the
          reserved height left this banner floating below a gap of moving page. */

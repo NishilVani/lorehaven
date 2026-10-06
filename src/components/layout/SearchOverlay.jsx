@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useSearchParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { closeSearch } from './searchHistory';
 import { withPrelude } from '../../motion/prelude';
+import { useFlip } from '../../motion/flip';
 import { X, Layers, Gamepad2, Library, HeartPlus, Building2, CircleCheck, BookmarkPlus, BookmarkMinus } from 'lucide-react';
 import { searchGamesRanked, searchFranchises, searchIgdbCollections, searchCompanies } from '../../services/igdb';
 import { loadLocal, deviceDocs } from '../../services/search/localIndex';
@@ -72,6 +73,9 @@ export default function SearchOverlay() {
     /* What IGDB returned for the current query. The lists the tabs show are
        derived further down, by merging these with the local index. */
     const [igdbGames, setIgdbGames] = useState([]);
+    /* Results re-rank as you type: cards glide to their new places rather
+       than the grid blinking (motion/flip.js). */
+    const resultsRef = useRef(null);
     const [igdbFranchises, setIgdbFranchises] = useState([]);
     const [collections, setCollections] = useState([]);
     const [igdbCompanies, setIgdbCompanies] = useState([]);
@@ -132,6 +136,7 @@ export default function SearchOverlay() {
     /* The tabs: local and IGDB, merged and ranked as one list each. */
     const localDocs = local?.docs || NO_DOCS;
     const games = useMemo(() => (effective ? mergeGames({ device, local: localDocs, igdb: igdbGames, query: effective }) : []), [device, localDocs, igdbGames, effective]);
+    useFlip(resultsRef, games.map(g => g.id).join(','));
     const franchises = useMemo(() => (effective ? mergeFranchises({ local: localDocs, igdb: igdbFranchises, query: effective }) : []), [localDocs, igdbFranchises, effective]);
     const companies = useMemo(() => (effective ? mergeCompanies({ local: localDocs, igdb: igdbCompanies, query: effective }) : []), [localDocs, igdbCompanies, effective]);
 
@@ -679,7 +684,7 @@ export default function SearchOverlay() {
 
                     {/* Recent Searches & Games */}
                     {!query && (recentSearches.length > 0 || recentGames.length > 0) && (
-                        <div className="animate-in fade-in slide-in-from-top-4 duration-300 mb-12">
+                        <div className="m-drop-in mb-12">
                             <div className="flex items-center justify-between mb-6">
                                 <h3 className="lh-label text-white/50 tracking-widest flex items-center gap-2">
                                     RECENT
@@ -766,7 +771,7 @@ export default function SearchOverlay() {
 
                     {/* Results Section */}
                     {query && (
-                        <div className="animate-in fade-in duration-300">
+                        <div className="m-reveal">
                             {correction && (
                                 <p className="text-[15px] text-white/70 mb-6 m-0">
                                     {correction.auto ? (
@@ -810,7 +815,7 @@ export default function SearchOverlay() {
 
                             {/* ── Games ── */}
                             {activeTab === 'Games' && (
-                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                                <div ref={resultsRef} className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                                     {loading && games.length === 0 ? (
                                         [...Array(6)].map((_, i) => <GameCardSkeleton key={i} />)
                                     ) : games.length > 0 ? (
