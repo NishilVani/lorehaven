@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
+import { siblingDirection } from "../../motion/classify";
 
 /**
  * Per-route side effects: scroll reset, document title, and a route announcement.
@@ -42,7 +43,11 @@ export default function ScrollToTop() {
   const prevPath = useRef(null);
 
   useEffect(() => {
-    window.scrollTo(0, 0);
+    /* Between library shelves the page keeps
+       its tab strip where it is and decides the scroll itself (Library.jsx);
+       everywhere else a new page starts at the top. */
+    const shelfToShelf = prevPath.current && pathname.startsWith("/library/") && siblingDirection(prevPath.current, pathname);
+    if (!shelfToShelf) window.scrollTo(0, 0);
 
     const name = titleFor(pathname);
     document.title = name ? `${name} — LoreHaven` : 'LoreHaven';

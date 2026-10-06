@@ -1201,6 +1201,7 @@ export default function Library() {
      finger let go: the page transition captures it there and carries it on
      out (motion.css, sideways). One that does not springs back. */
   const swipeGridRef = useRef(null);
+  const stripAnchorRef = useRef(null);
   const swipeCommitted = useRef(false);
   const followFinger = useCallback((delta, dragging) => {
     const el = swipeGridRef.current;
@@ -1238,6 +1239,20 @@ export default function Library() {
   /* The new shelf starts centred. A layout effect, so it runs inside the page
      transition's update, after the dragged grid was captured. */
   useLayoutEffect(() => {
+    /* A shelf change keeps the tab strip exactly where it is. Scrolled past
+       it (the strip stuck to the top), the new shelf opens with its first
+       row right under the strip rather than jumping back to the page top,
+       so in the transition the strip holds still and only the shelf moves.
+       Runs inside the transition's update, before the new page is captured;
+       ScrollToTop leaves shelf-to-shelf changes to this. */
+    const strip = stripRef.current;
+    if (strip) {
+      const stuckAt = parseFloat(getComputedStyle(strip).top) || 0;
+      const anchor = stripAnchorRef.current;
+      const naturalTop = (anchor ? anchor.getBoundingClientRect().top : strip.getBoundingClientRect().top) + window.scrollY;
+      const pinned = Math.max(0, Math.round(naturalTop - stuckAt));
+      if (window.scrollY > pinned) window.scrollTo(0, pinned);
+    }
     const el = swipeGridRef.current;
     if (!el) return;
     /* No transition for the reset: the grid carries transition-all, which
@@ -1323,6 +1338,9 @@ export default function Library() {
                  Tabs are also drag-and-drop targets; utility cells sit at the end. ── */}
             {/* Sticks below the fixed mobile chrome, not at viewport 0 — at top-0 a
                 focused tab parked underneath the nav bar. WCAG 2.4.11. */}
+            {/* Where the strip sits before it sticks: measured to keep it in
+                place across a shelf change (see the effect on activeTab). */}
+            <span ref={stripAnchorRef} aria-hidden="true" className="block h-0" />
             <div
               ref={stripRef}
               /* Holds still while the shelf changes; only the active tab, the

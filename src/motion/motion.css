@@ -74,6 +74,11 @@
   height: auto;
   inset-block-start: 0;
 }
+/* The old page keeps the scroll position it was left at: the director sets
+   --vt-old-top to how far its <main> sat from the new one's. */
+::view-transition-old(lh-page) {
+  inset-block-start: var(--vt-old-top, 0px);
+}
 
 /* ── Deeper (and carry): old moves up as it clears, new rises from below ── */
 ::view-transition-old(lh-page) {
@@ -172,19 +177,16 @@
 [data-vt-born] { animation: none !important; }
 
 /* ── Library shelves (sideways) ──────────────────────────────────────────────
-   The tab strip and the controls row hold still while the shelf changes; the
-   active tab (or the phone strip's shelf bar) is the marker and slides to the
-   new shelf. Named only for sideways transitions: going deeper, they are part
-   of the page like everything else. */
+   The tab strip holds still while the shelf changes; the active tab (or the
+   phone strip's shelf bar) is the marker and slides to the new shelf. The
+   controls row moves with the shelf: held still, it popped in over the old
+   shelf whenever the switch was made scrolled past it. Named only for
+   sideways transitions: going deeper, the strip is part of the page. */
 :root[data-vt='sideways'] [data-vt-keep='tabs'] { view-transition-name: lh-library-tabs; }
-:root[data-vt='sideways'] [data-vt-keep='controls'] { view-transition-name: lh-library-controls; }
 :root[data-vt='sideways'] [data-tab-marker] { view-transition-name: lh-tab-marker; }
-::view-transition-group(lh-library-tabs),
-::view-transition-group(lh-library-controls) { animation: none; }
-::view-transition-old(lh-library-tabs),
-::view-transition-old(lh-library-controls) { animation: none; display: none; }
-::view-transition-new(lh-library-tabs),
-::view-transition-new(lh-library-controls) { animation: none; }
+::view-transition-group(lh-library-tabs) { animation: none; }
+::view-transition-old(lh-library-tabs) { animation: none; display: none; }
+::view-transition-new(lh-library-tabs) { animation: none; }
 
 /* ── Carry for words: a name travels into its page's heading ──
    Scaled in proportion from the link's size to the heading's (the default
