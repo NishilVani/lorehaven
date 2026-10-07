@@ -60,6 +60,10 @@ class BackArgs {
  * - setWallpaper: WallpaperManager. No permission prompt (SET_WALLPAPER is a
  *   normal permission).
  * - takeShared: text another app shared into LoreHaven, once.
+ * - takeNotificationTap: the id of the notification whose tap opened or
+ *   brought forward the app, once. The notification plugin's own tap event
+ *   carries none of what was scheduled (2.4.0 never sets the Notification's
+ *   sourceJson), but its tap intent does carry the id.
  * - setBackIntercept / moveToBack: predictive back (see the callback below).
  * - setSystemBars: dark or light status and navigation bar icons, to match
  *   the page's theme (most are dark, a few are light).
@@ -69,6 +73,7 @@ class LoreHavenPlugin(private val activity: Activity) : Plugin(activity) {
   private var webView: WebView? = null
   private val main = Handler(Looper.getMainLooper())
   private var pendingShare: String? = null
+  private var pendingTap: Int? = null
   private var tauriBackDisabled = false
 
   /* Predictive back. Android plays its back-to-home preview only when no
@@ -90,10 +95,22 @@ class LoreHavenPlugin(private val activity: Activity) : Plugin(activity) {
   override fun load(webView: WebView) {
     this.webView = webView
     readShare(activity.intent)
+    readNotificationTap(activity.intent)
   }
 
   override fun onNewIntent(intent: Intent) {
     readShare(intent)
+    readNotificationTap(intent)
+  }
+
+  /* tauri-plugin-notification's tap intent: ACTION_MAIN with the id under
+     "NotificationId" (TauriNotificationManager.buildIntent). Consumed, like a
+     share, so recreating the activity does not tap it again. */
+  private fun readNotificationTap(intent: Intent?) {
+    if (intent?.action != Intent.ACTION_MAIN || !intent.hasExtra("NotificationId")) return
+    val id = intent.getIntExtra("NotificationId", Int.MIN_VALUE)
+    intent.removeExtra("NotificationId")
+    if (id != Int.MIN_VALUE) pendingTap = id
   }
 
   private fun readShare(intent: Intent?) {
@@ -168,6 +185,13 @@ class LoreHavenPlugin(private val activity: Activity) : Plugin(activity) {
       activity.moveTaskToBack(true)
       invoke.resolve()
     }
+  }
+
+  @Command
+  fun takeNotificationTap(invoke: Invoke) {
+    val id = pendingTap
+    pendingTap = null
+    invoke.resolve(JSObject().apply { put("id", id) })
   }
 
   @Command

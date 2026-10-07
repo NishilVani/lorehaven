@@ -36,8 +36,13 @@ infinite-scroll audit, with the measurement behind every claim.
     emulator: shortcuts, App Link, share, tile, widget render and row tap,
     reminders and digest scheduled, wallpaper set, back closes search then
     leaves the app, status bar icons visible.
-  - Not verified (needs a real phone): QR scanning with a camera, the back
-    gesture's peek animation, release-signed App Link verification.
+  - Real phone (Pixel 6a, 2026-10-07, on `feature/motion`): every feature
+    exercised; eight bugs found and fixed (Library shortcut loop, kept
+    redirect page, hidden pages navigating, Back on a dialog also going back,
+    share-cancel toast, reminder taps not opening the game warm or cold, Back
+    quitting the app mid-scan). Table and open items in
+    `docs/ANDROID-FEATURES.md` "Verified on a real phone". Still unverified:
+    QR decoding with a real code, release-signed App Link verification.
   - Pre-existing, not from this branch: `phase7-mobile.spec.ts` S2 and S5
     (mobile shelf strip) fail on the baseline too; Pick For Me suggests
     Wishlist games not yet released (`PickNextDialog`); the emoji gate flags

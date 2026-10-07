@@ -5,7 +5,7 @@ import { classifyTransition, siblingDirection } from './classify';
 import { reducedMotion } from './motion';
 import { findShared, takePending, rememberHomeward, homewardFor, nameShared, clearShared, setRunningTransition } from './shared';
 import { routeLoaded, preloadRoute } from './routes';
-import { rememberScroll } from './pageMemory';
+import { rememberScroll, isRedirectPath } from './pageMemory';
 import { haptic } from '../services/native/haptics';
 
 /* The transition director (docs/superpowers/specs/2026-10-06-motion-design.md,
@@ -46,8 +46,6 @@ const waitForShared = (key, ms) => new Promise((resolve) => {
   };
   check();
 });
-/* Routes that only redirect (App.jsx <Navigate>). */
-const REDIRECTS = /^\/(library|browse)\/?$/;
 let latest = 0;
 /* True while a transition's update is rendering the new page. A redirect
    route (/library, /browse) renders a <Navigate> that replaces the address
@@ -124,7 +122,7 @@ export default function TransitionLocation({ children }) {
              after this render, and the router applies it a task or more later
              depending on the engine. Wait (redirect routes only, capped) until
              the effect above has taken it into the held location. */
-          if (REDIRECTS.test(to.pathname)) {
+          if (isRedirectPath(to.pathname)) {
             await Promise.race([new Promise((resolve) => { redirectApplied = resolve; }), wait(150)]);
             redirectApplied = null;
           }

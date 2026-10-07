@@ -20,12 +20,21 @@ import { haptic } from './haptics.js';
 
 const OVERLAY = '[role="dialog"], [role="alertdialog"], [role="menu"], [aria-modal="true"], [data-overlay-open]';
 
-/** Overlays on screen now, outermost first. */
+/** Overlays on screen now, outermost first. One playing its exit
+ *  (`data-closing`, Dialog.jsx) is already closed. */
 export function openOverlays(root = document) {
-  return [...root.querySelectorAll(OVERLAY)].filter(el => !el.closest('[inert]') && el.getClientRects().length > 0);
+  return [...root.querySelectorAll(OVERLAY)].filter(el => !el.closest('[inert], [data-closing]') && el.getClientRects().length > 0);
 }
 
 const historyIndex = () => Number(window.history.state?.idx) || 0;
+
+/* The running controller's sync, for callers that cannot wait for a frame:
+   while the QR scanner's camera covers the page, the WebView may not render,
+   and a sync scheduled on requestAnimationFrame would never claim the
+   gesture. */
+let syncNow = null;
+/** Bring the native back claim in line with the page now, not next frame. */
+export function syncBackClaim() { syncNow?.(); }
 
 export function startBackController() {
   let claimed = null;
@@ -41,6 +50,7 @@ export function startBackController() {
     nativeCall('setBackIntercept', { enabled: want }).catch(() => { claimed = null; });
   };
   const schedule = () => { if (!frame) frame = requestAnimationFrame(sync); };
+  syncNow = () => { cancelAnimationFrame(frame); sync(); };
 
   const clearPeek = () => {
     root.style.removeProperty('--lh-back');
@@ -93,7 +103,7 @@ export function startBackController() {
     childList: true,
     subtree: true,
     attributes: true,
-    attributeFilter: ['role', 'aria-modal', 'data-overlay-open', 'inert', 'hidden'],
+    attributeFilter: ['role', 'aria-modal', 'data-overlay-open', 'inert', 'hidden', 'data-closing'],
   });
   window.addEventListener('popstate', schedule);
   window.addEventListener('lh:back', onBack);
@@ -102,6 +112,7 @@ export function startBackController() {
   return {
     refresh: schedule,
     stop() {
+      syncNow = null;
       observer.disconnect();
       cancelAnimationFrame(frame);
       window.removeEventListener('popstate', schedule);

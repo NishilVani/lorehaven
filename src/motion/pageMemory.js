@@ -12,6 +12,9 @@ export const pageIdOf = (pathname) => {
   return p.startsWith('/library/') && p !== '/library/duplicates' ? '/library/*' : p;
 };
 
+/** Bare /library and /browse only redirect to a shelf or tab. */
+export const isRedirectPath = (pathname) => /^\/(library|browse)\/?$/.test(String(pathname || ''));
+
 const scrolls = new Map();
 export const rememberScroll = (pathname, y) => { scrolls.set(pageIdOf(pathname), Math.max(0, Math.round(y))); };
 export const recallScroll = (id) => scrolls.get(id);

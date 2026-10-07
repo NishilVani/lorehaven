@@ -9,6 +9,7 @@ import { syncLibraryDigest } from '../../services/native/libraryDigest';
 import { nativeCall } from '../../services/native/bridge';
 import { parseSharedText, searchRoute } from '../../services/native/shareIn';
 import { startBackController } from '../../services/native/back';
+import { routeFromNotificationTap } from '../../services/native/links';
 
 /**
  * The Android app's background duties. Renders nothing; does nothing on the
@@ -22,6 +23,14 @@ import { startBackController } from '../../services/native/back';
  * - Runs predictive back (services/native/back.js).
  * - A tap on a notification opens its game, or the updates list.
  */
+/* The notification whose tap opened or brought forward the app, if any:
+   taken once from the native side, which kept its id from the tap intent. */
+async function followNotificationTap(navigate) {
+  const res = await nativeCall('takeNotificationTap').catch(() => null);
+  const route = routeFromNotificationTap(res?.id);
+  if (route) navigate(route);
+}
+
 export default function NativeBridge() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -81,6 +90,7 @@ export default function NativeBridge() {
     const onForeground = () => {
       if (document.visibilityState !== 'visible') return;
       takeShare();
+      followNotificationTap((r) => { if (live) navigateRef.current(r); });
       syncLibraryDigest(getDeviceSettings().updates);
     };
     /* After first paint: the digest refresh reads IGDB, and a share should
@@ -112,12 +122,14 @@ export default function NativeBridge() {
     let listener = null;
     (async () => {
       const { onAction } = await import('@tauri-apps/plugin-notification');
-      const l = await onAction((n) => {
-        const extra = n?.extra || {};
-        const id = Number(extra.gameId);
-        if (extra.kind === 'release' && Number.isInteger(id) && id > 0) navigateRef.current(`/game/${id}`);
-        else if (extra.kind === 'updates') navigateRef.current('/explore/updates');
-      });
+      /* The plugin's tap event says only that a notification was tapped:
+         its payload has none of what was scheduled (2.4.0 never fills the
+         Notification's sourceJson), so reading `extra` from it found nothing
+         and a reminder opened the app but never its game. Take the id the
+         native side kept from the tap intent instead. A tap that cold-starts
+         the app fires before this listener exists; the first foreground
+         check above takes that one. */
+      const l = await onAction(() => followNotificationTap((r) => navigateRef.current(r)));
       if (live) listener = l; else l.unregister?.().catch?.(() => {});
     })().catch(() => {});
     return () => { live = false; Promise.resolve(listener?.unregister?.()).catch(() => {}); };

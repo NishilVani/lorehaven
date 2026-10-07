@@ -69,10 +69,15 @@ export default function Dialog({
     const panel = panelRef.current;
     if (!panel || reducedMotion()) { onClose?.(); return; }
     closing.current = true;
+    /* Marked at once, so Android's back (services/native/back.js) counts the
+       dialog as closed: it checks two frames after its Escape, well inside
+       this exit, and read a still-mounted dialog as an Escape that did
+       nothing, so it went back a page as well (or left the app). */
+    panel.closest('[role="dialog"], [role="alertdialog"]')?.setAttribute('data-closing', '');
     const ease = 'cubic-bezier(0.4, 0, 1, 1)';
     panel.animate([{ opacity: 1, translate: '0 0' }, { opacity: 0, translate: '0 8px' }], { duration: 180, easing: ease, fill: 'forwards' });
     backdropRef.current?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 180, easing: ease, fill: 'forwards' });
-    setTimeout(() => { closing.current = false; onClose?.(); }, 170);
+    setTimeout(() => { closing.current = false; panel.closest('[data-closing]')?.removeAttribute('data-closing'); onClose?.(); }, 170);
   }, [onClose]);
 
   /* Drag the panel down to dismiss — the same outcome as Escape, so it goes

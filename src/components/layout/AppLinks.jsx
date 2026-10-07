@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { isTauri } from '../../services/openExternal';
 import { routeFromAppLink } from '../../services/appSignIn';
@@ -17,6 +17,14 @@ import { routeFromShortcut, routeFromWebLink, routeFromAppGame } from '../../ser
  */
 export default function AppLinks() {
   const navigate = useNavigate();
+  /* React Router makes a new navigate on every page change. With it as a
+     dependency the effect below re-ran after each navigation, asked Android
+     for the launch link again (which reports the latest one), and followed it
+     again: the Library shortcut, whose /library only redirects, so it never
+     reads as "already there", navigated in a loop five times a second. Read
+     navigate through a ref and run the effect once. */
+  const navigateRef = useRef(navigate);
+  useEffect(() => { navigateRef.current = navigate; }, [navigate]);
 
   useEffect(() => {
     if (!isTauri()) return undefined;
@@ -35,7 +43,7 @@ export default function AppLinks() {
            sign-in pages: the search shortcut's '/?search=true' shares '/' with
            the home page, and reloading there looped (see below). */
         if (signIn && route.split('?')[0] === window.location.pathname) window.location.assign(route);
-        else navigate(route);
+        else navigateRef.current(route);
         return;
       }
     };
@@ -74,7 +82,7 @@ export default function AppLinks() {
       live = false;
       unlisten?.();
     };
-  }, [navigate]);
+  }, []);
 
   return null;
 }

@@ -90,6 +90,50 @@ tile opens the library, the widget snapshot and covers reach native storage,
 release reminders schedule alarms, set as wallpaper changes the home screen,
 `native_call` refuses an unknown method and a non-IGDB image.
 
+## Verified on a real phone (Pixel 6a, Android 17, WebView 153), 2026-10-07
+
+Driven over USB (`scripts/phone_cdp.mjs` attaches to the debug build's
+WebView; adb for the native side). Screens in `qa/phone/` (local; `qa/` is
+not committed).
+
+Works: all four launcher shortcuts; share-in (Steam link, LoreHaven link,
+plain text, other store link), warm and from a killed process; Share Link
+opens the Android sheet; Show QR Code; the three widgets (real data, covers,
+countdowns), a row opens its game, headers open Backlog and Schedule; the
+Quick Settings tile opens Pick For Me; release reminders scheduled at the
+right dates, a reminder tapped opens its game (app in the background and
+from a killed process); the digest tapped opens Library Updates; Set As
+Wallpaper (home only, lock untouched); haptics recorded by the vibrator
+service; predictive back peek (menu follows the finger, release closes it),
+back through history, back at the root leaves the app; scanner opens the
+camera with the permission already granted.
+
+Found and fixed on the phone:
+
+| Bug | Cause | Fix |
+|---|---|---|
+| Library shortcut opened a blank page, then navigated in a loop | AppLinks re-ran its effect on every navigation (navigate changes identity) and re-followed the launch link; /library only redirects, so it never read as "already there" | `AppLinks.jsx`: navigate through a ref, effect runs once |
+| Second visit to /library blank | The page stack kept the redirect route, whose Navigate had already fired | `PageStack.jsx`: redirect routes are never kept |
+| A kept page rewrote the address | Hidden pages could still navigate (Library syncing its sort) | `PageStack.jsx`: hidden pages get a navigator that ignores push/replace/go |
+| Back on a dialog also went back a page (or quit at the root) | Dialog plays a 170ms exit; back.js checks after two frames and read it as an Escape that did nothing | `Dialog.jsx` marks `data-closing`; `back.js` counts it closed |
+| Cancelling the share sheet toasted "Could not copy the link" | sharekit rejects "Share cancelled"; share.js took that as no plugin and fell back to the clipboard | `share.js`: a cancel is not a failure |
+| A tapped reminder opened the app, never the game | tauri-plugin-notification 2.4.0 never sets `sourceJson`, so the tap carries no `extra` | `LoreHavenPlugin.takeNotificationTap` keeps the tap intent's id; `links.js routeFromNotificationTap`; NativeBridge takes it on foreground and on the tap event |
+| ...and from a killed process, still Explore | Android recreated the activity from the task's launcher intent and handed the tap to onNewIntent before any plugin loaded | `MainActivity.onNewIntent` adopts the intent (`setIntent`) |
+| Back during a QR scan quit the app | At the root nothing claimed Back; the scanner has no controls | `qr.js` marks the scan an overlay, claims Back at once (`syncBackClaim`), Escape cancels the scan |
+
+Still open (not fixed):
+
+- The scanner is the plugin's bare full-screen camera: no frame, hint or
+  Cancel button. Back is the only way out. A windowed scan with our own
+  overlay would fix it.
+- Links from outside (shortcut, tile, notification) do not close an open
+  dialog: the Pick For Me tile opened over On This Phone.
+- Back after closing Pick For Me goes to the `?pick=1` entry and reopens it.
+- On This Phone scrolls its content under the status bar.
+- In Your Library can show an "Out Now" badge over a "TBA" date (Wolverine).
+- Not testable on the debug build: App Link verification (debug signature;
+  `lorehaven.app: 1024`). QR decoding needs a code in front of the camera.
+
 ## Check on a real phone
 
 1. On This Phone > Release Reminders > On Release Day: Android asks for

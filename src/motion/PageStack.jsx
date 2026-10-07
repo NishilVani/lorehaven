@@ -1,6 +1,9 @@
-import { useLayoutEffect, useRef, useState } from 'react';
-import { Routes, useLocation, useNavigationType, UNSAFE_LocationContext as LocationContext } from 'react-router-dom';
-import { pageIdOf, recallScroll, forgetScroll } from './pageMemory';
+import { useContext, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  Routes, useLocation, useNavigationType,
+  UNSAFE_LocationContext as LocationContext, UNSAFE_NavigationContext as NavigationContext,
+} from 'react-router-dom';
+import { pageIdOf, recallScroll, forgetScroll, isRedirectPath } from './pageMemory';
 
 /* Pages you have just left stay mounted, hidden, so going back shows the very
  * same page: its data, its state, its scroll position, with no refetch and no
@@ -19,7 +22,13 @@ import { pageIdOf, recallScroll, forgetScroll } from './pageMemory';
  *   position and art flies home to the card where it really is. ScrollToTop
  *   leaves Back to this.
  * - Hidden pages are `hidden` and `inert`: not painted, not focusable, not in
- *   the accessibility tree. */
+ *   the accessibility tree.
+ * - Hidden pages cannot navigate. A kept page that finishes loading after it
+ *   was left (Library writing its sort into the address) would otherwise
+ *   replace the address of the page in front with its own. Their navigator
+ *   ignores push, replace and go.
+ * - Redirect routes (bare /library and /browse) are never kept. A kept one
+ *   had already redirected, so coming back to it showed a blank page. */
 const MAX = 4;
 
 export default function PageStack({ children }) {
@@ -36,6 +45,7 @@ export default function PageStack({ children }) {
     let next = current
       ? entries.map((e) => (e.id === id ? { ...e, location, used } : e))
       : [...entries, { id, location, used }];
+    next = next.filter((e) => e.id === id || !isRedirectPath(e.location.pathname));
     if (next.length > MAX) {
       const oldest = next.filter((e) => e.id !== id).sort((a, b) => a.used - b.used)[0];
       next = next.filter((e) => e !== oldest);
@@ -55,13 +65,21 @@ export default function PageStack({ children }) {
     window.scrollTo(0, recallScroll(id) ?? 0);
   }, [id, navigationType]);
 
+  const navigation = useContext(NavigationContext);
+  const still = useMemo(() => ({
+    ...navigation,
+    navigator: { ...navigation.navigator, push() {}, replace() {}, go() {} },
+  }), [navigation]);
+
   return entries.map((e) => {
     const front = e.id === id;
     return (
       <div key={e.id} hidden={!front} inert={!front}>
-        <LocationContext.Provider value={{ location: front ? location : e.location, navigationType }}>
-          <Routes location={front ? location : e.location}>{children}</Routes>
-        </LocationContext.Provider>
+        <NavigationContext.Provider value={front ? navigation : still}>
+          <LocationContext.Provider value={{ location: front ? location : e.location, navigationType }}>
+            <Routes location={front ? location : e.location}>{children}</Routes>
+          </LocationContext.Provider>
+        </NavigationContext.Provider>
       </div>
     );
   });

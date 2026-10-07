@@ -17,6 +17,7 @@ const METHODS: &[&str] = &[
     "setWidgetData",
     "setWallpaper",
     "takeShared",
+    "takeNotificationTap",
     "setBackIntercept",
     "moveToBack",
     "setSystemBars",
