@@ -1,0 +1,203 @@
+/* LoreHaven motion: tokens and page choreography.
+ * Spec: docs/superpowers/specs/2026-10-06-motion-design.md.
+ *
+ * Art leads, words follow. A page change runs in three beats, and two pages of
+ * content are never on screen at once:
+ *   clear   the old page fades and moves away              (160ms)
+ *   carry   shared art travels to its new place            (420ms, from 0)
+ *   reveal  the new page fades in, after clear has ended   (320ms, from 200ms)
+ * The director (TransitionLocation.jsx) writes <html data-vt> with the type
+ * and data-vt-dir for sideways; this file turns them into the beats.
+ *
+ * Every keyframe moves opacity, translate or scale, never `transform`: the
+ * Dialog, sheets and the library lift write `transform` inline. */
+
+/* ── Personality: Cinematic (the only one, for now) ─────────────────────────
+   A later personality (springy, game-like) is another block like this one. */
+:root,
+:root[data-personality='cinematic'] {
+  --m-clear-dur: 160ms;
+  --m-clear-ease: cubic-bezier(0.4, 0, 1, 1);
+  --m-carry-dur: 420ms;
+  --m-carry-ease: cubic-bezier(0.2, 0, 0, 1);
+  --m-reveal-dur: 320ms;
+  --m-reveal-ease: cubic-bezier(0, 0, 0.2, 1);
+  --m-reveal-delay: 200ms;
+  --m-reveal-delay-side: 120ms;
+  --m-stagger: 40ms;
+  --m-micro-in: 120ms;
+  --m-micro-out: 220ms;
+  --m-overlay-in: 280ms;
+  --m-overlay-out: 180ms;
+  --m-travel-out: 8px;
+  --m-travel-in: 12px;
+  --m-travel-side: 24px;
+  --m-overshoot: 0;
+}
+
+/* ── Who takes part ──────────────────────────────────────────────────────────
+   Names exist only while a transition runs: a standing view-transition-name
+   makes an element a stacking context. The page content is the document's
+   root snapshot, which is always exactly the viewport at its current scroll:
+   naming <main> instead captured the whole page, and Firefox could not draw a
+   snapshot that tall (a 60-game shelf, 3,777px: black and squashed frames).
+   The rail and top bar are their own groups that do not animate, so they
+   hold perfectly still; their active markers travel. */
+:root[data-vt]:not([data-vt='swap']) [data-chrome='rail'] { view-transition-name: lh-rail; }
+:root[data-vt]:not([data-vt='swap']) [data-chrome='topbar'] { view-transition-name: lh-topbar; }
+:root[data-vt]:not([data-vt='swap']) [data-chrome='rail'] [data-rail-marker] { view-transition-name: lh-rail-marker; }
+
+/* The root group never moves or resizes: only its two images animate. */
+::view-transition-group(root) { animation: none; }
+
+/* Chrome holds still: show the new state at once, no cross-fade. */
+::view-transition-group(lh-rail),
+::view-transition-group(lh-topbar) { animation: none; }
+::view-transition-old(lh-rail),
+::view-transition-old(lh-topbar) { animation: none; opacity: 0; }
+::view-transition-new(lh-rail),
+::view-transition-new(lh-topbar) { animation: none; }
+
+/* Markers (rail item, library tab) travel on the carry curve, 280ms. */
+::view-transition-group(lh-rail-marker),
+::view-transition-group(lh-tab-marker) {
+  animation-duration: 280ms;
+  animation-timing-function: var(--m-carry-ease);
+}
+
+/* ── Deeper (and carry): old moves up as it clears, new rises from below ── */
+::view-transition-old(root) {
+  animation: m-clear-up var(--m-clear-dur) var(--m-clear-ease) both;
+}
+::view-transition-new(root) {
+  animation: m-reveal-up var(--m-reveal-dur) var(--m-reveal-ease) var(--m-reveal-delay) both;
+}
+@keyframes m-clear-up {
+  to { opacity: 0; translate: 0 calc(var(--m-travel-out) * -1); }
+}
+@keyframes m-reveal-up {
+  from { opacity: 0; translate: 0 var(--m-travel-in); }
+}
+
+/* ── Back (and carry-back): the reverse ── */
+:root[data-vt='back']::view-transition-old(root),
+:root[data-vt='carry-back']::view-transition-old(root) {
+  animation-name: m-clear-down;
+}
+:root[data-vt='back']::view-transition-new(root),
+:root[data-vt='carry-back']::view-transition-new(root) {
+  animation-name: m-reveal-down;
+}
+@keyframes m-clear-down {
+  to { opacity: 0; translate: 0 var(--m-travel-out); }
+}
+@keyframes m-reveal-down {
+  from { opacity: 0; translate: 0 calc(var(--m-travel-in) * -1); }
+}
+
+/* ── Sideways: content slides toward the chosen sibling ──
+   Choosing a sibling to the right moves the old content left and brings the
+   new one in from the right, and the reverse. */
+:root[data-vt='sideways']::view-transition-old(root) {
+  animation: m-clear-to-left var(--m-clear-dur) var(--m-clear-ease) both;
+}
+:root[data-vt='sideways']::view-transition-new(root) {
+  animation: m-reveal-from-right var(--m-reveal-dur) var(--m-reveal-ease) var(--m-reveal-delay-side) both;
+}
+:root[data-vt='sideways'][data-vt-dir='left']::view-transition-old(root) { animation-name: m-clear-to-right; }
+:root[data-vt='sideways'][data-vt-dir='left']::view-transition-new(root) { animation-name: m-reveal-from-left; }
+@keyframes m-clear-to-left { to { opacity: 0; translate: calc(var(--m-travel-side) * -1) 0; } }
+@keyframes m-clear-to-right { to { opacity: 0; translate: var(--m-travel-side) 0; } }
+@keyframes m-reveal-from-right { from { opacity: 0; translate: var(--m-travel-side) 0; } }
+@keyframes m-reveal-from-left { from { opacity: 0; translate: calc(var(--m-travel-side) * -1) 0; } }
+
+/* ── Carry: the shared art travels ──
+   The group moves and resizes on the carry curve; the two snapshots are the
+   same art, so they hold full opacity and keep their aspect rather than
+   cross-fading. It starts with clear and lands as reveal settles. */
+::view-transition-group(shared) {
+  animation-duration: var(--m-carry-dur);
+  animation-timing-function: var(--m-carry-ease);
+}
+::view-transition-old(shared),
+::view-transition-new(shared) {
+  height: 100%;
+  object-fit: cover;
+  animation-duration: var(--m-carry-dur);
+  animation-timing-function: var(--m-carry-ease);
+}
+/* The old art hands over to the new halfway, not by a long cross-fade. */
+::view-transition-old(shared) { animation-name: m-art-out; }
+::view-transition-new(shared) { animation-name: m-art-in; }
+@keyframes m-art-out { 0%, 45% { opacity: 1; } 55%, 100% { opacity: 0; } }
+@keyframes m-art-in { 0%, 45% { opacity: 0; } 55%, 100% { opacity: 1; } }
+
+/* ── Reduced: one 120ms cross-fade, nothing travels ── */
+:root[data-motion='reduced']::view-transition-old(root) {
+  animation: m-fade-out 120ms linear both;
+}
+:root[data-motion='reduced']::view-transition-new(root) {
+  animation: m-fade-in 120ms linear both;
+}
+:root[data-motion='reduced']::view-transition-group(lh-rail-marker),
+:root[data-motion='reduced']::view-transition-group(lh-tab-marker) {
+  animation: none;
+}
+@keyframes m-fade-out { to { opacity: 0; } }
+@keyframes m-fade-in { from { opacity: 0; } }
+
+/* ── Content arriving inside a page ──────────────────────────────────────────
+   Data that lands after the page is up (a grid replacing its skeleton, a
+   ceremony year switched in place) reveals with the same beat as a page.
+   Mounted while a page transition runs, it does nothing of its own: the
+   page's reveal already carries it ([data-vt-born] below). */
+.m-reveal {
+  animation: m-reveal-up var(--m-reveal-dur) var(--m-reveal-ease) backwards;
+}
+:root[data-motion='reduced'] .m-reveal {
+  animation: m-fade-in 120ms linear backwards;
+}
+/* Mounted during a page transition (marked by motion/elements.js): the
+   transition already revealed it. */
+[data-vt-born] { animation: none !important; }
+
+/* ── Library shelves (sideways) ──────────────────────────────────────────────
+   The tab strip holds still while the shelf changes; the active tab (or the
+   phone strip's shelf bar) is the marker and slides to the new shelf. The
+   controls row moves with the shelf: held still, it popped in over the old
+   shelf whenever the switch was made scrolled past it. Named only for
+   sideways transitions: going deeper, the strip is part of the page. */
+:root[data-vt='sideways'] [data-vt-keep='tabs'] { view-transition-name: lh-library-tabs; }
+:root[data-vt='sideways'] [data-tab-marker] { view-transition-name: lh-tab-marker; }
+::view-transition-group(lh-library-tabs) { animation: none; }
+::view-transition-old(lh-library-tabs) { animation: none; opacity: 0; }
+::view-transition-new(lh-library-tabs) { animation: none; }
+
+/* ── Carry for words: a name travels into its page's heading ──
+   Scaled in proportion from the link's size to the heading's (the default
+   image sizing), with the old words handing over to the new halfway, so it
+   reads as one name growing, not two overlapping. */
+::view-transition-group(shared-title) {
+  animation-duration: var(--m-carry-dur);
+  animation-timing-function: var(--m-carry-ease);
+}
+::view-transition-old(shared-title) { animation: m-art-out var(--m-carry-dur) var(--m-carry-ease) both; }
+::view-transition-new(shared-title) { animation: m-art-in var(--m-carry-dur) var(--m-carry-ease) both; }
+
+/* ── Swap: art carried within a page (a tile into its viewer and back) ──
+   The page is not named; the overlay fades in or out around the travelling
+   art. The larger image may still be loading when the new state is captured,
+   so the outgoing art holds until the very end instead of handing over at
+   the halfway mark. */
+:root[data-vt='swap']::view-transition-old(root) {
+  opacity: 1;
+  animation: m-fade-out var(--m-overlay-out) linear both;
+}
+:root[data-vt='swap']::view-transition-new(root) {
+  animation: m-fade-in var(--m-overlay-in) linear both;
+}
+:root[data-vt='swap']::view-transition-old(shared) { animation-name: m-art-out-late; }
+:root[data-vt='swap']::view-transition-new(shared) { animation-name: m-art-in-late; }
+@keyframes m-art-out-late { 0%, 85% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes m-art-in-late { 0%, 85% { opacity: 0; } 100% { opacity: 1; } }
+

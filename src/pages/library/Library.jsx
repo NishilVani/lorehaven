@@ -1,6 +1,8 @@
 import PageHeader from '../../components/ui/PageHeader';
 import { haptic } from '../../services/native/haptics';
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
+import { reducedMotion } from '../../motion/motion';
+import { useFlip } from '../../motion/flip';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { getLibrary, saveToLibrary, saveManyToLibrary, removeFromLibrary } from '../../services/db';
 import { AUTO_PRIORITY_TABS, undoPatch } from '../../services/autoPriority';
@@ -1194,15 +1196,71 @@ export default function Library() {
      to go back. */
   const EDGE_GUARD = 24;
   const shelfIndex = TABS.indexOf(activeTab);
+  /* The grid follows the finger, with resistance past 40% of the width so it
+     never runs off the screen. A swipe that commits leaves the grid where the
+     finger let go: the page transition captures it there and carries it on
+     out (motion.css, sideways). One that does not springs back. */
+  const swipeGridRef = useRef(null);
+  const stripAnchorRef = useRef(null);
+  const swipeCommitted = useRef(false);
+  const followFinger = useCallback((delta, dragging) => {
+    const el = swipeGridRef.current;
+    if (!el || reducedMotion()) return;
+    if (dragging) {
+      const limit = window.innerWidth * 0.4;
+      const over = Math.max(0, Math.abs(delta) - limit);
+      const x = Math.sign(delta) * (Math.min(Math.abs(delta), limit) + over * 0.25);
+      el.style.transition = 'none';
+      el.style.translate = `${x}px 0`;
+      return;
+    }
+    /* Release: useSwipe reports 0 before it reports the commit, so decide on
+       the next microtask, once onSwipe has (or has not) run. */
+    queueMicrotask(() => {
+      if (swipeCommitted.current) { swipeCommitted.current = false; return; }
+      el.style.transition = 'translate 220ms cubic-bezier(0.2, 0, 0, 1)';
+      el.style.translate = '';
+    });
+  }, []);
   const rawShelfSwipe = useSwipe({
     axis: 'x',
     threshold: 80,
     enabled: !draggedGame,
+    onMove: followFinger,
     onSwipe: (dir) => {
       const next = TABS[shelfIndex + (dir === 'left' ? 1 : -1)];
-      if (next) { haptic('select'); navigate(`/library/${next.toLowerCase()}`); }
+      if (next) { swipeCommitted.current = true; haptic('select'); navigate(`/library/${next.toLowerCase()}`); }
     },
   });
+  /* Sort, group and filter re-order the shelf in place: cards glide to their
+     new slots (motion/flip.js). A shelf change is a page transition instead,
+     so it is not part of the trigger. */
+  useFlip(swipeGridRef, `${groupBy}|${sortOption}|${filterOption}`);
+  /* The new shelf starts centred. A layout effect, so it runs inside the page
+     transition's update, after the dragged grid was captured. */
+  useLayoutEffect(() => {
+    /* A shelf change keeps the tab strip exactly where it is. Scrolled past
+       it (the strip stuck to the top), the new shelf opens with its first
+       row right under the strip rather than jumping back to the page top,
+       so in the transition the strip holds still and only the shelf moves.
+       Runs inside the transition's update, before the new page is captured;
+       ScrollToTop leaves shelf-to-shelf changes to this. */
+    const strip = stripRef.current;
+    if (strip) {
+      const stuckAt = parseFloat(getComputedStyle(strip).top) || 0;
+      const anchor = stripAnchorRef.current;
+      const naturalTop = (anchor ? anchor.getBoundingClientRect().top : strip.getBoundingClientRect().top) + window.scrollY;
+      const pinned = Math.max(0, Math.round(naturalTop - stuckAt));
+      if (window.scrollY > pinned) window.scrollTo(0, pinned);
+    }
+    const el = swipeGridRef.current;
+    if (!el) return;
+    /* No transition for the reset: the grid carries transition-all, which
+       would slide it back across the new shelf. Restored after the frame. */
+    el.style.transition = 'none';
+    el.style.translate = '';
+    requestAnimationFrame(() => { el.style.transition = ''; });
+  }, [activeTab]);
   const shelfSwipe = {
     ...rawShelfSwipe,
     onPointerDown: (e) => {
@@ -1280,8 +1338,14 @@ export default function Library() {
                  Tabs are also drag-and-drop targets; utility cells sit at the end. ── */}
             {/* Sticks below the fixed mobile chrome, not at viewport 0 — at top-0 a
                 focused tab parked underneath the nav bar. WCAG 2.4.11. */}
+            {/* Where the strip sits before it sticks: measured to keep it in
+                place across a shelf change (see the effect on activeTab). */}
+            <span ref={stripAnchorRef} aria-hidden="true" className="block h-0" />
             <div
               ref={stripRef}
+              /* Holds still while the shelf changes; only the active tab, the
+                 marker, slides (motion.css, data-vt="sideways"). */
+              data-vt-keep="tabs"
               /* Below sm this is a grid, not a wrapping flex row. Wrapping sized
                  every cell to its own label, so no two rows ended at the same x
                  and the hairline box never closed; the `flex-1` spacer that
@@ -1326,6 +1390,7 @@ export default function Library() {
                 return (
                   <button
                     key={tab}
+                    data-tab-marker={isActive ? '' : undefined}
                     onClick={() => {
                       if (draggedGame) return;
                       navigate(`/library/${tab.toLowerCase()}`);
@@ -1395,6 +1460,9 @@ export default function Library() {
                   out of the tab order and the a11y tree when it does not apply. */}
               <button
                 onClick={() => setShelfPickerOpen(true)}
+                /* The phone strip's marker: its colour and name cross-fade to the
+                   new shelf while the grid slides. */
+                data-tab-marker=""
                 aria-haspopup="dialog"
                 aria-expanded={shelfPickerOpen}
                 aria-label={`${activeTab}, ${tabCounts[activeTab]} ${tabCounts[activeTab] === 1 ? 'game' : 'games'}. Change shelf`}
@@ -1476,6 +1544,7 @@ export default function Library() {
                 card itself. Whatever cannot be dropped on should not compete with
                 what can. `inert` because opacity alone still leaves it tabbable. */}
             <div className={`grid grid-cols-1 w-full mb-8 transition-all duration-500 ${draggedGame ? 'grid-blur-active' : ''}`}
+                 data-vt-keep="controls"
                  inert={!!draggedGame}>
               {/* Layer 1: Controls & Search Trigger */}
               <div className={`col-start-1 row-start-1 transition-all duration-300 ease-in-out transform flex flex-row items-start justify-between gap-2 ${
@@ -1690,7 +1759,7 @@ export default function Library() {
                    centre sits half of that — 110px — right of the viewport
                    centre. The old 144px was not derived from anything and put
                    the hint 34px off-centre on every desktop screen. */
-                <div className="fixed bottom-24 lg:bottom-10 left-1/2 -translate-x-1/2 lg:ml-[110px] z-[110] pointer-events-none animate-in slide-in-from-bottom-8 fade-in duration-300 ease-out">
+                <div className="fixed bottom-24 lg:bottom-10 left-1/2 -translate-x-1/2 lg:ml-[110px] z-[110] pointer-events-none m-toast-in">
                   <div className="px-5 py-3 border border-white/30 bg-black">
                     <span className="lh-label text-white/60 whitespace-nowrap">
                       Drop on a <span className="text-white">status tab</span> to move
@@ -1732,6 +1801,7 @@ export default function Library() {
               ) : (
                 <div
                   {...shelfSwipe}
+                  ref={swipeGridRef}
                   /* Where focus lands when a card menu action removes the card that
                      owned the menu: the grid that just changed, beside the live-region
                      announcement of the move. Read by DropdownMenu's item click. */
@@ -1807,7 +1877,7 @@ export default function Library() {
                         )}
 
                         {!isCollapsed && (
-                          <div className="game-grid animate-in slide-in-from-bottom-4 fade-in">
+                          <div className="game-grid m-reveal">
                             {group.games.map((game) => (
                               <GameCard
                                 key={game.id}

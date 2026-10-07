@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check } from 'lucide-react';
 import Dialog from './Dialog';
+import DialGroup from './DialGroup';
+import { getMotionChoice, setMotionChoice } from '../../motion/motion';
+import { haptic } from '../../services/native/haptics';
 import { getPrefs, setPrefs } from '../../services/db';
 import { THEMES, THEME_GROUPS, themeVars, getTheme, isPreviewTheme } from '../../constants/themes';
 
@@ -91,6 +94,11 @@ function Preview({ theme }) {
   );
 }
 
+const MOTION_OPTIONS = [
+  { value: 'system', label: 'Match System', hint: 'Full motion, or cross-fades only when your device asks for less motion' },
+  { value: 'reduced', label: 'Reduced', hint: 'Cross-fades only: nothing slides, travels or counts' },
+];
+
 export default function AppearanceDialog({ onClose }) {
   const [current, setCurrent] = useState(() => getPrefs().theme);
   /* Focus opens on the theme that is on, as a radio group should, which also
@@ -115,6 +123,13 @@ export default function AppearanceDialog({ onClose }) {
   };
 
   const active = getTheme(current);
+  /* Motion is this device's, not the account's (motion/motion.js). */
+  const [motion, setMotion] = useState(getMotionChoice);
+  const chooseMotion = (v) => {
+    setMotionChoice(v);
+    setMotion(v);
+    haptic('select');
+  };
 
   return (
     <Dialog
@@ -185,6 +200,16 @@ export default function AppearanceDialog({ onClose }) {
           );
         })}
       </div>
+
+      <section className="mb-6 pt-6 border-t border-white/15" aria-label="Motion">
+        <DialGroup
+          legend="Motion"
+          blurb="How much the app moves. Kept on this device."
+          options={MOTION_OPTIONS}
+          value={motion}
+          onChange={chooseMotion}
+        />
+      </section>
 
       <div className="flex items-center gap-3 pt-2 border-t border-white/15">
         <p className="text-[13px] text-white/60 py-3" aria-live="polite">

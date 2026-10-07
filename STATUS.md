@@ -36,15 +36,74 @@ infinite-scroll audit, with the measurement behind every claim.
     emulator: shortcuts, App Link, share, tile, widget render and row tap,
     reminders and digest scheduled, wallpaper set, back closes search then
     leaves the app, status bar icons visible.
-  - Not verified (needs a real phone): QR scanning with a camera, the back
-    gesture's peek animation, release-signed App Link verification.
+  - Real phone (Pixel 6a, 2026-10-07, on `feature/motion`): every feature
+    exercised; eight bugs found and fixed (Library shortcut loop, kept
+    redirect page, hidden pages navigating, Back on a dialog also going back,
+    share-cancel toast, reminder taps not opening the game warm or cold, Back
+    quitting the app mid-scan). Table and open items in
+    `docs/ANDROID-FEATURES.md` "Verified on a real phone". Still unverified:
+    QR decoding with a real code, release-signed App Link verification.
   - Pre-existing, not from this branch: `phase7-mobile.spec.ts` S2 and S5
     (mobile shelf strip) fail on the baseline too; Pick For Me suggests
     Wishlist games not yet released (`PickNextDialog`); the emoji gate flags
     18 glyphs inside `.claude/skills/impeccable` (third-party).
-- **Next (owner asked):** the motion, animation and transition system for the
-  whole app, tied to haptics on Android, plus an experimental high-motion tier
-  gated to Android and desktop for the owner to test.
+- **Phone UI audit: IN PROGRESS (stopped at session limit, 2026-10-07).**
+  The owner asked for every screen to be checked on the phone for odd
+  wrapping or whitespace, overflow, content under the status bar or the
+  gesture handle, overflowing modals, and motion-engine artefacts. The app is
+  on a TEMPORARY account the owner switched to; writes to it are allowed.
+  - Tool: `scripts/phone_audit.mjs <outDir> <routes...>`. It drives the debug
+    build over USB, measures overflow, status-bar and handle-bar overlap,
+    clipped text and skeletons, and saves 3-viewport screenshots plus
+    `report.json` (`qa/` is not committed). Run with `MSYS_NO_PATHCONV=1` in
+    Git Bash, or the /paths get mangled. The run is slow (about 25s a route),
+    so run it in the background and do not touch the phone meanwhile.
+  - Done: /, /explore/announced, /profile, /library/duplicates, /collections,
+    /browse/genres, /browse/themes, /wallpapers, /import (`qa/ui1/`). The
+    other routes in the first batch did not produce screenshots before the
+    stop; rerun them.
+  - Fixed, not yet on the phone: a game opened from In Your Library showed
+    "TBA" until it loaded (update cards were built with `release_year: null`,
+    `services/discover.js updatesToCards`; and the prelude printed `TBA` for
+    an unknown year, `GameDetail.jsx`).
+  - Leads to confirm:
+    1. Explore Top Pick hero artwork stays blank after settling (seen twice).
+       Check the image's load and opacity; the motion image fade is a suspect.
+    2. Profile taste chart: the "Perfection" label is clipped at the right.
+    3. /library/duplicates: a black band over the bottom ~86 CSS px at
+       scroll 0 hides the "dismissed group" row.
+    4. Recently Announced: the first four cards are blank (no cover, or the
+       cover not loaded); check which.
+  - Still to do: the rest of the routes, the detail pages (/game, /franchise,
+    /collection, /event, /awards/:id, /games/:type/:id, /game/:id/collections),
+    every dialog, menu and sheet (account menu, On This Phone, Appearance,
+    Recommendation settings, Pick For Me, search, drawer, game page menus,
+    library sort/group/filter, confirms), and motion mid-frames on the phone.
+- **Motion redesign (owner's second brief): built on `feature/motion`, PR #32
+  (stacked on #31).** The first pass (Standard/Expressive) was rejected as
+  generic. Spec `docs/superpowers/specs/2026-10-06-motion-design.md` (with
+  implementation notes at the end), plan `docs/superpowers/plans/
+  2026-10-06-motion-design.md`, map and device checklist `docs/MOTION.md`.
+  - Built: transition director with shared art (card poster to game poster
+    and home, Explore art to game hero, names into franchise/collection/
+    event/award headings, wallpaper tile to viewer), game page prelude,
+    library shelves sideways with travelling marker and finger-following
+    swipe, FLIP re-orders, element motion (dialogs, menus, toasts, tooltips,
+    drawer, search, press, image fade, skeleton sheen, count-ups), route
+    prefetch and page-shaped skeletons (no "Loading..." anywhere), old layer
+    removed.
+  - Verified: npm test, lint 0 errors, build, Playwright smoke + phase3 +
+    phase7 + search on chromium and Mobile Chrome 256 passed / 3 failed (N7,
+    S2, S5, failing on the baseline too), `scripts/motion_probe.mjs` on a
+    production build (ready 57-222ms, finished 539-778ms, frame p95 17ms,
+    card to game 17-33ms across runs), mid-transition frames reviewed.
+    Android emulator: transitions run in the app; the emulator was too
+    overloaded (ANR, no network) to judge the poster flight there.
+  - Also fixed: NativeBridge re-registered Android listeners on every
+    navigation (`notification.remove_listener not allowed` each time).
+  - Next: owner tries it on devices (docs/MOTION.md checklist). Pre-existing
+    and still open: a Dialog at 1024px slides under the rail (z 3000 vs
+    9999); Pick For Me can suggest unreleased Wishlist games.
 
 - **Search: built on `feature/smart-search`.** Hybrid local + IGDB search.
   `src/services/search/`: `normalize.js` (shared by build and app), `engine.js`

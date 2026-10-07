@@ -1,0 +1,156 @@
+/* LoreHaven motion: elements (overlays, controls, content).
+ * Spec: docs/superpowers/specs/2026-10-06-motion-design.md, section 4.
+ * Timing comes from the personality tokens in motion.css. Keyframes move
+ * opacity, translate, scale and clip-path only. Entrances fill `backwards`,
+ * so nothing is held once they end and inline transforms (drag to dismiss,
+ * the library lift) keep working. */
+
+/* ── Dialog ──────────────────────────────────────────────────────────────────
+   The scrim fades; the panel follows 40ms later. On a desktop it rises a
+   little from just under full size; on a phone it comes up from lower, like a
+   sheet. Exits (Escape, backdrop, drag) are played by Dialog.jsx. */
+.m-dialog-backdrop {
+  animation: m-fade-in var(--m-overlay-in) linear backwards;
+}
+.m-dialog-panel {
+  animation: m-panel-in var(--m-overlay-in) var(--m-carry-ease) 40ms backwards;
+}
+@keyframes m-panel-in {
+  from { opacity: 0; translate: 0 var(--m-travel-in); scale: 0.98; }
+}
+@media (max-width: 639px) {
+  .m-dialog-panel { animation-name: m-sheet-in; }
+}
+@keyframes m-sheet-in {
+  from { opacity: 0; translate: 0 48px; }
+}
+
+/* ── Menus ───────────────────────────────────────────────────────────────────
+   Unfold from the edge they hang from (clip-path, so nothing reflows), then
+   the first six items arrive 20ms apart. */
+@keyframes m-menu-down {
+  from { opacity: 0; clip-path: inset(0 0 100% 0); }
+  to { opacity: 1; clip-path: inset(0 0 0 0); }
+}
+@keyframes m-menu-up {
+  from { opacity: 0; clip-path: inset(100% 0 0 0); }
+  to { opacity: 1; clip-path: inset(0 0 0 0); }
+}
+.dm-scrollContainer > [role='menuitem'],
+.dm-scrollContainer > [role='menuitemradio'] {
+  animation: m-fade-in 160ms var(--m-reveal-ease) backwards;
+}
+.dm-scrollContainer > :nth-child(2) { animation-delay: 20ms; }
+.dm-scrollContainer > :nth-child(3) { animation-delay: 40ms; }
+.dm-scrollContainer > :nth-child(4) { animation-delay: 60ms; }
+.dm-scrollContainer > :nth-child(5) { animation-delay: 80ms; }
+.dm-scrollContainer > :nth-child(n + 6) { animation-delay: 100ms; }
+
+/* ── Mobile drawer ───────────────────────────────────────────────────────────
+   The rail slides in (its own transition); its rows arrive top to bottom. */
+@media (max-width: 1023px) {
+  [data-chrome='rail'][data-overlay-open] nav > * {
+    animation: m-rise-in 240ms var(--m-reveal-ease) backwards;
+  }
+  [data-chrome='rail'][data-overlay-open] nav > :nth-child(2) { animation-delay: 30ms; }
+  [data-chrome='rail'][data-overlay-open] nav > :nth-child(3) { animation-delay: 60ms; }
+  [data-chrome='rail'][data-overlay-open] nav > :nth-child(4) { animation-delay: 90ms; }
+  [data-chrome='rail'][data-overlay-open] nav > :nth-child(5) { animation-delay: 120ms; }
+  [data-chrome='rail'][data-overlay-open] nav > :nth-child(n + 6) { animation-delay: 150ms; }
+}
+@keyframes m-rise-in {
+  from { opacity: 0; translate: 0 var(--m-travel-in); }
+}
+
+/* ── Toasts ──────────────────────────────────────────────────────────────────
+   Rise from the bottom edge; leave by sinking (Toast.jsx, isClosing). */
+.m-toast-in {
+  animation: m-rise-in 240ms var(--m-carry-ease) backwards;
+}
+
+/* ── Tooltips ────────────────────────────────────────────────────────────────
+   A short wait first, so passing over a control does not flash one. */
+.platform-tooltip {
+  animation: m-tooltip-in var(--m-micro-in) var(--m-reveal-ease) 400ms backwards;
+}
+@keyframes m-tooltip-in {
+  from { opacity: 0; translate: 0 4px; }
+}
+
+/* ── Search overlay ──────────────────────────────────────────────────────────
+   The field drops from the search icon; results follow. */
+.m-drop-in {
+  animation: m-drop-in var(--m-overlay-in) var(--m-carry-ease) backwards;
+}
+@keyframes m-drop-in {
+  from { opacity: 0; translate: 0 calc(var(--m-travel-in) * -1); }
+}
+
+/* ── Banners ─────────────────────────────────────────────────────────────── */
+.m-banner-in {
+  animation: m-drop-in 240ms var(--m-carry-ease) backwards;
+}
+
+/* ── Selection fills (dial groups, toggles) ──────────────────────────────────
+   The chosen option's fill arrives from the side it was chosen from: a wipe on
+   clip-path, played by DialGroup.jsx. Colours change over the micro time. */
+[role='radiogroup'] > [role='radio'] {
+  transition: color var(--m-micro-in) var(--m-reveal-ease), border-color var(--m-micro-in) var(--m-reveal-ease);
+}
+
+/* ── Skeletons ───────────────────────────────────────────────────────────────
+   A slow, faint sheen across the placeholder instead of a pulse. The sheen is
+   a pseudo-element moved by translate, so it is composited, not repainted. In
+   a layer so Tailwind's position utilities on a skeleton still win. */
+@layer components {
+  .skeleton-placeholder {
+    position: relative;
+    overflow: hidden;
+    animation: none;
+  }
+  .skeleton-placeholder::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--lh-ink) 6%, transparent), transparent);
+    translate: -100% 0;
+    animation: m-sheen 1.8s linear infinite;
+  }
+}
+@keyframes m-sheen {
+  to { translate: 100% 0; }
+}
+
+/* ── Reduced ─────────────────────────────────────────────────────────────── */
+:root[data-motion='reduced'] .m-dialog-panel,
+:root[data-motion='reduced'] .m-toast-in,
+:root[data-motion='reduced'] .m-drop-in,
+:root[data-motion='reduced'] .m-banner-in {
+  animation: m-fade-in 150ms linear backwards;
+}
+:root[data-motion='reduced'] .dm-scrollContainer > *,
+:root[data-motion='reduced'] [data-chrome='rail'] nav > * {
+  animation: none;
+}
+:root[data-motion='reduced'] .skeleton-placeholder::after {
+  animation: none;
+  display: none;
+}
+
+/* ── Sheets and panels callers bring to Dialog ──
+   m-sheet: up from the bottom edge (phone sheets, the wallpaper sheets).
+   m-side-in: in from the right edge (a side panel on wider screens).
+   m-rise: content arriving in place, a little from below. */
+.m-sheet {
+  animation: m-sheet-in var(--m-overlay-in) var(--m-carry-ease) backwards;
+}
+@keyframes m-side-in {
+  from { opacity: 0; translate: var(--m-travel-side) 0; }
+}
+.m-rise {
+  animation: m-rise-in var(--m-reveal-dur) var(--m-reveal-ease) backwards;
+}
+:root[data-motion='reduced'] .m-sheet,
+:root[data-motion='reduced'] .m-rise {
+  animation: m-fade-in 150ms linear backwards;
+}

@@ -21,6 +21,7 @@
    finish review, the verdict, and DESIGN.md.
    ────────────────────────────────────────────────────────────────────────── */
 
+import { sharedSwap } from '../../motion/shared';
 import EmptyPlate from '../../components/ui/EmptyPlate';
 import PageHeader from '../../components/ui/PageHeader';
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback, memo } from 'react';
@@ -85,6 +86,8 @@ function shuffleArray(array) {
    and the *_med / *_big presets crop to 16:9 — a 1080x1920 portrait plate would
    come back letterboxed landscape and the justified row would be built from a
    lie. t_720p is the smallest IGDB preset that preserves aspect. */
+/* The shared key that carries a tile into the viewer and back (motion/shared.js). */
+const wpKey = (wp) => `wallpaper:${String(wp.imageId).replace(/[^A-Za-z0-9_-]/g, '-')}`;
 const tileUrl = (wp) => `https://images.igdb.com/igdb/image/upload/t_720p/${wp.imageId}.jpg`;
 const plateUrl = (wp) => `https://images.igdb.com/igdb/image/upload/t_1080p/${wp.imageId}.jpg`;
 const plateFile = (wp) => `${safeFilename(wp.gameName)} — ${wp.type} — ${wp.imageId}.jpg`;
@@ -200,6 +203,7 @@ const Tile = memo(function Tile({
     >
       <img
         src={tileUrl(wp)}
+        data-shared={wpKey(wp)}
         alt={`${wp.gameName} ${wp.type}`}
         className="w-full h-full object-cover block"
         style={{ opacity: sel ? 0.55 : 1 }}
@@ -675,6 +679,8 @@ export default function Wallpapers() {
     ? previewPool[activePreviewIndex]
     : null;
   const setAsOpen = !!active && setAsFor === active.id;
+  /* Closing flies the plate back into its tile when the tile is on screen. */
+  const closeViewer = () => sharedSwap(active ? wpKey(active) : null, () => setActivePreviewIndex(-1));
   const activeSelected = active ? selectedIds.has(active.id) : false;
 
   /* One navigator for the arrows, the filmstrip, the swipe and the keys. */
@@ -834,7 +840,7 @@ export default function Wallpapers() {
   useFocusTrap({
     active: !!active,
     containerRef: previewRef,
-    onClose: () => (setAsOpen ? setSetAsFor(null) : setActivePreviewIndex(-1)),
+    onClose: () => (setAsOpen ? setSetAsFor(null) : closeViewer()),
     lockScroll: false,
     modal: !wide,
   });
@@ -935,11 +941,14 @@ export default function Wallpapers() {
   const openFromGrid = useCallback((wp) => {
     const idx = filteredWallpapers.findIndex(f => f.id === wp.id);
     if (idx < 0) return;
-    setPreviewSource('gallery');
-    setInfoOpen(false);
-    resetZoom();
-    setPreviewDevice('none');
-    setActivePreviewIndex(idx);
+    /* The tile's image flies into the viewer (motion/shared.js). */
+    sharedSwap(wpKey(wp), () => {
+      setPreviewSource('gallery');
+      setInfoOpen(false);
+      resetZoom();
+      setPreviewDevice('none');
+      setActivePreviewIndex(idx);
+    });
   }, [filteredWallpapers, resetZoom]);
 
   /* Opening from the register closes it rather than stacking a viewer over it:
@@ -1075,7 +1084,7 @@ export default function Wallpapers() {
 
   return (
     <div
-      className="min-h-screen bg-black text-white animate-in fade-in duration-500"
+      className="min-h-screen bg-black text-white"
       /* Clears the selection bar, which floats over the last row: 52px of bar
          plus its 1rem inset plus a gap. */
       style={{ paddingBottom: 'calc(6.5rem + env(safe-area-inset-bottom, 0px))' }}
@@ -1314,7 +1323,7 @@ export default function Wallpapers() {
         z={REGISTER_Z}
         alignClassName="items-stretch justify-end"
         className="p-0 lg:pl-[220px]"
-        panelClassName="w-[380px] max-w-full h-full flex flex-col animate-in fade-in duration-200"
+        panelClassName="w-[380px] max-w-full h-full flex flex-col m-reveal"
         panelStyle={{ background: SHEET_SURFACE, border: 'none', borderLeft: `1px solid ${HAIRLINE}` }}
       >
         <div className="px-6 pt-5 pb-4 border-b border-white/15 flex items-center justify-between gap-4 shrink-0">
@@ -1376,7 +1385,7 @@ export default function Wallpapers() {
         z={REGISTER_Z}
         alignClassName="items-end"
         className="p-0"
-        panelClassName="w-full max-w-none flex flex-col animate-in slide-in-from-bottom-4 motion-reduce:animate-none"
+        panelClassName="w-full max-w-none flex flex-col m-sheet"
         panelStyle={{
           background: SHEET_SURFACE,
           border: 'none',
@@ -1552,6 +1561,7 @@ export default function Wallpapers() {
                     {wp && (
                       <img
                         ref={isCurrent ? plateImgRef : undefined}
+                        data-shared={isCurrent ? wpKey(wp) : undefined}
                         src={plateUrl(wp)}
                         alt={isCurrent ? `${wp.gameName} — ${wp.type}` : ''}
                         aria-hidden={!isCurrent}
@@ -1603,7 +1613,7 @@ export default function Wallpapers() {
                 {activePreviewIndex + 1} / {previewPool.length}
               </div>
               <button
-                onClick={() => setActivePreviewIndex(-1)}
+                onClick={closeViewer}
                 aria-label="Close preview"
                 className="w-11 h-11 shrink-0 flex items-center justify-center text-white cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-white"
               >
@@ -1670,7 +1680,7 @@ export default function Wallpapers() {
             <div className="absolute inset-0 z-20 flex items-end">
               <div className="absolute inset-0 bg-black/60" onClick={() => setInfoOpen(false)} aria-hidden="true" />
               <div
-                className="relative w-full max-h-[70%] flex flex-col animate-in slide-in-from-bottom-4 motion-reduce:animate-none"
+                className="relative w-full max-h-[70%] flex flex-col m-sheet"
                 style={{ background: SHEET_SURFACE, borderTop: `1px solid ${HAIRLINE}` }}
               >
                 <div className="flex justify-center pt-3 pb-1 shrink-0" aria-hidden="true">
@@ -1803,7 +1813,7 @@ export default function Wallpapers() {
               </button>
               <PlateMenu wp={active} onSearch={setSearchQuery} onSelectGame={queueAllFromGame} onDownload={downloadSingle} />
               <button
-                onClick={() => setActivePreviewIndex(-1)}
+                onClick={closeViewer}
                 aria-label="Close preview"
                 className="w-10 h-10 ml-1 flex items-center justify-center text-white/60 hover:bg-white hover:text-black transition-colors cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-white"
               >
@@ -1832,6 +1842,7 @@ export default function Wallpapers() {
                   src={plateUrl(active)}
                   alt=""
                   ref={plateImgRef}
+                  data-shared={wpKey(active)}
                   className={`max-w-full max-h-full object-contain select-none motion-reduce:transition-none ${previewDir > 0 ? 'wp-enter-right' : 'wp-enter-left'}`}
                   style={{ ...zoomStyle, cursor: zoomed ? (zoomGesturing ? 'grabbing' : 'grab') : 'default' }}
                 />

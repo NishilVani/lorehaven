@@ -137,10 +137,10 @@ export const ReviewCardSkeleton = () => (
 );
 
 export const CategoryPageSkeleton = () => (
-    <div aria-hidden="true" className="min-h-screen bg-black text-white pb-16 animate-in fade-in duration-500">
+    <div aria-hidden="true" className="min-h-screen bg-black text-white pb-16">
         {/* Banner skeleton */}
         <div className="w-full h-[250px] md:h-[350px] overflow-hidden border-b border-white/15 bg-neutral-950 relative">
-            <div className="absolute inset-0 bg-neutral-900 animate-pulse" />
+            <div className="absolute inset-0 bg-neutral-900" />
         </div>
 
         <div className="content-container py-6">
@@ -160,15 +160,15 @@ export const CategoryPageSkeleton = () => (
             <div className="flex flex-col gap-4 mb-8">
                 <div className="flex flex-wrap items-center gap-2">
                     <div className="flex border border-white/15">
-                        <Skeleton className="h-10 w-16 border-r border-white/15 rounded-none bg-white/10 animate-pulse" />
-                        <Skeleton className="h-10 w-16 border-r border-white/15 rounded-none bg-white/10 animate-pulse" />
-                        <Skeleton className="h-10 w-16 rounded-none bg-white/10 animate-pulse" />
+                        <Skeleton className="h-10 w-16 border-r border-white/15 rounded-none bg-white/10" />
+                        <Skeleton className="h-10 w-16 border-r border-white/15 rounded-none bg-white/10" />
+                        <Skeleton className="h-10 w-16 rounded-none bg-white/10" />
                     </div>
-                    <Skeleton className="h-10 w-36 rounded-none bg-white/10 animate-pulse" />
-                    <Skeleton className="h-10 w-32 rounded-none bg-white/10 animate-pulse" />
-                    <Skeleton className="h-10 w-28 rounded-none bg-white/10 animate-pulse" />
-                    <Skeleton className="h-10 w-32 rounded-none bg-white/10 animate-pulse" />
-                    <Skeleton className="h-10 w-36 ml-auto rounded-none bg-white/10 animate-pulse" />
+                    <Skeleton className="h-10 w-36 rounded-none bg-white/10" />
+                    <Skeleton className="h-10 w-32 rounded-none bg-white/10" />
+                    <Skeleton className="h-10 w-28 rounded-none bg-white/10" />
+                    <Skeleton className="h-10 w-32 rounded-none bg-white/10" />
+                    <Skeleton className="h-10 w-36 ml-auto rounded-none bg-white/10" />
                 </div>
             </div>
 
@@ -180,4 +180,10 @@ export const CategoryPageSkeleton = () => (
             </div>
         </div>
     </div>
+);
+
+/* A heading still on its way: a bar the height of the line it stands in for.
+   The page's live region says what is loading; this only holds the shape. */
+export const TitleSkeleton = ({ width = '9ch' }) => (
+    <span aria-hidden="true" className="skeleton-placeholder inline-block align-middle h-[0.75em]" style={{ width }} />
 );

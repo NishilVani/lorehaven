@@ -41,7 +41,7 @@ import {
 import { getLibrary, saveToLibrary } from '../../services/db';
 import GameCard from '../../components/games/GameCard';
 import DropdownMenu from '../../components/ui/DropdownMenu';
-import { GameCardSkeleton } from '../../components/ui/Skeleton';
+import { GameCardSkeleton, TitleSkeleton } from '../../components/ui/Skeleton';
 import { ChevronDown, HeartPlus, X, Info, RefreshCw } from 'lucide-react';
 import { toast } from '../../components/ui/toastBus';
 import useAnnounce from '../../components/ui/useAnnounce';
@@ -507,7 +507,7 @@ export default function CategoryPage() {
   }`;
 
   return (
-    <div className="min-h-screen bg-black text-white pb-16 animate-in fade-in duration-500">
+    <div className="min-h-screen bg-black text-white pb-16">
       <div className="content-container py-4">
 
         {/* ── Masthead. Only what has been counted. ── */}
@@ -515,7 +515,7 @@ export default function CategoryPage() {
           className="mb-4"
           titleClassName="text-[28px] lg:text-[36px] leading-none"
           title={/* a blank string is not a heading; say which state this is */
-            categoryName || (loadError ? 'Category Unavailable' : 'Loading')}
+            categoryName || (loadError ? 'Category Unavailable' : <TitleSkeleton />)}
           count={totalCount !== null && !loadError
             ? `${totalCount.toLocaleString()} ${totalCount === 1 ? 'Game' : 'Games'}`
             : null}

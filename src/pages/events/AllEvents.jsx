@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { titleState, titleKeyFor } from '../../motion/prelude';
 import EmptyPlate from '../../components/ui/EmptyPlate';
 import { useNavigate, Link } from 'react-router-dom';
 import { Search, X } from 'lucide-react';
@@ -140,7 +141,7 @@ export default function AllEvents() {
     : `${events.length} ${events.length === 1 ? 'event' : 'events'}${hasMore ? ', more available' : ''}`);
 
   return (
-    <div className="min-h-screen bg-black text-white pb-16 animate-in fade-in duration-500">
+    <div className="min-h-screen bg-black text-white pb-16">
       <div className="content-container py-4 lg:py-12">
 
         {/* ── Header ── */}
@@ -216,7 +217,8 @@ export default function AllEvents() {
             identifying mark, which is what it is good for. */}
         {heroEvent && (
           <button
-            onClick={() => navigate(`/event/${heroEvent.id}`)}
+            onClick={() => navigate(`/event/${heroEvent.id}`, { state: titleState(heroEvent.name) })}
+            data-shared-scope=""
             className="group block w-full text-left border border-white/15 mb-8 p-4 sm:p-6 hover:bg-white hover:text-black transition-colors cursor-pointer"
           >
             <div className="flex items-start gap-4 sm:gap-6">
@@ -232,7 +234,7 @@ export default function AllEvents() {
                 <div className="lh-label text-white/60 group-hover:text-black/60 transition-colors">
                   {heroStatus?.live ? 'Live now' : 'Next up'}
                 </div>
-                <div className="lh-display text-2xl sm:text-4xl mt-2 [overflow-wrap:anywhere]">{heroEvent.name}</div>
+                <div className="lh-display text-2xl sm:text-4xl mt-2 [overflow-wrap:anywhere]" data-shared={titleKeyFor(`/event/${heroEvent.id}`) || undefined}>{heroEvent.name}</div>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3">
                   <span className="lh-label text-white/60 group-hover:text-black/60 transition-colors">
                     {fmtDate(heroEvent.start_time)}
@@ -282,7 +284,8 @@ export default function AllEvents() {
               return (
                 <button
                   key={event.id}
-                  onClick={() => navigate(`/event/${event.id}`)}
+                  onClick={() => navigate(`/event/${event.id}`, { state: titleState(event.name) })}
+                  data-shared-scope=""
                   className="group w-full text-left flex items-center gap-3 sm:gap-4 px-3 py-3 border-t first:border-t-0 border-white/10 hover:bg-white hover:text-black transition-colors cursor-pointer"
                 >
                   {/* Logo — the only colour in the row */}
@@ -306,7 +309,7 @@ export default function AllEvents() {
                       truncation ate the "N yours" figure the row exists to show. */}
                   <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center sm:gap-3">
                   <div className="flex-1 min-w-0">
-                    <div className="lh-display text-base sm:text-lg truncate">{event.name}</div>
+                    <div className="lh-display text-base sm:text-lg truncate" data-shared={titleKeyFor(`/event/${event.id}`) || undefined}>{event.name}</div>
                     {/* The date alone made every row identical in weight — a Sony
                         State of Play and a streamer's indie roundup read the
                         same. How many games it showed, and how many of them are

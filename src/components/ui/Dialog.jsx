@@ -1,4 +1,5 @@
 import { useRef, useCallback } from 'react';
+import { reducedMotion } from '../../motion/motion';
 import useSwipe from '../../hooks/useSwipe';
 import { createPortal } from 'react-dom';
 
@@ -58,6 +59,26 @@ export default function Dialog({
   children,
 }) {
   const panelRef = useRef(null);
+  const backdropRef = useRef(null);
+  /* Closing the dialog's own ways (Escape, the backdrop) plays the exit first:
+     the panel sinks as both fade, 180ms. A caller that unmounts the dialog
+     itself closes it at once. */
+  const closing = useRef(false);
+  const requestClose = useCallback(() => {
+    if (closing.current) return;
+    const panel = panelRef.current;
+    if (!panel || reducedMotion()) { onClose?.(); return; }
+    closing.current = true;
+    /* Marked at once, so Android's back (services/native/back.js) counts the
+       dialog as closed: it checks two frames after its Escape, well inside
+       this exit, and read a still-mounted dialog as an Escape that did
+       nothing, so it went back a page as well (or left the app). */
+    panel.closest('[role="dialog"], [role="alertdialog"]')?.setAttribute('data-closing', '');
+    const ease = 'cubic-bezier(0.4, 0, 1, 1)';
+    panel.animate([{ opacity: 1, translate: '0 0' }, { opacity: 0, translate: '0 8px' }], { duration: 180, easing: ease, fill: 'forwards' });
+    backdropRef.current?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 180, easing: ease, fill: 'forwards' });
+    setTimeout(() => { closing.current = false; panel.closest('[data-closing]')?.removeAttribute('data-closing'); onClose?.(); }, 170);
+  }, [onClose]);
 
   /* Drag the panel down to dismiss — the same outcome as Escape, so it goes
      through onClose and the focus trap restores focus exactly as it always did.
@@ -116,7 +137,7 @@ export default function Dialog({
     active: !!open,
     containerRef: panelRef,
     boundaryRef: rootRef,
-    onClose,
+    onClose: requestClose,
     closeOnEscape,
     initialFocus,
   });
@@ -137,9 +158,10 @@ export default function Dialog({
       {/* Backdrop. A plain div, not a button: the dialog already exposes a close
           control, and a full-screen button adds a confusing extra tab stop. */}
       <div
-        className={`absolute inset-0 ${backdropClassName}`}
+        ref={backdropRef}
+        className={`absolute inset-0 m-dialog-backdrop ${backdropClassName}`}
         style={backdropStyle}
-        onClick={closeOnBackdrop ? onClose : undefined}
+        onClick={closeOnBackdrop ? requestClose : undefined}
         aria-hidden="true"
       />
 
@@ -157,24 +179,19 @@ export default function Dialog({
         aria-describedby={describedBy}
         tabIndex={-1}
         {...dragDown}
-        /* `dialog-in` scales the panel in from 0.96 rather than cross-fading it;
-           see the keyframe in index.css for why it uses a `backwards` fill and
-           must never use `both`.
+        /* `m-dialog-panel` (motion/elements.css): the panel rises in after the
+           scrim. Its fill is `backwards`, never `both`: drag-to-dismiss writes
+           `transform` inline and a held animation would override it.
 
-           Skipped when the caller brings its own entrance — the wallpaper sheets
-           pass `animate-in slide-in-from-bottom-4` (Wallpapers.jsx:1569, 1850)
-           and two animation-name declarations on one element would fight, with
-           stylesheet order deciding rather than intent.
-
-           Note the `duration-200` this replaces was inert: Tailwind's duration-*
-           sets transition-duration, which does nothing for an animation, so the
-           old entrance actually ran at `.animate-in`'s 300ms. */
+           Skipped when the caller brings its own sheet entrance (`m-sheet`):
+           two animation-name declarations on one element would fight, with
+           stylesheet order deciding rather than intent. */
         /* A black panel on a black page had no surface of its own: the 75% black
            scrim cannot darken #000, so the 1px border was the whole depth cue.
            A near-black ground plus a deep shadow separates the panel; the scrim
            needs no change. */
         className={`relative bg-neutral-950 border border-white/25 shadow-(--lh-panel-shadow) outline-none ${
-          panelClassName.includes('animate-in') ? '' : 'dialog-in'
+          /\bm-sheet\b/.test(panelClassName) ? '' : 'm-dialog-panel'
         } ${panelClassName}`}
         style={{ ...panelStyle, ...dragDown.style }}
       >

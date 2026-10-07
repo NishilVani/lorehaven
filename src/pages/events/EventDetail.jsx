@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
+import { titleKeyFor } from '../../motion/prelude';
 import EmptyPlate from '../../components/ui/EmptyPlate';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import PageHeader from '../../components/ui/PageHeader';
 import GameCard from '../../components/games/GameCard';
 import { useLibraryCards } from '../../components/games/useLibraryCards';
@@ -111,6 +112,7 @@ function Slate({ id, title, note, games, statusBadge, menuOptions }) {
 export default function EventDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -246,12 +248,13 @@ export default function EventDetail() {
       : [fmtDay(event.start_time), ago(event.start_time, now)].filter(Boolean).join(' · ');
 
   return (
-    <div className="min-h-screen bg-black text-white pb-16 animate-in fade-in duration-500">
+    <div className="min-h-screen bg-black text-white pb-16">
       <div className="content-container py-4 lg:py-12">
 
         <PageHeader
           back={{ label: 'Back', onClick: () => navigate(-1) }}
           title={event.name}
+          shared={titleKeyFor(location.pathname)}
           meta={when || undefined}
           actions={
             /* Demoted from a 380px hero to an identifying mark. Event logos are

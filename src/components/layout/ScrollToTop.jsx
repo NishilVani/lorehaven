@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigationType } from "react-router-dom";
+import { siblingDirection } from "../../motion/classify";
 
 /**
  * Per-route side effects: scroll reset, document title, and a route announcement.
@@ -39,10 +40,17 @@ const titleFor = (pathname) => {
 
 export default function ScrollToTop() {
   const { pathname } = useLocation();
+  const navigationType = useNavigationType();
   const prevPath = useRef(null);
 
   useEffect(() => {
-    window.scrollTo(0, 0);
+    /* Between library shelves the page keeps
+       its tab strip where it is and decides the scroll itself (Library.jsx);
+       everywhere else a new page starts at the top. */
+    const shelfToShelf = prevPath.current && pathname.startsWith("/library/") && siblingDirection(prevPath.current, pathname);
+    /* Back is the page stack's (motion/PageStack.jsx): it returns a kept page
+       to where it was scrolled. */
+    if (!shelfToShelf && navigationType !== 'POP') window.scrollTo(0, 0);
 
     const name = titleFor(pathname);
     document.title = name ? `${name} — LoreHaven` : 'LoreHaven';
@@ -82,6 +90,9 @@ export default function ScrollToTop() {
     }, 120);
 
     return () => { clearTimeout(t); if (restore) clearTimeout(restore); };
+    /* Pathname only: navigationType also changes on query-only replaces (the
+       library writing its sort into the URL), which must not scroll to top. */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
   return null;

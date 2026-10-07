@@ -625,7 +625,7 @@ export default function ManagePlatforms() {
         </div>
 
         {/* Tab Panels */}
-        <div className="flex flex-col lg:flex-row gap-8 items-start animate-in fade-in duration-200">
+        <div className="flex flex-col lg:flex-row gap-8 items-start m-reveal">
           
           {/* Sidebar (Search & Suggestions) */}
           <div className="w-full lg:w-80 shrink-0 p-5 rounded-none border border-white/15 bg-black  space-y-6">
@@ -989,10 +989,10 @@ export default function ManagePlatforms() {
                                   key={`target-skeleton-${i}`}
                                   className="flex items-center gap-2.5 p-2.5 rounded-none border border-white/15 bg-black"
                                 >
-                                  <div className="w-7 h-5 bg-black animate-pulse shrink-0" />
+                                  <div className="w-7 h-5 bg-black shrink-0" />
                                   <div className="min-w-0 flex-1 space-y-1.5">
-                                    <div className="h-3 w-1/2 bg-black animate-pulse" />
-                                    <div className="h-2.5 w-1/4 bg-black animate-pulse" />
+                                    <div className="h-3 w-1/2 bg-black" />
+                                    <div className="h-2.5 w-1/4 bg-black" />
                                   </div>
                                 </div>
                               ))}

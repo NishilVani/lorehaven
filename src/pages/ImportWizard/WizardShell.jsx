@@ -95,7 +95,7 @@ export default function WizardShell({ step, setStep, isFetchingApi, canGoNext, o
                     ))}
                 </div>
 
-                <div key={step} className="animate-in fade-in duration-200">
+                <div key={step} className="m-reveal">
                     {children}
                 </div>
             </div>

@@ -1,11 +1,14 @@
 import PageHeader from '../../components/ui/PageHeader';
 import { haptic } from '../../services/native/haptics';
+import { celebrate } from '../../motion/motion';
 import { shareLink } from '../../services/native/share';
 import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
 /* Loaded when opened: it carries the QR encoder. */
 const QrCodeDialog = lazy(() => import('../../components/ui/QrCodeDialog'));
 import EmptyPlate from '../../components/ui/EmptyPlate';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
+import { readPrelude, titleState } from '../../motion/prelude';
+import { transitionSettled } from '../../motion/shared';
 import useSwipe from '../../hooks/useSwipe';
 import { Play, Download, Share2, ThumbsUp, ThumbsDown, Bookmark, ArrowRightLeft, X, QrCode } from 'lucide-react';
 import { getGameById, getGamesByIds, getGamesProfile, getFranchisesByIds, getSeriesTimeline, getCollectionsByIds, getEventsByGameId } from '../../services/igdb';
@@ -135,6 +138,7 @@ const SHARE_ORIGIN = 'https://lorehaven.app';
 
 export default function GameDetail() {
   const { id } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const [game, setGame] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -175,6 +179,11 @@ export default function GameDetail() {
         return;
       }
       if (cancelled) return;
+      /* Arriving mid-transition, hold the swap until the poster has landed:
+         replacing the prelude's poster while it is in the air would make it
+         vanish (motion/shared.js). At most the length of one transition. */
+      await transitionSettled();
+      if (cancelled) return;
       setGame(data?.[0] || null);
       const entry = getLibrary().find(g => String(g.id) === String(id)) || null;
       setLibEntry(entry);
@@ -186,6 +195,24 @@ export default function GameDetail() {
       setLoading(false);
     })();
     return () => { cancelled = true; };
+  }, [id]);
+
+  /* A sync from another device used to remount this page (App.jsx), which
+     refetched the game and replayed its entrance; with two devices open that
+     flickered. The page is exempt from that remount now and takes the synced
+     library entry in place. A note being edited here is left alone: the
+     synced text only replaces it if it has not been changed on this page. */
+  const libEntryRef = useRef(libEntry);
+  useEffect(() => { libEntryRef.current = libEntry; }, [libEntry]);
+  useEffect(() => {
+    const onSync = () => {
+      const entry = getLibrary().find(g => String(g.id) === String(id)) || null;
+      const before = libEntryRef.current?.notes || '';
+      setLibEntry(entry);
+      setNotes(current => (current === before ? (entry?.notes || '') : current));
+    };
+    window.addEventListener('moctale_sync_update', onSync);
+    return () => window.removeEventListener('moctale_sync_update', onSync);
   }, [id]);
 
   /* Date.now() is impure and cannot be called during render. The released/unreleased
@@ -484,7 +511,9 @@ export default function GameDetail() {
        priority sort or group (Library.jsx:108) and the card suppresses the
        badge, so keeping it is invisible until something asks for it. */
     persist(status === 'Beaten' ? { status } : { status, dateCompleted: null });
-    haptic('light');
+    /* Finishing a game is the one move worth a little ceremony. */
+    if (status === 'Beaten') celebrate(document.activeElement);
+    else haptic('light');
     toast(`Moved to ${status}`);
   };
 
@@ -1036,14 +1065,55 @@ export default function GameDetail() {
     );
   })();
 
-  /* ── Loading skeleton ── */
+  /* ── Prelude (while loading) ──
+     The card that opened this page handed over its poster, name and year
+     (motion/prelude.js), so the page opens in its final layout: the hero
+     stage, the poster pulled up over it, the title beside it. The shared
+     poster lands here and the loaded page replaces the prelude in place. A
+     direct visit has no prelude and gets the same geometry as skeletons. */
   if (loading) {
+    const pre = readPrelude(location, id);
     return (
-      <div className="min-h-screen bg-black text-white">
-        <Skeleton className="w-full h-[32vh] md:h-[44vh] border-b border-white/15" />
-        <div className="content-container py-8">
-          <Skeleton className="h-3 w-32 mb-4" />
-          <Skeleton className="h-12 w-2/3 mb-8" />
+      <div className="min-h-screen bg-black text-white" aria-busy="true">
+        <section className="relative w-full h-[28vh] min-h-[200px] md:h-[44vh] border-b border-white/15 bg-neutral-900 overflow-hidden lg:-mt-8">
+          {pre?.hero ? (
+            <img src={img(pre.hero, '1080p')} alt="" data-shared={`hero:${pre.id}`} className="w-full h-full object-cover block" />
+          ) : pre?.cover ? (
+            /* A wash of the poster until the artwork arrives: the poster scaled
+               past the edges at low opacity. No CSS blur; it is costly on phones. */
+            <img src={img(pre.cover, 'cover_big')} alt="" aria-hidden="true" className="absolute inset-0 w-full h-full object-cover scale-125 opacity-25" />
+          ) : (
+            <Skeleton className="absolute inset-0" />
+          )}
+        </section>
+        <div className="content-container pt-3 pb-8 md:pt-8">
+          <div className="game-masthead flex gap-4 md:gap-8 items-start mb-8">
+            <div data-shared={pre?.cover ? `poster:${pre.id}` : undefined} className="relative z-10 w-24 sm:w-32 lg:w-44 shrink-0 border border-white/20 bg-black -mt-15 md:-mt-28">
+              {pre?.cover ? (
+                <img src={img(pre.cover, 'cover_big')} alt={pre.name} className="w-full aspect-[3/4] object-cover block" />
+              ) : (
+                <Skeleton className="w-full aspect-[3/4]" />
+              )}
+            </div>
+            <div className="game-masthead-text min-w-0 flex-1">
+              {pre ? (
+                <PageHeader
+                  className="mb-0"
+                  back={{ label: 'Back', onClick: () => navigate(-1), ariaLabel: 'Go back to previous page' }}
+                  titleClassName="text-3xl sm:text-4xl md:text-5xl lg:text-6xl"
+                  title={pre.name}
+                  /* The card may not know the date; "TBA" here was a claim
+                     the loaded page then contradicted. Unknown shows nothing. */
+                  meta={pre.year ? [String(pre.year)] : undefined}
+                />
+              ) : (
+                <>
+                  <Skeleton className="h-3 w-24 mb-4" />
+                  <Skeleton className="h-12 w-2/3" />
+                </>
+              )}
+            </div>
+          </div>
           <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-12">
             <div className="space-y-3">
               <Skeleton className="h-4 w-full" />
@@ -1090,7 +1160,7 @@ export default function GameDetail() {
   return (
     /* pb clears the docked tracker bar below lg, so the last section is never
        stuck under it. 3.5rem is the bar's own height. */
-    <div className="min-h-screen bg-black text-white animate-in fade-in duration-500 pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:pb-0">
+    <div className="min-h-screen bg-black text-white pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:pb-0">
       <ConfirmDialog {...confirmProps} />
 
       {hasHeroStage && (
@@ -1098,7 +1168,8 @@ export default function GameDetail() {
            edge never reaches the media button's glyph on a short viewport. */
         <section className="relative w-full h-[28vh] min-h-[200px] md:h-[44vh] border-b border-white/15 bg-neutral-900 overflow-hidden lg:-mt-8">
           {derived.heroId || heroMedia ? (
-            <img src={img(derived.heroId || heroMedia.id, '1080p')} alt={game.name} className="w-full h-full object-cover block" />
+            /* data-shared: Explore's featured artwork lands here (motion/shared.js). */
+            <img src={img(derived.heroId || heroMedia.id, '1080p')} alt={game.name} data-shared={`hero:${game.id}`} className="w-full h-full object-cover block" />
           ) : (
             <div className="absolute inset-0 bg-neutral-900" aria-hidden="true" />
           )}
@@ -1121,14 +1192,17 @@ export default function GameDetail() {
         </section>
       )}
 
-      <div className="content-container py-8">
+      <div className="content-container pt-3 pb-8 md:pt-8">
 
         {/* ── Masthead: the poster beside the title, the way Explore's hero sets a
             game. The cover is pulled up over the hero so the two read as one
             plate; the title column starts below the art, so no type sits on it. */}
-        <div className="flex gap-4 md:gap-8 items-start mb-8">
+        <div className="game-masthead flex gap-4 md:gap-8 items-start mb-8">
           {game.cover?.image_id && (
-            <div className={`relative z-10 w-24 sm:w-32 lg:w-44 shrink-0 border border-white/20 bg-black ${hasHeroStage ? '-mt-20 md:-mt-28' : ''}`}>
+            /* The framed poster is the shared art: a tapped card's poster lands
+               here and flies home from here, frame and all, so no empty frame is
+               left behind while it travels (motion/shared.js). */
+            <div data-shared={`poster:${game.id}`} className={`relative z-10 w-24 sm:w-32 lg:w-44 shrink-0 border border-white/20 bg-black ${hasHeroStage ? '-mt-15 md:-mt-28' : ''}`}>
               <img
                 src={img(game.cover.image_id, 'cover_big')}
                 alt={game.name}
@@ -1136,7 +1210,7 @@ export default function GameDetail() {
               />
             </div>
           )}
-          <div className="min-w-0 flex-1">
+          <div className="game-masthead-text min-w-0 flex-1">
             <PageHeader
               className="mb-0"
               back={{ label: 'Back', onClick: () => navigate(-1), ariaLabel: 'Go back to previous page' }}
@@ -1168,7 +1242,9 @@ export default function GameDetail() {
           moreOptions={moreOptions}
         />
 
-        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-12 lg:items-start">
+        {/* The body fades up where the prelude's skeleton stood when the data
+            arrives after the poster has landed (motion/elements.css m-reveal). */}
+        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-12 lg:items-start m-reveal">
 
           {/* ── Main column: the answer for you, then the game itself ── */}
           <div className="min-w-0">
@@ -1243,9 +1319,10 @@ export default function GameDetail() {
                   aside={franchise && !timeline && (
                     <Link
                       to={`/franchise/${franchise.id}`}
+                      state={titleState(franchise.name)}
                       className="lh-label text-white/60 hover:text-white focus-visible:text-white underline decoration-white/30 underline-offset-4 py-2 -my-2 shrink-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white transition-colors"
                     >
-                      Part of {franchise.name}
+                      Part of <span data-shared={`franchise-title:${franchise.id}`}>{franchise.name}</span>
                     </Link>
                   )}
                 >

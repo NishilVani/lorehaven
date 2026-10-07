@@ -1,4 +1,6 @@
 import PageHeader from '../../components/ui/PageHeader';
+import { TitleSkeleton } from '../../components/ui/Skeleton';
+import { readTitle, titleKeyFor } from '../../motion/prelude';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import EmptyPlate from '../../components/ui/EmptyPlate';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
@@ -220,7 +222,7 @@ export default function CollectionDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white pb-16 animate-in fade-in duration-500">
+    <div className="min-h-screen bg-black text-white pb-16">
       <div className="content-container py-4">
 
         {/* ── Header — editorial index ── */}
@@ -274,7 +276,8 @@ export default function CollectionDetail() {
             <PageHeader
               className={description ? 'mb-3' : 'mb-8'}
               back={{ label: 'Collections', onClick: () => navigate('/collections') }}
-              title={name || 'Loading'}
+              title={name || readTitle(location) || <TitleSkeleton />}
+              shared={titleKeyFor(location.pathname)}
               count={`${games.length} ${games.length === 1 ? 'Title' : 'Titles'}`}
               meta={meta ? `Collection — ${meta}` : 'Collection'}
               actions={
@@ -430,7 +433,7 @@ export default function CollectionDetail() {
                 {groups.map(group => (
                   <div key={group.label || 'all'}>
                     {group.label && <GroupHeader label={group.label} count={group.games.length} />}
-                    <div className="game-grid animate-in slide-in-from-bottom-4 fade-in">
+                    <div className="game-grid m-reveal">
                       {group.games.map(game => (
                         <GameCard
                           key={game.id}

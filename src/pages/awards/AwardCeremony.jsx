@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { TitleSkeleton } from '../../components/ui/Skeleton';
+import { readTitle, titleKeyFor } from '../../motion/prelude';
+import { useParams, useNavigate, Link, useSearchParams, useLocation } from 'react-router-dom';
 import {
   ChevronLeft, ChevronRight, MoreVertical,
   Gamepad2, List as ListIcon, Heart, Trophy, CircleMinus, X,
@@ -126,6 +128,7 @@ function WinnerMenu({ game, opts }) {
 export default function AwardCeremony() {
   const { awardQid } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   // The active year lives in the URL (?year=) so it's shareable and deep-linkable;
   // ?cat= deep-links a category. No year state — activeYear is derived below.
   const [searchParams, setSearchParams] = useSearchParams();
@@ -385,7 +388,7 @@ export default function AwardCeremony() {
   }, [yearsList]);
 
   return (
-    <div className="min-h-screen bg-black text-white pb-20 animate-in fade-in duration-500">
+    <div className="min-h-screen bg-black text-white pb-20">
       <ConfirmDialog {...confirmProps} />
 
       <div className="content-container pt-2">
@@ -395,8 +398,8 @@ export default function AwardCeremony() {
         <div className="lh-label text-white/60 mt-7">
           Ceremony{span ? ` · ${span}` : ''}{yearsList.length ? ` · ${yearsList.length} Years` : ''}
         </div>
-        <h1 className="lh-display text-white m-0 mt-2.5 break-words leading-[0.92]" style={{ fontSize: 'clamp(36px,6vw,72px)' }}>
-          {label || (loading ? 'Loading' : 'Award')}
+        <h1 className="lh-display text-white m-0 mt-2.5 break-words leading-[0.92]" style={{ fontSize: 'clamp(36px,6vw,72px)' }} data-shared={titleKeyFor(location.pathname) || undefined}>
+          {label || readTitle(location) || (loading ? <TitleSkeleton /> : 'Award')}
         </h1>
       </div>
 
@@ -417,13 +420,13 @@ export default function AwardCeremony() {
             <div className="lh-label text-white/50 pb-3">Wikidata is throttling. Attempt {attempt} of 3.</div>
           )}
           <div className="border-y border-white/15 py-4 flex gap-7">
-            {Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-6 w-14 bg-white/10 animate-pulse" />)}
+            {Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-6 w-14 bg-white/10" />)}
           </div>
           <div className="flex gap-11 py-12">
-            <div className="w-[190px] aspect-[3/4] bg-white/[0.06] animate-pulse" />
+            <div className="w-[190px] aspect-[3/4] bg-white/[0.06]" />
             <div className="flex-1 space-y-4 pt-4">
-              <div className="h-3 w-40 bg-white/10 animate-pulse" />
-              <div className="h-14 w-2/3 bg-white/[0.06] animate-pulse" />
+              <div className="h-3 w-40 bg-white/10" />
+              <div className="h-14 w-2/3 bg-white/[0.06]" />
             </div>
           </div>
         </div>
@@ -464,7 +467,7 @@ export default function AwardCeremony() {
 
           {/* ── Game of the Year hero ── */}
           {heroWinner && (
-            <div key={`hero-${activeYear}`} className="relative border-b border-white/15 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div key={`hero-${activeYear}`} className="relative border-b border-white/15 overflow-hidden m-reveal">
               {heroWinner.art_id ? (
                 <img src={img(heroWinner.art_id, '1080p')} alt="" className="absolute inset-0 w-full h-full object-cover" />
               ) : (
@@ -550,7 +553,7 @@ export default function AwardCeremony() {
               </div>
 
               {detail && (
-                <div key={`${activeYear}-${detail.qid}`} className="pl-8 py-7 scroll-mt-20 animate-in fade-in duration-300 min-w-0">
+                <div key={`${activeYear}-${detail.qid}`} className="pl-8 py-7 scroll-mt-20 m-reveal min-w-0">
                   <div className="flex items-baseline justify-between gap-4">
                     {/* must be a <span>: .award-shine is defined as
                         `.award-shine:not(div), .award-shine span`, so a div never shines.

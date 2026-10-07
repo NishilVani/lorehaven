@@ -116,7 +116,7 @@ export default function ExploreList() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white pb-16 animate-in fade-in duration-500">
+    <div className="min-h-screen bg-black text-white pb-16">
       <div className="content-container py-4">
         <PageHeader
           back={{ label: 'Explore', onClick: () => navigate('/') }}

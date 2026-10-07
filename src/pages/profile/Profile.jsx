@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
+import CountUp from '../../motion/CountUp';
 import SteamAccount from './SteamAccount';
 import XboxAccount from './XboxAccount';
 import { Check, X, Pencil } from 'lucide-react';
@@ -44,10 +45,12 @@ const sinceText = (at) => {
   return `${Math.floor(s / 86400)} d ago`;
 };
 
+const formatCount = (v) => nf.format(v);
+
 function Count({ n, label }) {
   return (
     <div className="min-w-0">
-      <div className="lh-display text-[28px] lg:text-[36px] text-white leading-none tabular-nums">{nf.format(n)}</div>
+      <div className="lh-display text-[28px] lg:text-[36px] text-white leading-none tabular-nums"><CountUp value={n} format={formatCount} /></div>
       <div className="lh-label text-white/60 mt-2">{label}</div>
     </div>
   );
@@ -174,7 +177,7 @@ export default function Profile() {
         : 'idle';
 
   return (
-    <div className="min-h-screen bg-black text-white pb-16 animate-in fade-in duration-500">
+    <div className="min-h-screen bg-black text-white pb-16">
       <div className="content-container py-4">
 
         <header className="flex flex-wrap items-start justify-between gap-6 pb-8 border-b border-white/15">

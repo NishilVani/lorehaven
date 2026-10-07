@@ -13,10 +13,10 @@ globalThis.localStorage = {
 globalThis.window = { dispatchEvent: () => {} };
 
 const { planReminders, diffReminders, DEFAULT_REMINDERS } = await import('../src/services/native/reminders.js');
-const { routeFromShortcut, routeFromWebLink, routeFromAppGame } = await import('../src/services/native/links.js');
+const { routeFromShortcut, routeFromWebLink, routeFromAppGame, routeFromNotificationTap } = await import('../src/services/native/links.js');
 const { buildWidgetData } = await import('../src/services/native/widgets.js');
 const { parseSharedText, searchRoute } = await import('../src/services/native/shareIn.js');
-const { planDigest, nextDigestAt, DIGEST_HOUR } = await import('../src/services/native/libraryDigest.js');
+const { planDigest, nextDigestAt, DIGEST_HOUR, DIGEST_ID } = await import('../src/services/native/libraryDigest.js');
 const { routeForScan } = await import('../src/services/native/qr.js');
 const { getDeviceSettings, setDeviceSettings, isAndroidApp } = await import('../src/services/native/device.js');
 
@@ -195,3 +195,12 @@ assert.strictEqual(routeForScan('WIFI:S:home;T:WPA;P:secret;;'), null, 'not ever
 }
 
 console.log('native: all assertions passed');
+
+/* A tapped notification: the id is all Android hands back. */
+assert.strictEqual(routeFromNotificationTap(1942), '/game/1942', 'a release reminder opens its game');
+assert.strictEqual(routeFromNotificationTap(DIGEST_ID), '/explore/updates', 'the digest opens In Your Library');
+assert.strictEqual(routeFromNotificationTap(null), null);
+assert.strictEqual(routeFromNotificationTap(0), null);
+assert.strictEqual(routeFromNotificationTap(-5), null);
+assert.strictEqual(routeFromNotificationTap('1942; drop'), null, 'nothing but a number reaches the router');
+console.log('notification taps: ok');

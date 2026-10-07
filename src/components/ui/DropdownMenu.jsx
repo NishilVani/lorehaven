@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, isValidElement } from 'react';
+import { reducedMotion } from '../../motion/motion';
 import { createPortal } from 'react-dom';
 import MarqueeText from './MarqueeText';
 
@@ -312,9 +313,10 @@ export default function DropdownMenu({
             background: 'var(--lh-paper)',
             border: '1px solid color-mix(in oklab, var(--lh-ink) 25%, transparent)',
             padding: '4px',
-            animation: pos.openUpward
-              ? 'dm-enter-up 0.14s cubic-bezier(0.2, 0, 0, 1.1) both'
-              : 'dm-enter-down 0.14s cubic-bezier(0.2, 0, 0, 1.1) both',
+            /* Unfolds from the edge it hangs from (motion/elements.css). */
+            animation: reducedMotion()
+              ? 'm-fade-in 120ms linear backwards'
+              : `${pos.openUpward ? 'm-menu-up' : 'm-menu-down'} 200ms cubic-bezier(0.2, 0, 0, 1) backwards`,
             transformOrigin: `${pos.openUpward ? 'bottom' : 'top'} ${align === 'right' ? 'right' : 'left'}`,
             overflowY: pos.maxHeight ? 'auto' : 'hidden',
             overflowX: 'hidden',

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RefreshCw } from 'lucide-react';
 import Dialog from '../ui/Dialog';
+import { haptic } from '../../services/native/haptics';
 import { pickNextGame, suggestablePicks } from '../../services/pickNext';
 import { statusColor } from '../../constants/stateColors';
 
@@ -348,6 +349,8 @@ export default function PickNextDialog({ onClose }) {
        covered the hole. */
     setCut(prev => ({ out: new Set([...prev.out, winIndex]), delay: new Map(prev.delay) }));
     setFlare(true);
+    /* The pick lands: a light tap on Android (spec 2.5). */
+    haptic('light');
     setState({ phase: 'rest', ...result, cuts: true });
     if (result.game) setSeen(prev => [...prev, String(result.game.id)]);
 
@@ -568,7 +571,7 @@ export default function PickNextDialog({ onClose }) {
             <li
               key={r}
               style={{ animationDelay: `${settled + Math.round((REASON_HOLD_MS + i * REASON_STAGGER_MS) * ceremony)}ms` }}
-              className={`border-b border-white/10 py-2.5 text-[13px] leading-snug animate-in fade-in slide-in-from-bottom-4 motion-reduce:animate-none ${
+              className={`border-b border-white/10 py-2.5 text-[13px] leading-snug m-rise ${
                 i === 0 ? 'text-white/80' : 'text-white/60'
               }`}
             >

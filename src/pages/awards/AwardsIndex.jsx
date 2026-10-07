@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { titleKeyFor, titleState } from '../../motion/prelude';
 import { Link } from 'react-router-dom';
 import { Search, X, RefreshCw } from 'lucide-react';
 import { fetchCeremonies, clearAwardsCache } from '../../services/wikidata/awards';
@@ -61,7 +62,7 @@ export default function AwardsIndex() {
     : `${filtered.length} ${filtered.length === 1 ? 'ceremony' : 'ceremonies'}`);
 
   return (
-    <div className="min-h-screen bg-black text-white pb-16 animate-in fade-in duration-500">
+    <div className="min-h-screen bg-black text-white pb-16">
       <div className="content-container py-4">
 
         {/* Don't assert a count we do not have yet. With nothing painted this
@@ -127,13 +128,14 @@ export default function AwardsIndex() {
               <Link
                 key={c.qid}
                 to={`/awards/${c.qid}`}
+                state={titleState(c.label)}
                 className={`group flex items-center justify-between gap-4 w-full px-4 py-3 transition-colors ${i > 0 ? 'border-t border-white/10' : ''} text-white/60 hover:bg-white hover:text-black`}
               >
                 <span className="flex items-baseline gap-3 min-w-0">
                   <span className="lh-label tabular-nums w-6 shrink-0">
                     {String(i + 1).padStart(2, '0')}
                   </span>
-                  <span className="lh-display text-base truncate">{c.label}</span>
+                  <span className="lh-display text-base truncate" data-shared={titleKeyFor(`/awards/${c.qid}`) || undefined}>{c.label}</span>
                 </span>
                 <span className="lh-label tabular-nums shrink-0">
                   {c.games} {c.games === 1 ? 'Game' : 'Games'}

@@ -511,6 +511,19 @@ const updateEventId = (gameId, event, snap) => {
   return `${gameId}-${event.type}-${snap.updated_at || Date.now()}`;
 };
 
+/* Two snapshot maps hold the same games with the same data, ignoring when each
+   was taken (_snap_at) and key order. */
+function sameSnapshots(a, b) {
+  const ka = Object.keys(a || {});
+  if (ka.length !== Object.keys(b || {}).length) return false;
+  const norm = (o) => {
+    if (!o || typeof o !== 'object') return JSON.stringify(o);
+    const { _snap_at: _ignored, ...rest } = o;
+    return JSON.stringify(Object.keys(rest).sort().map((k) => [k, rest[k]]));
+  };
+  return ka.every((k) => b && k in b && norm(a[k]) === norm(b[k]));
+}
+
 export async function refreshLibraryUpdates({ force = false } = {}) {
   const library = getLibrary().filter(g => !g.is_custom && !String(g.id).startsWith('custom_'));
   const feed = readFeed();
@@ -570,8 +583,15 @@ export async function refreshLibraryUpdates({ force = false } = {}) {
        whole feature on one machine. The other two stay local on purpose:
        CHECKED_KEY is this device's own refresh timer and VERSION_KEY is a client
        schema marker — see the DOMAINS comment in db.js. */
-    setSyncedLocalItem(FEED_KEY, JSON.stringify(merged));
-    setSyncedLocalItem(SNAP_KEY, JSON.stringify(nextSnaps));
+    /* Only what changed goes back to the cloud. Every refresh stamps a fresh
+       _snap_at, and writing a snapshot whose games were otherwise identical
+       reached every other signed-in device as new data; a device showing
+       Explore answered with its own refresh and its own write, and two of
+       them kept that going about once a second (each round remounted the
+       routes, so an open game page flickered). */
+    const sameFeed = merged.length === feed.length && merged.every((e, i) => e.id === feed[i]?.id);
+    if (!sameFeed) setSyncedLocalItem(FEED_KEY, JSON.stringify(merged));
+    if (!sameSnapshots(prevSnaps, nextSnaps)) setSyncedLocalItem(SNAP_KEY, JSON.stringify(nextSnaps));
     localStorage.setItem(CHECKED_KEY, String(Date.now()));
     localStorage.setItem(VERSION_KEY, FEED_VERSION);
   } catch (e) {
@@ -677,7 +697,15 @@ export function updatesToCards(events, library = getLibrary()) {
     const libGame = libMap[String(g.gameId)];
     const gameTypeVal = g.game_type ?? libGame?.game_type ?? 0;
     return {
-      card: { id: g.gameId, name: g.name, cover_id: g.cover, release_year: null, game_type_label: null, game_type: gameTypeVal },
+      /* The library copy has the date: the card's footer and the game page it
+         opens (its prelude) read it from here, and without it both said TBA
+         for games that have one (Wolverine). */
+      card: {
+        id: g.gameId, name: g.name, cover_id: g.cover,
+        release_year: libGame?.release_year ?? null,
+        first_release_date: libGame?.first_release_date ?? null,
+        game_type_label: null, game_type: gameTypeVal,
+      },
       primary,                 // { type, detail }
       extra: mergedEvents.length - 1,
       events: mergedEvents,

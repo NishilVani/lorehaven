@@ -170,7 +170,7 @@ const ToastItem = ({ toast, onClose }) => {
         flex items-start justify-between
         text-white text-sm font-medium
         transition-all duration-300 ease-out
-        ${isClosing ? 'opacity-0 translate-x-8' : 'animate-slide-in-right'}
+        ${isClosing ? 'opacity-0 translate-y-2' : 'm-toast-in'}
       `}
     >
       <div className="mr-6 lh-label lh-multiline">

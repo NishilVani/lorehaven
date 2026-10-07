@@ -15,6 +15,7 @@
  * served at /.well-known/assetlinks.json). Read-only pages, numeric ids only. */
 
 import { parseAppUrl } from '../appSignIn.js';
+import { DIGEST_ID } from './libraryDigest.js';
 
 const SHORTCUTS = {
   search: '/?search=true',
@@ -56,4 +57,13 @@ export function routeFromWebLink(link) {
     if (m) return url.pathname.replace(/\/$/, '');
   }
   return null;
+}
+
+/** The page a tapped notification opens, from its id alone (all the tap
+ *  carries; LoreHavenPlugin.takeNotificationTap). A release reminder's id is
+ *  its game's id (reminders.js); the evening digest has its own. */
+export function routeFromNotificationTap(id) {
+  const n = Number(id);
+  if (n === DIGEST_ID) return '/explore/updates';
+  return Number.isInteger(n) && n > 0 && n < DIGEST_ID ? `/game/${n}` : null;
 }

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { isTauri } from '../../services/openExternal';
 import { routeFromAppLink } from '../../services/appSignIn';
@@ -17,16 +17,25 @@ import { routeFromShortcut, routeFromWebLink, routeFromAppGame } from '../../ser
  */
 export default function AppLinks() {
   const navigate = useNavigate();
+  /* React Router makes a new navigate on every page change. With it as a
+     dependency the effect below re-ran after each navigation, asked Android
+     for the launch link again (which reports the latest one), and followed it
+     again: the Library shortcut, whose /library only redirects, so it never
+     reads as "already there", navigated in a loop five times a second. Read
+     navigate through a ref and run the effect once. */
+  const navigateRef = useRef(navigate);
+  useEffect(() => { navigateRef.current = navigate; }, [navigate]);
 
   useEffect(() => {
     if (!isTauri()) return undefined;
     let live = true;
     let unlisten = null;
 
+    const routeFor = (url) => routeFromAppLink(url) || routeFromShortcut(url) || routeFromAppGame(url) || routeFromWebLink(url);
     const follow = (urls) => {
       for (const url of urls || []) {
         const signIn = routeFromAppLink(url);
-        const route = signIn || routeFromShortcut(url) || routeFromAppGame(url) || routeFromWebLink(url);
+        const route = signIn || routeFor(url);
         if (!route) continue;
         /* The sign-in page reads its address once, when it mounts. Already on
            that page, a navigation would change the address under it and
@@ -34,7 +43,7 @@ export default function AppLinks() {
            sign-in pages: the search shortcut's '/?search=true' shares '/' with
            the home page, and reloading there looped (see below). */
         if (signIn && route.split('?')[0] === window.location.pathname) window.location.assign(route);
-        else navigate(route);
+        else navigateRef.current(route);
         return;
       }
     };
@@ -49,7 +58,13 @@ export default function AppLinks() {
       const key = 'lorehaven_followed_launch_link';
       const seen = (() => { try { return sessionStorage.getItem(key); } catch { return null; } })();
       const firstKey = first ? JSON.stringify(first) : null;
-      if (live && first && firstKey !== seen) {
+      /* Skip it only when this page is already where it leads: that is the
+         page re-reading a link it followed (the sign-in reload). Android's
+         WebView keeps sessionStorage across app restarts, so on a fresh launch
+         the same link (a widget row tapped twice) must be followed again. */
+      const here = window.location.pathname + window.location.search;
+      const already = (first || []).some((u) => routeFor(u) === here);
+      if (live && first && !(firstKey === seen && already)) {
         try { sessionStorage.setItem(key, firstKey); } catch { /* private mode: follow anyway */ }
         follow(first);
       }
@@ -67,7 +82,7 @@ export default function AppLinks() {
       live = false;
       unlisten?.();
     };
-  }, [navigate]);
+  }, []);
 
   return null;
 }

@@ -13,7 +13,13 @@ export async function shareLink({ title, url }) {
       const { shareText } = await import('@choochmeque/tauri-plugin-sharekit-api');
       await shareText(title ? `${title}\n${url}` : url, { mimeType: 'text/plain' });
       return 'shared';
-    } catch {
+    } catch (err) {
+      /* The sheet opened and came back "cancelled". Android's chooser reports
+         that unreliably (many apps return it after a real share too), so it is
+         not a failure to fall back from: falling through here copied the link
+         and toasted, or toasted "Could not copy" when the WebView lacked focus
+         for the clipboard. */
+      if (/cancel/i.test(String(err?.message ?? err))) return 'cancelled';
       /* An APK built before the plugin: fall through to the clipboard. */
     }
   }
