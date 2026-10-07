@@ -47,6 +47,38 @@ infinite-scroll audit, with the measurement behind every claim.
     (mobile shelf strip) fail on the baseline too; Pick For Me suggests
     Wishlist games not yet released (`PickNextDialog`); the emoji gate flags
     18 glyphs inside `.claude/skills/impeccable` (third-party).
+- **Phone UI audit: IN PROGRESS (stopped at session limit, 2026-10-07).**
+  The owner asked for every screen to be checked on the phone for odd
+  wrapping or whitespace, overflow, content under the status bar or the
+  gesture handle, overflowing modals, and motion-engine artefacts. The app is
+  on a TEMPORARY account the owner switched to; writes to it are allowed.
+  - Tool: `scripts/phone_audit.mjs <outDir> <routes...>`. It drives the debug
+    build over USB, measures overflow, status-bar and handle-bar overlap,
+    clipped text and skeletons, and saves 3-viewport screenshots plus
+    `report.json` (`qa/` is not committed). Run with `MSYS_NO_PATHCONV=1` in
+    Git Bash, or the /paths get mangled. The run is slow (about 25s a route),
+    so run it in the background and do not touch the phone meanwhile.
+  - Done: /, /explore/announced, /profile, /library/duplicates, /collections,
+    /browse/genres, /browse/themes, /wallpapers, /import (`qa/ui1/`). The
+    other routes in the first batch did not produce screenshots before the
+    stop; rerun them.
+  - Fixed, not yet on the phone: a game opened from In Your Library showed
+    "TBA" until it loaded (update cards were built with `release_year: null`,
+    `services/discover.js updatesToCards`; and the prelude printed `TBA` for
+    an unknown year, `GameDetail.jsx`).
+  - Leads to confirm:
+    1. Explore Top Pick hero artwork stays blank after settling (seen twice).
+       Check the image's load and opacity; the motion image fade is a suspect.
+    2. Profile taste chart: the "Perfection" label is clipped at the right.
+    3. /library/duplicates: a black band over the bottom ~86 CSS px at
+       scroll 0 hides the "dismissed group" row.
+    4. Recently Announced: the first four cards are blank (no cover, or the
+       cover not loaded); check which.
+  - Still to do: the rest of the routes, the detail pages (/game, /franchise,
+    /collection, /event, /awards/:id, /games/:type/:id, /game/:id/collections),
+    every dialog, menu and sheet (account menu, On This Phone, Appearance,
+    Recommendation settings, Pick For Me, search, drawer, game page menus,
+    library sort/group/filter, confirms), and motion mid-frames on the phone.
 - **Motion redesign (owner's second brief): built on `feature/motion`, PR #32
   (stacked on #31).** The first pass (Standard/Expressive) was rejected as
   generic. Spec `docs/superpowers/specs/2026-10-06-motion-design.md` (with

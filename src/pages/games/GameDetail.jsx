@@ -1102,7 +1102,9 @@ export default function GameDetail() {
                   back={{ label: 'Back', onClick: () => navigate(-1), ariaLabel: 'Go back to previous page' }}
                   titleClassName="text-3xl sm:text-4xl md:text-5xl lg:text-6xl"
                   title={pre.name}
-                  meta={[pre.year || 'TBA']}
+                  /* The card may not know the date; "TBA" here was a claim
+                     the loaded page then contradicted. Unknown shows nothing. */
+                  meta={pre.year ? [String(pre.year)] : undefined}
                 />
               ) : (
                 <>

@@ -697,7 +697,15 @@ export function updatesToCards(events, library = getLibrary()) {
     const libGame = libMap[String(g.gameId)];
     const gameTypeVal = g.game_type ?? libGame?.game_type ?? 0;
     return {
-      card: { id: g.gameId, name: g.name, cover_id: g.cover, release_year: null, game_type_label: null, game_type: gameTypeVal },
+      /* The library copy has the date: the card's footer and the game page it
+         opens (its prelude) read it from here, and without it both said TBA
+         for games that have one (Wolverine). */
+      card: {
+        id: g.gameId, name: g.name, cover_id: g.cover,
+        release_year: libGame?.release_year ?? null,
+        first_release_date: libGame?.first_release_date ?? null,
+        game_type_label: null, game_type: gameTypeVal,
+      },
       primary,                 // { type, detail }
       extra: mergedEvents.length - 1,
       events: mergedEvents,
